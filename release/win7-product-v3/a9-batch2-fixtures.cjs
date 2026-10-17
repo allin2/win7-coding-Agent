@@ -24,11 +24,11 @@ const CONTRACT = Object.freeze({
   result_ceiling: 'Batch-2 execution capability only; never the full Alpha 2 or an RC verdict.',
 });
 
-// Resource ceiling proposed by A9-33 section 5/6.3. These are caps, not a granted budget:
+// A9-39 retains the ten phases/16 requests and increases the wall ceiling for fixed new samples. These are caps, not a granted budget:
 // every prepare, repeat and failed call counts against max_requests.
 const LIMITS = Object.freeze({
   max_requests: 16,
-  max_wall_seconds: 7200,
+  max_wall_seconds: 21600,
   desktop_windows: 1,
   max_background_processes: 3,
   request_ttl_seconds: 900,
@@ -53,7 +53,7 @@ const PHASES = Object.freeze([
   { id: 'p06-continue', gate: 'G2', order: 6, script: 'smoke', requires: ['p03-chain'], cost: 1,
     summary: 'CONT-01 and CONT-03 restart, one click one Turn, stale approvals, unknown side effects and zero-request guards' },
   { id: 'p07-safe', gate: 'G2', order: 7, script: 'smoke', requires: ['p03-chain'], cost: 1,
-    summary: 'SAFE-02 audit hard stop and unknown side effects' },
+    summary: 'SAFE-02 plus A37-01..04 and A38-01..08; isolated secrets, projections and restart journeys' },
   { id: 'p08-ui', gate: 'G2', order: 8, script: 'smoke', requires: ['p03-chain'], cost: 1,
     summary: 'UI-01..02 continue card interaction, focus/scroll, Stop and reachable layouts' },
   { id: 'p09-report', gate: 'G3', order: 9, script: 'report', requires: ['p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui'], cost: 1,
@@ -83,6 +83,75 @@ function makeCase(id, gate, phase, requirement, purpose, descriptions, evidence)
     evidence_class: 'DIRECT_CURRENT_CANDIDATE',
   };
 }
+
+// Fixed A9-39 inputs. Only sample IDs cross the loopback control boundary; never command text.
+const SECRET_ENCODINGS = Object.freeze(['utf8', 'utf16le', 'gbk']);
+const SECRET_FORMS = Object.freeze(['plain', 'base64', 'base64-unpadded', 'base64url', 'base64url-unpadded', 'percent', 'path']);
+const BASIC_FORMS = Object.freeze(['pair', 'base64', 'base64-unpadded', 'base64url', 'base64url-unpadded', 'percent', 'header']);
+const AUTH_SCHEMES = Object.freeze(['Basic', 'NTLM', 'Negotiate', '1Custom', '!Custom', '_Custom']);
+const cartesian = (...sets) => sets.reduce((rows, set) => rows.flatMap((row) => set.map((value) => row.concat(value))), [[]]);
+function fixedSamples(rows) { return rows.map((row, index) => ({ id: `s${String(index + 1).padStart(3, '0')}`, ...row })); }
+const SECRET_SAMPLES = Object.freeze({
+  'B2-A37-01': fixedSamples(cartesian(['header', 'source', 'url'], SECRET_ENCODINGS).map(([example, encoding]) => ({ example, encoding }))),
+  'B2-A37-02': fixedSamples(cartesian(['api', 'proxy-password', 'custom-header', 'previous-api'], SECRET_FORMS, SECRET_ENCODINGS).map(([source, form, encoding]) => ({ source, form, encoding }))),
+  'B2-A37-03': fixedSamples(['current', 'restart'].map((stage) => ({ stage }))),
+  'B2-A37-04': fixedSamples([{ example: 'header', encoding: 'utf8', expected: 'secret_blocked' }, { example: 'url', encoding: 'utf8', expected: 'secret_blocked' },
+    { example: 'header', encoding: 'utf16le', expected: 'decode_error' }, { example: 'header', encoding: 'gbk', expected: 'decode_error' }]),
+  'B2-A38-01': fixedSamples(cartesian(['utf8', 'latin1'], BASIC_FORMS, SECRET_ENCODINGS).map(([material, form, encoding]) => ({ material, form, encoding }))),
+  'B2-A38-02': fixedSamples([{ change: 'clear', pair: 'old' }, { change: 'username', pair: 'old' }, { change: 'username', pair: 'new' },
+    { change: 'password', pair: 'old' }, { change: 'password', pair: 'new' }]),
+  'B2-A38-03': fixedSamples(cartesian(['utf8', 'latin1'], ['base64', 'base64-unpadded', 'base64url'], ['new', 'revalidate']).map(([material, form, stage]) => ({ material, form, stage }))),
+  'B2-A38-04': fixedSamples(cartesian(AUTH_SCHEMES, ['Authorization', 'pRoXy-aUtHoRiZaTiOn'], [':', '='], [' ', '\t']).map(([scheme, field, separator, gap]) => ({ scheme, field, separator, gap }))),
+  'B2-A38-05': fixedSamples(cartesian(['model', 'shell'], ['utf8', 'latin1'], ['base64', 'base64-unpadded', 'base64url', 'base64url-unpadded', 'percent']).map(([surface, material, form]) => ({ surface, material, form }))),
+  'B2-A38-06': fixedSamples([{ example: 'unregistered' }, { example: 'documentation' }, { example: 'unregistered-base64' }]),
+  'B2-A38-07': fixedSamples([{ stage: 'saved' }, { stage: 'restart' }]),
+  'B2-A38-08': fixedSamples(AUTH_SCHEMES.flatMap((scheme) => [' ', '\t'].map((gap) => ({ scheme, gap, boundary: 'token' }))).concat(
+    AUTH_SCHEMES.map((scheme) => ({ scheme, gap: '', boundary: 'newline' })), [{ boundary: 'bearer' }, { boundary: 'url' }])),
+});
+const SECRET_CASE_IDS = Object.freeze(Object.keys(SECRET_SAMPLES));
+const SECRET_BUDGET = Object.freeze({ provider_requests: 4096, provider_body_bytes: 4194304, stream_gap_ms: 5000 });
+function secretCredentials(suffix = '') {
+  return { username: `a9fixture${suffix}`, password: ['A9', '39-préxy-~~~???xyz'].join('-'), api: ['A9', '39-known-~~~???x'].join('-'),
+    header: ['A9', '39-header-~~~???x'].join('-'), oldApi: ['A9', '39-old-~~~???x'].join('-') };
+}
+function secretForm(value, form, material = 'utf8') {
+  const b64 = Buffer.from(value, material).toString('base64');
+  switch (form) {
+    case 'plain': case 'pair': return value;
+    case 'base64': return b64;
+    case 'base64-unpadded': return b64.replace(/=+$/, '');
+    case 'base64url': return b64.replace(/\+/g, '-').replace(/\//g, '_');
+    case 'base64url-unpadded': return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    case 'percent': case 'path': return encodeURIComponent(value);
+    case 'header': return ['Proxy-Authorization:', ' Basic ', b64].join('');
+    default: throw new Error('A9_39_SECRET_FORM');
+  }
+}
+function secretExample(example) {
+  return { header: ['Authorization:', ' Bearer YOUR_API_KEY'].join(''), source: 'const headers = { authorization: token };',
+    url: ['https://demo', ':demo@example.invalid/api'].join(''), unregistered: secretForm('other:other-pass', 'header'),
+    'unregistered-base64': secretForm('other:other-pass', 'base64'), documentation: ['Authorization:', ' Basic dXNlcjpwYXNz'].join('') }[example];
+}
+function secretInputBytes(text, encoding) {
+  // GBK's fixed Chinese prefix forces the actual GBK decoder; the test credential is ASCII/Latin-1 base64.
+  if (encoding === 'gbk') return Buffer.concat([Buffer.from([0xd6, 0xd0, 0xce, 0xc4, 0x0a]), ...text.split('é').flatMap((part, index) => index ? [Buffer.from([0xa8, 0xa6]), Buffer.from(part, 'ascii')] : [Buffer.from(part, 'ascii')])]);
+  if (encoding === 'utf16le') return Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(text, 'utf16le')]);
+  return Buffer.from(text, 'utf8');
+}
+const SECRET_DESCRIPTIONS = {
+  'B2-A37-01': ['All nine example/encoding samples execute a real Shell, show a bound Diff and restore B2 exactly to B0 after B1 changed.', 'Checkpoint ownership, byte hashes and recovery copies are recorded for every sample; projections remain conservative.'],
+  'B2-A37-02': ['All registered current/previous key, password and header forms refuse with A9_CHECKPOINT_SECRET_BLOCKED and zero Runner dispatch.', 'Every sample keeps its external marker unchanged and records tool_start counts and a clean recovery/projection scan with positive controls.'],
+  'B2-A37-03': ['The current cache refuses a newly registered recovery secret without writing it back or reporting full undo.', 'A new product PID revalidates the persisted checkpoint and refuses the same unsafe restoration.'],
+  'B2-A37-04': ['Both loadable UTF-8 instruction samples are secret_blocked; the Provider receives none of the instruction body.', 'UTF-16LE BOM and non-UTF-8 GBK instruction samples are decode_error; neither body reaches the Provider.'],
+  'B2-A38-01': ['All registered proxy pair/Basic variants and UTF-8/Latin-1 material in three file encodings block checkpoint and dispatch zero Shell.', 'Per-sample input hashes, unchanged markers, tool counts and recovery/result/event scans bind the refusal.'],
+  'B2-A38-02': ['Clearing, renaming and changing proxy password in one process retain all tested old pairs and block the new registered pairs.', 'Each configuration transition is recorded with zero Runner dispatch, unchanged marker and clean output/recovery scans.'],
+  'B2-A38-03': ['New sensitive Shell overlays are rejected; overlays saved before registration are revalidated.', 'Automatic Shell selection and actual Runner inputs contain no rejected overlay; the new-setting refusals dispatch zero Runner.'],
+  'B2-A38-04': ['Every fixed scheme/header/separator sample replaces the entire token in prompt, title, command and final message projections.', 'Snapshot, events and SQLite contain the exact expected redacted strings and no token.'],
+  'B2-A38-05': ['Model samples inspect real liveModelPreview before chunk two, then final/events/SQLite/restart projections without a leaked prefix.', 'Shell samples inspect split output live, final/events/SQLite/restart without any registered composite or prefix.'],
+  'B2-A38-06': ['All three unregistered file samples execute Shell and restore exactly B0 after the changed B1.', 'Recovery bytes remain exact while output projections remain conservatively redacted.'],
+  'B2-A38-07': ['The current synthetic proxy is saved with real safeStorage/DPAPI and exits before the restart.', 'The same ordinary SID in a new PID loads the current encrypted configuration and blocks the bare pair with zero Runner dispatch.'],
+  'B2-A38-08': ['Each single-token scheme handles spaces/tabs and preserves the ordinary next line exactly, including a bare scheme before newline.', 'Bearer and URL userinfo regressions redact credentials; exact snapshots/events/SQLite projections agree.'],
+};
 
 const CASES = Object.freeze([
   makeCase('B2-G0-ENV', 'G0', 'p01-env', 'ENV', 'Bind the target, identity and runtime before any product action.', [
@@ -181,6 +250,7 @@ const CASES = Object.freeze([
     'The secret scanner finds no real secret and detects the positive control',
     'Post-flight finds no residue in any registered tree; the evidence manifest hashes every collected file',
   ], ['g4-secret-scan.json', 'g4-postflight.json', 'evidence-manifest.json']),
+  ...SECRET_CASE_IDS.map((id) => makeCase(id, 'G2', 'p07-safe', id.slice(3), 'A9-37/38 fixed direct current-candidate journey.', SECRET_DESCRIPTIONS[id], [id.slice(3).toLowerCase() + '.json'])),
 ]);
 
 // Known limits that travel with the verdict (A9-33 section 5). They do not enter the pass criteria.
@@ -193,6 +263,7 @@ const KNOWN_LIMITS = Object.freeze([
   'Real Provider and enterprise environment are not covered; loopback fixtures only',
   'POSIX executability and PowerShell /Command real execution are not measured',
   'Layouts below 800 px are PRODUCT_UNREACHABLE / NOT_VERIFIED',
+  'A9-38 limits: unregistered usernames, Digest trailing parameters, historical projections, quoted/JSON Authorization and code points above U+00FF remain outside the guarantee; GBK direct evidence is NOT_PERFORMED until the new candidate runs',
   'No INHERITED_EVIDENCE is approved while ADR-0155 is Proposed',
   'KL-12: the helper readiness failure of a managed start (D-013) cannot be induced from outside the product; B2-BG-03 records the path that a start with an unusable working directory takes (refused before the helper, or a helper start failure) and judges that no process is left; the readiness failure itself stays covered by the developer-machine tests in trusted-shell-runner-contract.test.ts only',
 ]);
@@ -542,8 +613,61 @@ function toolResultsNamed(after, name) {
 }
 
 // state: { shellKind, afterHold, holdEngaged }; returns { tool: {name,args}, id, note } | { content } | { hold: true }
+// Fixed provider behavior for A9-39. Control only selects a registered sample; no scripts/commands are accepted.
+function phase2Sample(caseId, id) {
+  return (SECRET_SAMPLES[caseId] || []).find((s) => s.id === id) || null;
+}
+function phase2Token(sample) { return `A939CRED${sample.id.toUpperCase()}TOKEN`; }
+function phase2AuthInput(sample) {
+  const token = phase2Token(sample);
+  if (sample.boundary === 'url') return { input: `https://user:${token}@example.invalid/api\nNEXT-LINE-KEPT`, expected: 'https://***redacted***@example.invalid/api\nNEXT-LINE-KEPT', token };
+  if (sample.boundary === 'bearer') return { input: `Authorization: Bearer ${token}\nNEXT-LINE-KEPT`, expected: 'Authorization: ***redacted***\nNEXT-LINE-KEPT', token };
+  const field = sample.field || 'Authorization'; const separator = sample.separator || ':'; const scheme = sample.scheme || 'Basic';
+  const line = sample.boundary === 'newline' ? `${field}${separator} ${scheme}\nNEXT-LINE-KEPT` : `${field}${separator} ${scheme}${sample.gap}${token}\nNEXT-LINE-KEPT`;
+  return { input: line, expected: `${field}${separator} ***redacted***\nNEXT-LINE-KEPT`, token };
+}
+function phase2SecretValue(sample, suffix = '') {
+  const c = secretCredentials(suffix);
+  return secretForm(`${c.username}:${c.password}`, sample.form || 'base64', sample.material || 'utf8');
+}
+function phase2ProviderStep(parsed, state) {
+  const caseId = state.phase2Case; const sample = phase2Sample(caseId, state.phase2Sample);
+  if (!sample) throw new Error('A9_39_PROVIDER_SAMPLE_UNKNOWN');
+  const done = lastUserPrompt(parsed).after.filter((m) => m.role === 'tool').length;
+  const call = (command) => ({ id: `a939-${caseId.slice(3)}-${sample.id}`, tool: { name: 'shell', args: { command } }, note: '固定验收样本。' });
+  const kind = state.shellKind;
+  const changed = kind === 'powershell' ? "[IO.File]::WriteAllText((Join-Path (Get-Location) 'sample.txt'),'changed',[Text.Encoding]::UTF8)" : '>sample.txt echo changed';
+  if (caseId === 'B2-A38-06') return done === 0 ? call(changed)
+    : { content: sample.example === 'unregistered-base64' ? `Authorization: Basic ${secretExample(sample.example)}` : secretExample(sample.example) };
+  if (['B2-A37-01', 'B2-A37-03'].includes(caseId)) return done === 0 ? call(changed) : { content: 'example changed.' };
+  if (['B2-A37-02', 'B2-A38-01', 'B2-A38-02', 'B2-A38-03', 'B2-A38-07'].includes(caseId)) {
+    return done === 0 ? call(kind === 'powershell' ? "[IO.File]::WriteAllText((Join-Path (Get-Location) 'dispatch-marker.txt'),'DISPATCHED')" : '>dispatch-marker.txt echo DISPATCHED') : { content: 'refusal sample ended.' };
+  }
+  if (caseId === 'B2-A37-04') return { content: 'instruction gate observed.' };
+  if (caseId === 'B2-A38-04' || caseId === 'B2-A38-08') {
+    const auth = phase2AuthInput(sample);
+    if (done === 0) {
+      // The command is projected before and after actual execution. It contains the same synthetic unregistered header.
+      const lines = auth.input.split('\n');
+      return call(kind === 'powershell' ? `Write-Output 'A939-COMMAND'; # ${lines[0]}\n# ${lines[1]}` : `echo A939-COMMAND & rem ${lines[0]}\nrem ${lines[1]}`);
+    }
+    return { content: auth.input };
+  }
+  if (caseId === 'B2-A38-05') {
+    const value = phase2SecretValue(sample); const cut = Math.floor(value.length / 2); const head = value.slice(0, cut); const tail = value.slice(cut);
+    if (sample.surface === 'model') return { phase2Stream: { head: 'x'.repeat(512) + head, tail: tail + ' END', id: sample.id } };
+    const ps = (text) => `(${splitPieces(text).map((s) => `'${s}'`).join('+')})`;
+    const cmd = (text) => splitPieces(text).join('^');
+    return done === 0 ? call(kind === 'powershell'
+      ? `[Console]::Out.Write(${ps('x'.repeat(32) + head)}); Start-Sleep -Milliseconds ${SECRET_BUDGET.stream_gap_ms}; [Console]::Out.WriteLine(${ps(tail + ' END')})`
+      : `<nul set /p =${cmd('x'.repeat(32) + head)} & ping -n 6 127.0.0.1 >nul & echo ${cmd(tail + ' END')}`) : { content: 'Shell stream observed.' };
+  }
+  throw new Error('A9_39_PROVIDER_CASE_UNKNOWN');
+}
+
 function providerStep(parsed, state) {
   const ctx = state || {};
+  if (ctx.phase2Case) return phase2ProviderStep(parsed, ctx);
   const kind = ctx.shellKind === 'powershell' ? 'powershell' : 'cmd';
   const { prompt, after } = lastUserPrompt(parsed);
   const token = (SCENARIO_TOKEN.exec(prompt) || [''])[0];
@@ -629,6 +753,8 @@ function evidenceForPhase(phaseId) {
 
 module.exports = {
   CONTRACT, LIMITS, GATES, PHASES, CHAIN_STEPS, CASES, KNOWN_LIMITS, FIXTURE_BOUNDS,
+  phase2Sample, phase2AuthInput, phase2Token, phase2SecretValue, phase2ProviderStep,
+  SECRET_ENCODINGS, SECRET_FORMS, BASIC_FORMS, AUTH_SCHEMES, SECRET_SAMPLES, SECRET_CASE_IDS, SECRET_BUDGET, secretCredentials, secretForm, secretExample, secretInputBytes,
   evidenceSet, evidenceForPhase, phaseById, selfCheck,
   backgroundCommandCmd, backgroundCommandPowerShell, encodingFixtures, ENCODING_CUTS, encodingCutProblems, splitAt,
   testOnlySecret, secretSplitAcrossChunks, AUDIT_READ_FILES,

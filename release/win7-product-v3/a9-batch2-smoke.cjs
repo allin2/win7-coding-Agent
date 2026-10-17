@@ -1,4 +1,4 @@
-// A9-33 batch2 smoke runner (WIN7-45 tentative, ADR-0155 Proposed).
+// A9-39 batch2 smoke runner (candidate identity from fixtures; ADR-0155 Proposed).
 //
 // One invocation = one approved phase attempt (see a9-batch2-desktop-request.cjs). The phase scripts are:
 //   p01-env        target identity, runtime, shell, codepage, patches, space and process-tree admission (G0)
@@ -407,7 +407,7 @@ function scanBytesForSecrets(bytes, extraLiterals) {
   const text = bytes.toString('latin1');
   const hits = [];
   for (const item of SECRET_PATTERNS) if (item.pattern.test(text)) hits.push(item.id);
-  for (const literal of extraLiterals || []) if (literal && text.includes(literal)) hits.push('configured-secret-literal');
+  for (const literal of extraLiterals || []) if (literal && (bytes.includes(Buffer.from(literal, 'utf8')) || bytes.includes(Buffer.from(literal, 'latin1')))) hits.push('configured-secret-literal');
   return hits;
 }
 function listFilesRecursive(root, out = []) {
@@ -429,15 +429,33 @@ function scanRun(runRoot, secretLiteral) {
     ...scanBytesForSecrets(Buffer.from(['control Authorization:', ' Bearer ', 'abcdefghijklmnop', '0123456789'].join('')), []),
   ];
   const findings = [];
+  const credentials = fixtures.secretCredentials();
+  const raw = [credentials.api, credentials.header, credentials.oldApi, credentials.password, `${credentials.username}:${credentials.password}`,
+    `${credentials.username}new:${credentials.password}`, `${credentials.username}:${credentials.password}-new`, ['FUTURE', 'A939-RECOVERY-VALUE'].join('-')];
+  for (const sample of fixtures.SECRET_SAMPLES['B2-A38-03']) raw.push(`${fixtures.secretCredentials(sample.id).username}:${credentials.password}`);
+  for (const id of ['B2-A38-04', 'B2-A38-08']) for (const sample of fixtures.SECRET_SAMPLES[id]) raw.push(fixtures.phase2Token(sample));
+  const phase2Literals = [...new Set(raw.flatMap((value) => ['utf8', 'latin1'].flatMap((material) => fixtures.SECRET_FORMS.filter((form) => form !== 'path').map((form) => fixtures.secretForm(value, form, material)))))];
+  const phase2Controls = phase2Literals.map((value) => ({ sha256: sha256Bytes(Buffer.from(value)), detected: scanBytesForSecrets(Buffer.from(value), [value]).length > 0 }));
+  const controlledInputs = [];
   let scanned = 0;
   for (const file of listFilesRecursive(runRoot)) {
-    if (/\.(png|sqlite|db|ico|pak)$/i.test(file)) continue;
+    if (/\.(png|ico|pak)$/i.test(file)) continue;
     scanned += 1;
-    const hits = scanBytesForSecrets(fs.readFileSync(file), [secretLiteral]);
+    const bytes = fs.readFileSync(file);
+    const relative = path.relative(runRoot, file).split(path.sep).join('/');
+    // A37-03 intentionally creates a recovery input before its value is known. Only that exact fixed byte input may be classified here.
+    const future = Buffer.from(['FUTURE', 'A939-RECOVERY-VALUE'].join('-'));
+    if (relative.startsWith('secrets/a37-03/workspace/.agent_recovery/') && bytes.equals(future)) {
+      controlledInputs.push({ file: relative, size: bytes.length, sha256: sha256Bytes(bytes), reason: 'A37-03 baseline input created before secret registration; unsafe restore is refused' });
+      continue;
+    }
+    const hits = scanBytesForSecrets(bytes, [secretLiteral, ...phase2Literals]);
+    for (const literal of phase2Literals) if (bytes.includes(Buffer.from(literal, 'utf16le'))) { hits.push('phase2-utf16-secret'); break; }
     if (hits.length) findings.push({ file: path.relative(runRoot, file), hits });
   }
   return { positive_control_detected: controlHits.includes('configured-secret-literal') && controlHits.includes('bearer-token') && controlHits.includes('api-key-prefix'),
-    control_hits: controlHits, files_scanned: scanned, findings };
+    control_hits: controlHits, phase2_positive_controls: phase2Controls, phase2_controls_detected: phase2Controls.every((c) => c.detected),
+    controlled_inputs: controlledInputs, files_scanned: scanned, findings };
 }
 
 // ---- Evidence manifest --------------------------------------------------------------------------------------
@@ -468,6 +486,8 @@ function recoveryUnknownCount(prompt) {
   try { const facts = JSON.parse(found[1]); return Array.isArray(facts.unknownResults) ? facts.unknownResults.length : null; } catch (_error) { return null; }
 }
 
+const messagesForScan = (parsed) => (parsed.messages || []).filter((m) => m.role === 'system').map((m) => m.content);
+
 class ProviderFixture {
   constructor(logFile) {
     this.logFile = logFile;
@@ -476,6 +496,7 @@ class ProviderFixture {
     this.toolMessageCount = 0;
     this.heldCount = 0;
     this.holdSockets = [];
+    this.phase2Bodies = []; this.phase2Stream = null;
     this.server = http.createServer((request, response) => this.handle(request, response));
   }
   listen() { return new Promise((resolve) => this.server.listen(0, '127.0.0.1', () => resolve(this.server.address().port))); }
@@ -498,7 +519,15 @@ class ProviderFixture {
         response.end();
         return;
       }
+      if (this.state.phase2Case && (Buffer.byteLength(body) > fixtures.SECRET_BUDGET.provider_body_bytes || this.requestCount >= fixtures.SECRET_BUDGET.provider_requests)) { response.writeHead(429); response.end(); return; }
       this.requestCount += 1;
+      if (this.state.phase2Case) {
+        const text = JSON.stringify(messagesForScan(parsed));
+        const sample = fixtures.phase2Sample(this.state.phase2Case, this.state.phase2Sample);
+        const instruction = sample && fixtures.secretExample(sample.example);
+        this.phase2Bodies.push({ index: this.requestCount, size: Buffer.byteLength(body), sha256: sha256Bytes(Buffer.from(body)),
+          instruction_body_hits: instruction ? (text.includes(instruction) ? 1 : 0) : 0 });
+      }
       const messages = (parsed && parsed.messages) || [];
       this.toolMessageCount = messages.filter((item) => item.role === 'tool').length;
       const { prompt } = fixtures.lastUserPrompt(parsed || {});
@@ -506,7 +535,7 @@ class ProviderFixture {
       const step = hold ? { hold: true } : fixtures.providerStep(parsed || {}, this.state);
       if (hold) this.state.holdNext = false;
       fs.appendFileSync(this.logFile, `${JSON.stringify({ index: this.requestCount, at: new Date().toISOString(), tools_offered: Array.isArray(parsed.tools) ? parsed.tools.length : 0,
-        tool_params: toolParameterNames(parsed), messages: messages.length, tool_messages: this.toolMessageCount, prompt_head: prompt.slice(0, 80),
+        tool_params: toolParameterNames(parsed), messages: messages.length, tool_messages: this.toolMessageCount, prompt_head: this.state.phase2Case ? `${this.state.phase2Case}/${this.state.phase2Sample}` : prompt.slice(0, 80),
         prompt_sha256: crypto.createHash('sha256').update(prompt).digest('hex'), recovery_unknown_count: recoveryUnknownCount(prompt),
         agents_marker_present: body.includes('B2-AGENTS-MARKER'), step: step.hold ? 'hold' : step.tool ? `tool:${step.tool.name}` : 'final' })}\n`, 'utf8');
       if (step.hold) {
@@ -518,6 +547,13 @@ class ProviderFixture {
       }
       response.writeHead(200, { 'Content-Type': 'text/event-stream' });
       const send = (value) => response.write(`data: ${JSON.stringify(value)}\n\n`);
+      if (step.phase2Stream) {
+        const stream = step.phase2Stream; const first = Date.now();
+        this.phase2Stream = { id: stream.id, first_chunk_at: first, second_chunk_at: null, response, tail: stream.tail };
+        send({ choices: [{ delta: { content: stream.head }, finish_reason: null }] });
+        this.holdSockets.push(request.socket);
+        return; // second chunk is released only after the driver reads the real liveModelPreview
+      }
       if (step.tool) {
         send({ choices: [{ delta: { content: step.note || '', tool_calls: [{ index: 0, id: step.id, function: { name: step.tool.name, arguments: JSON.stringify(step.tool.args) } }] }, finish_reason: 'tool_calls' }] });
       } else send({ choices: [{ delta: { content: step.content || '' }, finish_reason: 'stop' }] });
@@ -528,7 +564,7 @@ class ProviderFixture {
   control(request, response) {
     if (request.method === 'GET' && request.url === '/__b2/counters') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ requests: this.requestCount, tool_messages: this.toolMessageCount, held: this.heldCount, state: this.state }));
+      response.end(JSON.stringify({ requests: this.requestCount, tool_messages: this.toolMessageCount, held: this.heldCount, state: this.state, phase2_bodies: this.phase2Bodies, phase2_stream: this.phase2Stream ? { id: this.phase2Stream.id, first_chunk_at: this.phase2Stream.first_chunk_at, second_chunk_at: this.phase2Stream.second_chunk_at } : null }));
       return;
     }
     if (request.method === 'POST' && request.url === '/__b2/state') {
@@ -537,6 +573,18 @@ class ProviderFixture {
       request.on('end', () => {
         try {
           const next = JSON.parse(body);
+          if (next.phase2Case !== undefined || next.phase2Sample !== undefined) {
+            if (!fixtures.phase2Sample(next.phase2Case, next.phase2Sample)) throw new Error('A9_39_FIXED_SAMPLE_REQUIRED');
+            this.state.phase2Case = next.phase2Case; this.state.phase2Sample = next.phase2Sample;
+          }
+          if (next.phase2Reset === true) { this.state.phase2Case = null; this.state.phase2Sample = null; this.phase2Stream = null; }
+          if (next.phase2Release !== undefined) {
+            const stream = this.phase2Stream;
+            if (!stream || stream.id !== next.phase2Release || stream.second_chunk_at !== null) throw new Error('A9_39_STREAM_RELEASE');
+            stream.second_chunk_at = Date.now();
+            stream.response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: stream.tail }, finish_reason: 'stop' }] })}\n\n`);
+            stream.response.end('data: [DONE]\n\n');
+          }
           if (next.shellKind !== undefined) this.state.shellKind = next.shellKind === 'powershell' ? 'powershell' : 'cmd';
           if (next.afterHold !== undefined) this.state.afterHold = next.afterHold === true;
           if (next.holdNext !== undefined) this.state.holdNext = next.holdNext === true;
@@ -557,7 +605,27 @@ class ProviderFixture {
 // persisted its pre-kill facts and written <mode>.ready; every other mode must exit by itself. chain_exit is the one
 // mode whose real exit dialog is answered by the desktop controller through the smoke (dialogButton = index to click).
 // release_exit (p05) is the second: it clicks "leave to system" (index 1), so a managed process outlives the product by design.
+
+const PHASE2_MODES = Object.freeze({
+  secrets_a37_01: { caseId: 'B2-A37-01', timeoutMs: 900000 },
+  secrets_a37_02: { caseId: 'B2-A37-02', timeoutMs: 1800000 },
+  secrets_a37_03_prepare: { caseId: 'B2-A37-03', timeoutMs: 300000 },
+  secrets_a37_03_restart: { caseId: 'B2-A37-03', timeoutMs: 300000, previous: 'secrets_a37_03_prepare' },
+  secrets_a37_04: { caseId: 'B2-A37-04', timeoutMs: 300000 },
+  secrets_a38_01: { caseId: 'B2-A38-01', timeoutMs: 1200000 },
+  secrets_a38_02: { caseId: 'B2-A38-02', timeoutMs: 600000 },
+  secrets_a38_03: { caseId: 'B2-A38-03', timeoutMs: 900000 },
+  secrets_a38_04: { caseId: 'B2-A38-04', timeoutMs: 900000 },
+  secrets_a38_05: { caseId: 'B2-A38-05', timeoutMs: 1200000 },
+  secrets_a38_05_restart: { caseId: 'B2-A38-05', timeoutMs: 300000, previous: 'secrets_a38_05' },
+  secrets_a38_06: { caseId: 'B2-A38-06', timeoutMs: 300000 },
+  secrets_a38_07_save: { caseId: 'B2-A38-07', timeoutMs: 300000 },
+  secrets_a38_07_restart: { caseId: 'B2-A38-07', timeoutMs: 300000, previous: 'secrets_a38_07_save' },
+  secrets_a38_08: { caseId: 'B2-A38-08', timeoutMs: 600000 },
+});
+
 const DRIVER_MODES = Object.freeze({
+  ...PHASE2_MODES,
   chain_a: { timeoutMs: 300000 },
   chain_interrupt: { timeoutMs: 180000, killOnMarker: true },
   chain_recover: { timeoutMs: 300000 },
@@ -585,7 +653,7 @@ const DRIVER_PLANS = Object.freeze({
   'p04-streaming': ['stream_live', 'stream_encodings', 'stream_limits', 'audit_stop'],
   'p05-session-bg': ['session_bg', 'session_restart', 'release_exit'],
   'p06-continue': ['continue_guards', 'continue_interrupt', 'continue_restart', 'continue_unknown_interrupt', 'continue_mode_guard', 'continue_unknown'],
-  'p07-safe': ['safe_rules'],
+  'p07-safe': ['safe_rules', ...Object.keys(PHASE2_MODES)],
   'p08-ui': ['ui_interrupt', 'ui_continue', 'ui_layouts'],
 });
 
@@ -879,6 +947,22 @@ function chainIdentityAssertion(ctx, exec) {
     observed: `identity=${identity && identity.status}: ${identity && identity.observed}; old_tree=${stale && stale.status}: ${stale && String(stale.observed).slice(0, 300)}` };
 }
 
+// Current process instances, including the driver root, must be observed gone before an A9-39 restart.
+async function phase2PostExit(prequit, expectedSid, exec, wait = sleep) {
+  if (!prequit || prequit.sid !== expectedSid || prequit.wmic_failures !== 0 || !Array.isArray(prequit.tree) || !prequit.tree.length
+    || prequit.tree.some((p) => !Number.isSafeInteger(p.pid) || p.pid <= 0 || !/^\d{14}\.\d{6}[+-]\d{3}$/.test(p.created || ''))) return { observed: false, reason: 'PREQUIT_UNKNOWN', samples: [] };
+  const samples = [];
+  for (let round = 0; round < 10; round++) {
+    const listing = listProcesses(exec);
+    const alive = aliveByIdentity(prequit.tree, listing.rows);
+    samples.push({ at: new Date().toISOString(), failed: listing.failed, alive });
+    if (listing.failed) return { observed: false, reason: 'POSTQUIT_UNKNOWN', samples };
+    if (!alive.length) return { observed: true, reason: null, samples };
+    await wait(500);
+  }
+  return { observed: false, reason: 'PROCESS_RESIDUE', samples };
+}
+
 async function runDriverPhase(ctx, hooks) {
   const plan = DRIVER_PLANS[ctx.phase];
   if (!plan) throw new Error(`A9_BATCH2_PHASE_NOT_A_DRIVER_PHASE:${ctx.phase}`);
@@ -910,6 +994,16 @@ async function runDriverPhase(ctx, hooks) {
     if (ctx.phase === 'p03-chain') identityAssertion = chainIdentityAssertion(ctx, exec);
     for (const mode of plan) {
       const spec = DRIVER_MODES[mode];
+      fixture.state.phase2Case = null; fixture.state.phase2Sample = null; fixture.phase2Stream = null;
+      const isolatedRoot = spec.caseId ? path.join(ctx.runRoot, 'secrets', spec.caseId.slice(3).toLowerCase()) : null;
+      const selectedData = isolatedRoot ? path.join(isolatedRoot, 'data') : dataRoot;
+      const selectedWorkspace = isolatedRoot ? path.join(isolatedRoot, 'workspace') : workspaceRoot;
+      if (isolatedRoot) { fs.mkdirSync(selectedData, { recursive: true }); fs.mkdirSync(selectedWorkspace, { recursive: true }); }
+      let previous = null;
+      if (spec.previous) {
+        previous = launches.find((l) => l.mode === spec.previous);
+        if (!previous || previous.code !== 0 || previous.killed_by || previous.tree_absent !== true) throw new Error('A9_39_PREVIOUS_EXIT_UNKNOWN');
+      }
       fixture.state.afterHold = false;
       fixture.state.holdNext = false;
       const driverResultFile = path.join(ctx.attemptDir, `driver-${mode}.json`);
@@ -919,11 +1013,16 @@ async function runDriverPhase(ctx, hooks) {
       if (dialogMarker) fs.rmSync(dialogMarker, { force: true });
       const env = {
         A9_BATCH2_PHASE: ctx.phase, A9_BATCH2_MODE: mode, A9_BATCH2_RUN_ID: ctx.runId, A9_BATCH2_ATTEMPT_DIR: ctx.attemptDir,
-        A9_BATCH2_DRIVER_RESULT: driverResultFile, A9_BATCH2_WORKSPACE: workspaceRoot, A9_BATCH2_DATAROOT: dataRoot,
+        A9_BATCH2_DRIVER_RESULT: driverResultFile, A9_BATCH2_WORKSPACE: selectedWorkspace, A9_BATCH2_DATAROOT: selectedData,
         A9_BATCH2_FIXTURE_URL: `http://127.0.0.1:${port}/v1`, A9_BATCH2_FIXTURE_CONTROL: `http://127.0.0.1:${port}/__b2`, A9_BATCH2_PROVIDER_LOG: providerLog,
         A9_BATCH2_PRODUCT_MAIN: path.join(ctx.candidateRoot, 'resources', 'app', 'product', 'main.js'),
         A9_BATCH2_CANDIDATE_ROOT: ctx.candidateRoot, A9_BATCH2_SECRET_LITERAL: fixtures.testOnlySecret(),
-        WIN7AGENT_A9_DATAROOT: dataRoot,
+        WIN7AGENT_A9_DATAROOT: selectedData,
+        ...(isolatedRoot ? { LOCALAPPDATA: path.join(isolatedRoot, 'profile'), WIN7AGENT_PORTABLE: '0',
+          A9_BATCH2_FIXTURES: path.join(ctx.candidateRoot, 'validation', 'a9-batch2-fixtures.cjs'),
+          A9_BATCH2_PHASE2_CASE: spec.caseId, A9_BATCH2_BINDINGS: JSON.stringify(ctx.request.bindings), A9_BATCH2_TARGET: JSON.stringify(ctx.request.target),
+          A9_BATCH2_NEUTRAL_WORKSPACE: path.join(isolatedRoot, 'neutral'),
+          A9_BATCH2_PREVIOUS_EXIT: previous ? JSON.stringify(previous) : '' } : {}),
         WIN7AGENT_A9_ELECTRON_SQLITE: path.join(ctx.candidateRoot, 'resources', 'native', 'storage'),
         ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
       };
@@ -937,8 +1036,14 @@ async function runDriverPhase(ctx, hooks) {
         // The next mode must start from the original settings whatever happened to this one.
         if (modeSettings) modeSettings.restore = restoreModeSettings(modeSettings);
       }
+      const prequitPath = path.join(ctx.attemptDir, `${mode}-prequit.json`);
+      let prequit = null;
+      if (spec.caseId && fs.existsSync(prequitPath)) prequit = JSON.parse(fs.readFileSync(prequitPath, 'utf8'));
+      const postExit = spec.caseId ? await phase2PostExit(prequit, ctx.request.target.account_sid, exec, hooks && hooks.wait) : null;
+      const treeAbsent = postExit && postExit.observed === true;
       const strays = exit.killed_by ? await sweepDriverStrays(exec, path.join(ctx.runRoot, 'driver-electron'), hooks && hooks.strays) : null;
       launches.push({ mode, code: exit.code, signal: exit.signal, killed_by: exit.killed_by, duration_ms: exit.duration_ms, started_at: exit.started_at, ended_at: exit.ended_at,
+        ...(spec.caseId ? { tree_absent: treeAbsent, post_exit: postExit, sid: prequit && prequit.sid } : {}),
         spawn_error: exit.spawn_error || null, pid: exit.pid, dialog_click: exit.dialog_click || null,
         ...(strays ? { strays } : {}),
         ...(modeSettings ? { mode_settings: { files_found: modeSettings.files_found, corrupted: modeSettings.corrupted, original_sha256: modeSettings.original_sha256, error: modeSettings.error, restore: modeSettings.restore } } : {}) });
@@ -947,6 +1052,8 @@ async function runDriverPhase(ctx, hooks) {
       if (fs.existsSync(driverResultFile)) { try { driverResult = JSON.parse(fs.readFileSync(driverResultFile, 'utf8')); } catch (_error) { driverResult = null; } }
       if (driverResult && Array.isArray(driverResult.assertions)) applyAssertions(ctx, driverResult.assertions);
       if (driverResult && driverResult.status === 'ERROR') { launches[launches.length - 1].failed = true; launches[launches.length - 1].driver_error = String(driverResult.error || '').slice(0, 400); break; }
+      if (spec.caseId && !treeAbsent) { launches[launches.length - 1].failed = true; launches[launches.length - 1].driver_error = 'A9_39_PROCESS_TREE_UNKNOWN'; break; }
+      if (spec.caseId && driverResult && driverResult.assertions.some((a) => a.status !== 'PASS')) { launches[launches.length - 1].failed = true; break; }
       // A driver that was not supposed to die, or exited non-zero without a result, makes its mode a failure.
       if (!spec.killOnMarker && (exit.code !== 0 || !driverResult)) { launches[launches.length - 1].failed = true; break; }
       if (spec.killOnMarker && exit.killed_by !== 'marker') { launches[launches.length - 1].failed = true; break; }
@@ -1182,7 +1289,7 @@ function runPostflightPhase(ctx, exec = realExec) {
   const caseId = secretCase.case_id;
   const ids = secretCase.assertions.map((a) => a.assertion_id);
   applyAssertions(ctx, [
-    { case_id: caseId, assertion_id: ids[0], status: scan.positive_control_detected && scan.findings.length === 0 ? 'PASS' : 'FAIL',
+    { case_id: caseId, assertion_id: ids[0], status: scan.positive_control_detected && scan.phase2_controls_detected && scan.findings.length === 0 ? 'PASS' : 'FAIL',
       observed: `files_scanned=${scan.files_scanned}; findings=${scan.findings.length}; positive_control_detected=${scan.positive_control_detected}` },
     { case_id: caseId, assertion_id: ids[1], status: residue.length > 0 ? 'FAIL' : listing.failed || processes.length === 0 ? 'UNKNOWN' : manifest.files.length > 0 ? 'PASS' : 'FAIL',
       observed: `residue=${residue.length}; processes_total=${processes.length}; listing_failed=${listing.failed}; manifest_files=${manifest.files.length}` },
@@ -1205,7 +1312,7 @@ async function main(argv = process.argv.slice(2), environment = {}) {
 module.exports = {
   main, createContext, runEnvironmentPhase, runDriverPhase, runPostflightPhase, finishPhase, applyAssertions, writeEvidence,
   collectEnvironment, evaluateEnvironment, listProcesses, listCommandLines, readWmicList, withImagePath, parseWmicCsv, parseCsvLine, parseWhoamiSid, parseIntegrity, scanBytesForSecrets, scanRun, buildEvidenceManifest,
-  ProviderFixture, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
+  phase2PostExit, ProviderFixture, PHASE2_MODES, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, finishReleaseEvidence, removeReleasedCommand, aliveByIdentity, liveDescendants, releaseStatus, killProcess, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
 };

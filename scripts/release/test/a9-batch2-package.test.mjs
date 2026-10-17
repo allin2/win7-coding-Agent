@@ -423,8 +423,8 @@ test('batch-2 report verifier accepts a complete bound run and rejects every tam
 test('batch-2 evidence names, case ids and request cost stay a closed contract', () => {
   const contract = fixtures.selfCheck();
   assert.equal(contract.ok, true, JSON.stringify(contract.problems));
-  assert.equal(contract.cases, 25);
-  assert.equal(contract.assertions, 43);
+  assert.equal(contract.cases, 37);
+  assert.equal(contract.assertions, 67);
   assert.equal(contract.phases, 10);
   assert.equal(contract.request_cost, 10);
   assert.equal(contract.max_requests, 16);

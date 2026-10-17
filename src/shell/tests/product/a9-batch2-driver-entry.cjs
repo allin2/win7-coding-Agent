@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * A9-33 batch2 product driver (WIN7-45 tentative, ADR-0155 Proposed).
+ * A9-39 batch2 product driver (candidate from fixtures; ADR-0155 Proposed).
  *
  * Runs inside the candidate's own electron.exe (copied to a candidate-external driver runtime by a9-batch2-smoke.cjs)
  * and requires the real product main.js before app ready. It drives the real workbench window through the real
@@ -1067,6 +1067,192 @@ function evaluateUserDataIsolation(f) {
 
 // ---- Driver (Electron only) ------------------------------------------------------------------------------------
 
+// A9-39 evaluators consume observations only. They never import product internals or turn UNKNOWN into zero.
+function phase2Fixtures() {
+  return require(process.env.A9_BATCH2_FIXTURES || (process.env.A9_BATCH2_CANDIDATE_ROOT
+    ? path.join(process.env.A9_BATCH2_CANDIDATE_ROOT, 'validation', 'a9-batch2-fixtures.cjs')
+    : path.resolve(__dirname, '../../../../release/win7-product-v3/a9-batch2-fixtures.cjs')));
+}
+const p2Object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const p2Text = (v) => typeof v === 'string' && v.length > 0;
+const p2Count = (v) => Number.isSafeInteger(v) && v >= 0;
+const p2Time = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
+const p2Bool = (v) => typeof v === 'boolean';
+const p2Hash = (v) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
+const p2SidValue = (v) => typeof v === 'string' && /^S-1-5-(?:[0-9]+-)*[0-9]+$/.test(v);
+const p2Fields = (v, fields) => p2Object(v) && Object.entries(fields).every(([key, valid]) => Object.prototype.hasOwnProperty.call(v, key) && valid(v[key]));
+const p2Digest = (v) => p2Fields(v, { size: p2Count, sha256: p2Hash });
+const p2List = (v, valid, min = 0) => Array.isArray(v) && v.length >= min && Array.from(v).every(valid);
+const p2Array = (v) => Array.isArray(v) ? v : [];
+function phase2Identity(f) {
+  return Boolean(p2Fields(f, { schema_version: (v) => v === 1, case_id: (v) => phase2Fixtures().SECRET_CASE_IDS.includes(v), started_ms: p2Time, candidate: p2Text, run_id: p2Text, sid: p2SidValue, pid: (v) => p2Count(v) && v > 0,
+    bindings: (b) => p2Fields(b, { source_commit: (v) => typeof v === 'string' && /^[a-f0-9]{40}$/.test(v), package_sha256: p2Hash, kit_sha256: p2Hash, manifest_sha256: p2Hash }),
+    target: (v) => p2Fields(v, { account_sid: p2SidValue }) })
+    && f.candidate === phase2Fixtures().CONTRACT.candidate && f.target.account_sid === f.sid && /^[0-9a-f-]{36}$/.test(f.run_id));
+}
+function phase2Scan(scan) {
+  return Boolean(p2Fields(scan, {
+    surfaces: (v) => p2List(v, (s) => p2Fields(s, { name: p2Text, size: p2Count, sha256: p2Hash, hits: p2Count }), 5),
+    positive_controls: (v) => p2List(v, (s) => p2Fields(s, { size: p2Count, sha256: p2Hash, hits: p2Count }), 2),
+  }) && ['snapshot', 'events', 'sqlite', 'recovery', 'product-files'].every((name) => scan.surfaces.some((s) => s.name === name && s.hits === 0))
+    && scan.surfaces.every((s) => s.hits === 0) && scan.positive_controls.every((s) => s.hits > 0));
+}
+function phase2Zero(r) {
+  return p2Fields(r, { runner_dispatches: p2Count, tool_starts: p2Count, marker_before: p2Digest, marker_after: p2Digest })
+    && r.runner_dispatches === 0 && r.tool_starts <= 1 && r.marker_before.sha256 === r.marker_after.sha256 && r.marker_before.size === r.marker_after.size;
+}
+function phase2Restore(r) {
+  return p2Fields(r, { input: p2Digest, b0: p2Digest, b1: p2Digest, b2: p2Digest, turn_id: p2Text, checkpoint_turn: p2Text,
+    runner_dispatches: p2Count, shell_exit: Number.isSafeInteger, shell_ends: p2Count, tool_starts: p2Count, diff_ok: p2Bool,
+    diff_paths: (v) => p2List(v, p2Text, 1), undo_ok: p2Bool, undo_errors: p2Count,
+    restored: (v) => p2List(v, (s) => p2Text(s) || p2Object(s) && supRestoredFor([s], 'sample.txt'), 1), recovery_hashes: (v) => p2List(v, p2Hash, 1) })
+    && r.b1.sha256 !== r.b0.sha256 && r.b2.sha256 === r.b0.sha256 && r.b2.size === r.b0.size
+    && r.runner_dispatches === 1 && r.shell_exit === 0 && r.shell_ends === 1 && r.tool_starts === 1
+    && r.diff_ok === true && r.diff_paths.includes('sample.txt') && r.checkpoint_turn === r.turn_id
+    && r.undo_ok === true && r.undo_errors === 0 && r.restored.some((s) => supRestoredFor([s], 'sample.txt')) && r.recovery_hashes.includes(r.b0.sha256);
+}
+function phase2Exact(r) {
+  return p2Fields(r, { projections: (v) => p2List(v, (p) => p2Fields(p, { surface: p2Text, expected: p2Text, actual: p2Text }), 3) })
+    && r.projections.every((p) => p.actual === p.expected && p.expected.includes('***redacted***'))
+    && ['snapshot', 'events', 'sqlite'].every((surface) => r.projections.some((p) => p.surface === surface));
+}
+function phase2Restart(r, envelope) {
+  return p2Fields(r, { previous_pid: (v) => p2Count(v) && v > 0, pid: (v) => p2Count(v) && v > 0,
+    previous_sid: p2SidValue, sid: p2SidValue, previous_exit_code: Number.isSafeInteger, previous_ended_at: p2Text,
+    started_ms: p2Time, previous_tree_absent: p2Bool }) && p2Object(envelope) && r.pid === envelope.pid && r.sid === envelope.sid
+    && r.previous_pid !== r.pid && r.previous_sid === r.sid && r.previous_exit_code === 0
+    && Number.isFinite(Date.parse(r.previous_ended_at)) && Date.parse(r.previous_ended_at) <= r.started_ms && r.previous_tree_absent === true;
+}
+// Validate every field consumed by a row's required branch before any behavioral comparison.
+function phase2RowValid(caseId, sample, r, envelope) {
+  if (!sample || !p2Fields(r, { id: p2Text, input: p2Digest })) return false;
+  const zero = { runner_dispatches: p2Count, tool_starts: p2Count, marker_before: p2Digest, marker_after: p2Digest };
+  const blocked = { ...zero, error: p2Text, ipc_submit: p2Bool, scan: phase2Scan };
+  switch (caseId) {
+    case 'B2-A37-01': case 'B2-A38-06': return phase2Restore(r) && phase2Exact(r) && phase2Scan(r.scan);
+    case 'B2-A37-02': case 'B2-A38-01': return p2Fields(r, blocked);
+    case 'B2-A37-03': return p2Fields(r, { ...zero, error: p2Text, undo_ok: p2Bool, undo_errors: p2Count, undo_restored: p2Count,
+      modified_sha256: p2Hash, after_sha256: p2Hash, full_restore_reported: p2Bool, new_unsafe_artifacts: (v) => p2List(v, p2Hash),
+      recovery_files_before: p2Count, checkpoint_index_sha256: p2Hash,
+      ...(sample.stage === 'current' ? { config_error: p2Text } : { key_source: p2Text }) }) && (sample.stage !== 'restart' || phase2Restart(r, envelope));
+    case 'B2-A37-04': return p2Fields(r, { load_status: p2Text, provider_requests: p2Count, instruction_body_hits: p2Count, provider_body_sha256: p2Hash, runner_dispatches: p2Count });
+    case 'B2-A38-02': return p2Fields(r, { ...blocked, config_steps: p2Count, config_sequence_sha256: p2Hash });
+    case 'B2-A38-03': return p2Fields(r, { ...zero, error: p2Text, setting_ok: p2Bool, stage: (v) => v === sample.stage,
+      runner_overlay_hits: p2Count, automatic_overlay_hits: p2Count, scan: phase2Scan,
+      ...(sample.stage === 'revalidate' ? { saved_before_registration: p2Bool, diagnostic: p2Text } : {}) });
+    case 'B2-A38-04': case 'B2-A38-08': return p2Fields(r, { runner_dispatches: p2Count, tool_starts: p2Count, shell_exit: Number.isSafeInteger,
+      surfaces_complete: p2Bool, scan: phase2Scan, ...(caseId === 'B2-A38-04' ? { projection_kinds: (v) => p2List(v, (p) => p2Fields(p, { kind: p2Text, expected: p2Text, actual: p2Text }), 4) } : {}) }) && phase2Exact(r);
+    case 'B2-A38-05': return p2Fields(r, { runner_dispatches: p2Count, first_chunk_at: p2Time, preview_at: p2Time, second_chunk_at: p2Time, terminal_at: p2Time,
+      preview_reads: p2Count, preview: p2Digest, preview_hits: p2Count, final_hits: p2Count, preview_kind: p2Text, restart_hits: p2Count, restart_sha256: p2Hash, scan: phase2Scan,
+      ...(sample.surface === 'shell' ? { shell_exit: Number.isSafeInteger } : {}) }) && phase2Restart(r, envelope);
+    case 'B2-A38-07': return sample.stage === 'saved'
+      ? p2Fields(r, { runner_dispatches: p2Count, saved_ok: p2Bool, encryption_available: p2Bool, key_source: p2Text, ciphertext: p2Digest, ciphertext_plaintext_hits: p2Count })
+      : p2Fields(r, { ...blocked, key_source: p2Text, proxy_password_available: p2Bool }) && phase2Restart(r, envelope);
+    default: return false;
+  }
+}
+function evaluatePhase2Case(caseId, f) {
+  const expected = phase2Fixtures().SECRET_SAMPLES[caseId];
+  if (!expected) throw new Error('A9_39_CASE_UNKNOWN');
+  const rows = p2Array(f && f.rows);
+  const closed = p2List(rows, (r) => p2Fields(r, { id: p2Text }), expected.length) && rows.length === expected.length && new Set(rows.map((r) => r.id)).size === expected.length
+    && expected.every((s) => rows.some((r) => r.id === s.id));
+  const fields = closed && rows.every((r) => phase2RowValid(caseId, expected.find((s) => s.id === r.id), r, f));
+  const common = phase2Identity(f) && f.case_id === caseId && closed && fields;
+  if (!common) return { status: 'FAIL', checks: { identity: phase2Identity(f), exact_samples: closed, fields, behavior: false, evidence: false }, assertions: ['FAIL', 'FAIL'] };
+  const all = (test) => rows.length > 0 && rows.every(test);
+  const blocked = (r) => /A9_CHECKPOINT_SECRET_BLOCKED/.test(r.error || '') && phase2Zero(r) && p2Digest(r.input);
+  let a = false; let b = false;
+  switch (caseId) {
+    case 'B2-A37-01': case 'B2-A38-06':
+      a = all(phase2Restore); b = all((r) => phase2Scan(r.scan) && phase2Exact(r)); break;
+    case 'B2-A37-02': case 'B2-A38-01':
+      a = all(blocked); b = all((r) => phase2Scan(r.scan) && r.ipc_submit === true && phase2Zero(r)); break;
+    case 'B2-A37-03': {
+      const safeUndo = (r) => /A9_CHECKPOINT_SECRET_BLOCKED|A9_CHECKPOINT_UNAVAILABLE|A9_CHECKPOINT_NOT_FOUND|QUARANTIN/.test(r.error || '')
+        && (r.undo_ok === false || (r.undo_ok === true && r.undo_errors > 0 && r.undo_restored === 0)) && phase2Zero(r) && r.after_sha256 === r.modified_sha256 && p2Hash(r.after_sha256)
+        && r.full_restore_reported === false && r.new_unsafe_artifacts.length === 0 && r.recovery_files_before > 0 && p2Hash(r.checkpoint_index_sha256);
+      a = all(safeUndo) && rows.some((r) => r.id === 's001' && /A9_CHECKPOINT_SECRET_BLOCKED/.test(r.config_error || ''));
+      b = rows.some((r) => r.id === 's002' && safeUndo(r) && phase2Restart(r, f) && r.key_source === 'dpapi'); break;
+    }
+    case 'B2-A37-04': {
+      const bodyAbsent = (r) => p2Digest(r.input) && r.provider_requests > 0 && r.instruction_body_hits === 0 && p2Hash(r.provider_body_sha256) && r.runner_dispatches === 0;
+      a = expected.filter((s) => s.encoding === 'utf8').every((s) => rows.some((r) => r.id === s.id && r.load_status === 'secret_blocked' && bodyAbsent(r)));
+      b = expected.filter((s) => s.encoding !== 'utf8').every((s) => rows.some((r) => r.id === s.id && r.load_status === 'decode_error' && bodyAbsent(r))); break;
+    }
+    case 'B2-A38-02':
+      a = all((r) => blocked(r) && r.config_steps >= 2 && p2Hash(r.config_sequence_sha256));
+      b = all((r) => phase2Scan(r.scan) && r.ipc_submit === true); break;
+    case 'B2-A38-03':
+      a = all((r) => /A9_ENV_OVERLAY_REJECTED/.test(r.error || '') && r.setting_ok === false && p2Digest(r.input)
+        && (r.stage === 'new' || (r.saved_before_registration === true && r.diagnostic === 'A9_ENV_OVERLAY_REJECTED')));
+      b = all((r) => phase2Zero(r) && r.runner_overlay_hits === 0 && r.automatic_overlay_hits === 0 && phase2Scan(r.scan)); break;
+    case 'B2-A38-04': case 'B2-A38-08':
+      a = all((r) => r.runner_dispatches === 1 && r.tool_starts === 1 && r.shell_exit === 0 && phase2Exact(r) && (caseId !== 'B2-A38-04' || ['prompt', 'title', 'command', 'final'].every((kind) => r.projection_kinds.some((p) => p.kind === kind && p.actual === p.expected && typeof p.expected === 'string')))); b = all((r) => phase2Scan(r.scan) && r.surfaces_complete === true); break;
+    case 'B2-A38-05': {
+      const stream = (r) => r.first_chunk_at < r.preview_at && r.preview_at < r.second_chunk_at && r.second_chunk_at <= r.terminal_at
+        && r.preview_reads > 0 && p2Digest(r.preview) && r.preview_hits === 0 && r.final_hits === 0 && phase2Scan(r.scan)
+        && phase2Restart(r, f) && r.restart_hits === 0 && p2Hash(r.restart_sha256);
+      a = expected.filter((s) => s.surface === 'model').every((s) => rows.some((r) => r.id === s.id && r.runner_dispatches === 0 && r.preview_kind === 'liveModelPreview' && stream(r)));
+      b = expected.filter((s) => s.surface === 'shell').every((s) => rows.some((r) => r.id === s.id && r.runner_dispatches === 1 && r.shell_exit === 0 && r.preview_kind === 'shell_snapshot' && stream(r))); break;
+    }
+    case 'B2-A38-07':
+      a = rows.some((r) => r.id === 's001' && r.runner_dispatches === 0 && r.saved_ok === true && r.encryption_available === true && r.key_source === 'dpapi' && p2Digest(r.ciphertext) && r.ciphertext.size > 0 && r.ciphertext_plaintext_hits === 0);
+      b = rows.some((r) => r.id === 's002' && blocked(r) && phase2Restart(r, f) && r.key_source === 'dpapi' && r.proxy_password_available === true && phase2Scan(r.scan)); break;
+    default: throw new Error('A9_39_EVALUATOR_UNKNOWN');
+  }
+  return { status: common && a && b ? 'PASS' : 'FAIL', checks: { identity: phase2Identity(f), exact_samples: closed, behavior: a === true, evidence: b === true },
+    assertions: [common && a ? 'PASS' : 'FAIL', common && b ? 'PASS' : 'FAIL'] };
+}
+
+// Read-only v3 observation. Protocol lines and each stream have independent byte buffers.
+function createPhase2OutputObserver(watch, now = () => Date.now()) {
+  let requestLine = Buffer.alloc(0); let outputLine = Buffer.alloc(0); let requestId = null;
+  const streams = { stdout: { offset: 0, pending: new Map(), text: Buffer.alloc(0) }, stderr: { offset: 0, pending: new Map(), text: Buffer.alloc(0) } };
+  const fail = () => { watch.protocol_error = true; watch.first = null; watch.second = null; };
+  function lines(chunk, pending, consume) {
+    pending = Buffer.concat([pending, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
+    if (pending.length > 256 * 1024) { fail(); return Buffer.alloc(0); }
+    let newline;
+    while ((newline = pending.indexOf(10)) >= 0) {
+      const line = pending.subarray(0, newline).toString('utf8').trim(); pending = pending.subarray(newline + 1);
+      if (!line) continue;
+      let frame;
+      try { frame = JSON.parse(line); } catch (_error) { fail(); continue; }
+      consume(frame);
+    }
+    return pending;
+  }
+  return {
+    request(chunk, encoding) {
+      if (requestId !== null || watch.protocol_error) return;
+      requestLine = lines(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, encoding), requestLine, (frame) => {
+        if (frame && frame.schemaVersion === 3 && frame.profileId === 'a9-trusted-shell-current-user-v2' && p2Text(frame.requestId) && !frame.type) requestId = frame.requestId;
+      });
+    },
+    output(chunk) {
+      if (watch.protocol_error) return;
+      outputLine = lines(chunk, outputLine, (frame) => {
+        if (watch.protocol_error || !frame || frame.type !== 'output_chunk' || requestId === null || frame.requestId !== requestId) return;
+        if (frame.schemaVersion !== 3 || frame.profileId !== 'a9-trusted-shell-current-user-v2' || !['stdout', 'stderr'].includes(frame.stream)
+          || !p2Count(frame.streamOffset) || !p2Count(frame.seq) || frame.seq < 1 || !p2Count(frame.byteLength) || frame.byteLength < 1 || frame.byteLength > 16384 || typeof frame.dataBase64 !== 'string') { fail(); return; }
+        const bytes = Buffer.from(frame.dataBase64, 'base64');
+        if (bytes.length !== frame.byteLength || bytes.toString('base64') !== frame.dataBase64) { fail(); return; }
+        const stream = streams[frame.stream];
+        if (frame.streamOffset < stream.offset || stream.pending.has(frame.streamOffset) || stream.pending.size >= 512) { fail(); return; }
+        stream.pending.set(frame.streamOffset, bytes);
+        while (stream.pending.has(stream.offset)) {
+          const next = stream.pending.get(stream.offset); stream.pending.delete(stream.offset); stream.offset += next.length;
+          stream.text = Buffer.concat([stream.text, next]).subarray(-8192);
+        }
+        const head = Buffer.from(watch.head); const whole = Buffer.from(watch.head + watch.tail);
+        if (stream.text.includes(head) && watch.first === null) { watch.first = now(); watch.stream = frame.stream; }
+        if (watch.first !== null && watch.stream === frame.stream && stream.text.includes(whole) && watch.second === null) watch.second = now();
+      });
+    },
+  };
+}
+
 const results = [];
 const evidenceIndex = [];
 function record(caseId, n, status, observed) {
@@ -1536,7 +1722,7 @@ async function runDriver() {
     await screenshot('01-start.png');
     const identityOk = process.versions.electron === '22.3.27' && process.versions.modules === '110' && sqliteVersion === '3.43.1'
       && helperSha === manifest.required_native.runner_helper && sqliteNodeSha === manifest.required_native.better_sqlite3_node
-      && (manifestEntry('resources/app/product/main.js') || {}).sha256 === mainSha && runtimeJson.candidate === 'WIN7-45' && snap.status === 'ready';
+      && (manifestEntry('resources/app/product/main.js') || {}).sha256 === mainSha && runtimeJson.candidate === phase2Fixtures().CONTRACT.candidate && snap.status === 'ready';
     record('B2-CH-01-START', 1, identityOk ? 'PASS' : 'FAIL', `electron=${process.versions.electron}; abi=${process.versions.modules}; sqlite=${sqliteVersion}; helper_match=${helperSha === manifest.required_native.runner_helper}; sqlite_node_match=${sqliteNodeSha === manifest.required_native.better_sqlite3_node}; status=${snap.status}`);
     // B2-CH-01 A02 (SID, session, integrity, elevation, job, old trees) is decided by the smoke from the controller identity.
 
@@ -3077,8 +3263,392 @@ async function runDriver() {
       note: 'hashes only; the marker does not distinguish two bodies, the hash does' });
   }
 
+  // ---- A9-39 fixed secrets journeys: all actions use the real page's public preload bridge. ----
+  const p2 = phase2Fixtures();
+  const p2Case = env.A9_BATCH2_PHASE2_CASE;
+  const p2Started = Date.now();
+  const p2Dispatches = [];
+  const p2Automatic = [];
+  let p2Watch = null;
+  let workspaceChoice = workspaceRoot;
+  const p2Bytes = (bytes) => ({ size: bytes.length, sha256: sha256(bytes) });
+  const p2File = (name) => p2Bytes(fs.readFileSync(path.join(workspaceRoot, name)));
+  const p2Files = (root) => {
+    const rows = [];
+    const visit = (dir) => { if (!fs.existsSync(dir)) return; for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, item.name);
+      if (item.isSymbolicLink()) throw new Error('A9_39_UNEXPECTED_LINK');
+      if (item.isDirectory()) visit(file); else if (item.isFile()) rows.push({ file, ...p2Bytes(fs.readFileSync(file)) });
+    } };
+    visit(root); return rows;
+  };
+  function p2Materials(values) {
+    const variants = new Set();
+    for (const value of values) for (const material of ['utf8', 'latin1']) for (const form of ['plain', 'base64', 'base64-unpadded', 'base64url', 'base64url-unpadded', 'percent']) variants.add(p2.secretForm(value, form, material));
+    return [...variants].filter((v) => v.length > 0);
+  }
+  const p2Hits = (bytes, values) => values.reduce((n, v) => n + ['utf8', 'utf16le', 'latin1'].filter((enc) => bytes.includes(Buffer.from(v, enc))).length, 0);
+  const p2Error = (result) => (String(result && result.error ? `${result.error.code || ''} ${result.error.message || ''}` : '').match(/A9_[A-Z0-9_]+|ELECTRON_[A-Z0-9_]+/g) || []).join(' ').slice(0, 180);
+  async function p2Call(method, ...args) {
+    return exec(`window.win7Agent.a9[${JSON.stringify(method)}](...${JSON.stringify(args)})`);
+  }
+  const p2SidResult = p2Case ? childProcess.spawnSync('whoami.exe', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8', windowsHide: true, timeout: 30000 }) : null;
+  const p2Sid = p2SidResult && p2SidResult.status === 0 ? (String(p2SidResult.stdout).match(/S-1-5-[0-9-]+/) || [null])[0] : null;
+  function p2Envelope(rows) {
+    return { schema_version: 1, case_id: p2Case, candidate: p2.CONTRACT.candidate, bindings: JSON.parse(env.A9_BATCH2_BINDINGS || '{}'), run_id: env.A9_BATCH2_RUN_ID,
+      sid: p2Sid, pid: process.pid, target: JSON.parse(env.A9_BATCH2_TARGET || '{}'), started_ms: p2Started, rows };
+  }
+  const p2EvidenceName = () => p2Case.slice(3).toLowerCase() + '.json';
+  const p2Observed = [];
+  function p2Observe(row, ok) {
+    if (ok !== true) p2Finish(p2Observed.concat(row)); // persist the first failure, then stop this case before another sample can reset its marker
+    p2Observed.push(row); return row;
+  }
+  function p2Finish(rows) {
+    const facts = p2Envelope(rows); const verdict = evaluatePhase2Case(p2Case, facts);
+    out(p2EvidenceName(), { ...facts, verdict });
+    verdict.assertions.forEach((status, index) => record(p2Case, index + 1, status, JSON.stringify(verdict.checks)));
+    if (verdict.status !== 'PASS') throw new Error(`A9_39_CASE_FAILED:${p2Case}`);
+  }
+  function p2Stage(rows, extra = {}) { out(`${p2Case.slice(3).toLowerCase()}-prepare.json`, { ...p2Envelope(rows), ...extra }); }
+  const p2Prepared = () => readJsonFile(`${p2Case.slice(3).toLowerCase()}-prepare.json`);
+  function p2RestartFacts(pre) {
+    const previous = JSON.parse(env.A9_BATCH2_PREVIOUS_EXIT || '{}');
+    return { previous_pid: pre.pid, pid: process.pid, previous_sid: pre.sid, sid: p2Sid, previous_exit_code: previous.code,
+      previous_ended_at: previous.ended_at, previous_tree_absent: previous.tree_absent, started_ms: p2Started };
+  }
+  async function p2Config(values = {}) {
+    return p2Call('configureProvider', { baseUrl: fixtureUrl, model: 'batch2-scripted', apiKey: p2.secretCredentials().api, rememberApiKey: false, ...values });
+  }
+  function p2Proxy(c) { return { host: '127.0.0.1', port: Number(new URL(fixtureUrl).port), username: c.username, password: c.password }; }
+  async function p2Bootstrap(restart) {
+    if (!p2.SECRET_CASE_IDS.includes(p2Case) || !p2Sid || JSON.parse(env.A9_BATCH2_TARGET || '{}').account_sid !== p2Sid) throw new Error('A9_39_CASE_IDENTITY');
+    await waitFor(() => exec('document.readyState === "complete"'), 30000, 'A9-39 real renderer');
+    await selectWorkspace(); await ensureMode();
+    if (!restart) { const config = await p2Config(); if (!config || config.ok !== true) throw new Error('A9_39_PROVIDER_CONFIG'); }
+    const snap = await snapshot();
+    await setFixture({ shellKind: snap.shell && snap.shell.kind === 'powershell' ? 'powershell' : 'cmd' });
+    return snap;
+  }
+  async function p2Select(sample) {
+    const reply = await setFixture({ phase2Case: p2Case, phase2Sample: sample.id });
+    if (!reply.ok) throw new Error('A9_39_FIXED_SAMPLE_REQUIRED');
+    const before = await conversationId();
+    const archived = await p2Call('archiveConversation', before);
+    if (!archived.ok) throw new Error('A9_39_ARCHIVE_REFUSED');
+    await waitFor(async () => (await conversationId()) !== before, 20000, 'A9-39 fresh active conversation');
+  }
+  async function p2Turn(prompt) {
+    const before = p2Dispatches.length;
+    const reply = await p2Call('submitTurn', prompt);
+    await waitIdle(30000, 'A9-39 public submit completed');
+    const conv = await conversationId(); const ev = (await events(conv, 1000)).events;
+    const started = ev.find((e) => e.eventType === 'turn_started');
+    const ended = ev.filter((e) => isTerminalEvent(e)).slice(-1)[0];
+    const turnId = started ? started.turnId : ended ? ended.turnId : reply && reply.result ? reply.result.turnId : null;
+    return { reply, events: ev, turnId, runner_dispatches: p2Dispatches.length - before,
+      tool_starts: ev.filter((e) => e.eventType === 'tool_start' && eventData(e).toolName === 'shell').length,
+      shell_ends: ev.filter((e) => e.eventType === 'tool_end' && eventData(e).toolName === 'shell').length,
+      shell_exit: (toolEndsFor(ev, 'shell')[0] ? (eventData(toolEndsFor(ev, 'shell')[0]).shell || {}) : {}).exitCode };
+  }
+  function p2Sqlite() {
+    const tables = dbAll("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'a9_%'").map((r) => r.name);
+    return tables.map((name) => ({ table: name, rows: dbAll(`SELECT * FROM "${name.replace(/"/g, '""')}"`) }));
+  }
+  function p2Strings(value) {
+    const result = [];
+    const visit = (v, depth) => { if (depth > 12) return; if (typeof v === 'string') { result.push(v); try { const next = JSON.parse(v); if (next !== v) visit(next, depth + 1); } catch (_error) { /* plain string */ } }
+      else if (Array.isArray(v)) v.forEach((x) => visit(x, depth + 1)); else if (v && typeof v === 'object') Object.values(v).forEach((x) => visit(x, depth + 1)); };
+    visit(value, 0); return result;
+  }
+  async function p2Surfaces() { return { snapshot: await snapshot(), events: (await events(await conversationId(), 1000)).events, sqlite: p2Sqlite() }; }
+  function p2Projections(surfaces, expected, select) {
+    return Object.entries(surfaces).flatMap(([surface, value]) => expected.map((text, index) => {
+      const candidates = p2Strings(value); const actual = candidates.find((s) => select ? select(s, index) : s === text);
+      return { surface, index, expected: text, actual: actual === undefined ? null : actual };
+    }));
+  }
+  async function p2Scan(values, allowedRecovery = []) {
+    const surfaces = await p2Surfaces(); const recovery = p2Files(path.join(workspaceRoot, '.agent_recovery'));
+    const parts = Object.entries(surfaces).map(([name, v]) => { const bytes = Buffer.from(JSON.stringify(v)); const strings = Buffer.from(p2Strings(v).join('\n')); return { name, ...p2Bytes(bytes), hits: p2Hits(bytes, values) + p2Hits(strings, values) }; });
+    const productFiles = p2Files(dataRoot);
+    parts.push({ name: 'product-files', ...p2Bytes(Buffer.concat(productFiles.map((r) => fs.readFileSync(r.file)))),
+      hits: productFiles.reduce((n, r) => n + p2Hits(fs.readFileSync(r.file), values), 0),
+      files: productFiles.map((r) => ({ path_sha256: sha256(r.file), size: r.size, sha256: r.sha256 })) });
+    const unexpected = recovery.filter((r) => !allowedRecovery.some((a) => a.file === r.file && a.sha256 === r.sha256));
+    const recoveryBytes = Buffer.concat(unexpected.map((r) => fs.readFileSync(r.file)));
+    parts.push({ name: 'recovery', ...p2Bytes(recoveryBytes), hits: p2Hits(recoveryBytes, values), files: recovery.map((r) => ({ path_sha256: sha256(r.file), size: r.size, sha256: r.sha256 })),
+      preexisting_inputs: allowedRecovery.map((r) => ({ path_sha256: sha256(r.file), size: r.size, sha256: r.sha256 })) });
+    // Scanner positive controls include the encoded material and UTF-16LE; no control plaintext is written.
+    const controls = (values.length ? [values[0], values[values.length - 1]] : ['CONTROL-SENTINEL', 'CONTROL-ENCODED']).map((v, index) => {
+      const bytes = Buffer.from(v, index ? 'utf16le' : 'utf8'); return { ...p2Bytes(bytes), hits: p2Hits(bytes, values.length ? values : [v]) };
+    });
+    return { surfaces: parts, positive_controls: controls };
+  }
+  function p2Input(sample, value) {
+    const name = sample.form === 'path' ? value + '.txt' : 'secret-input.txt';
+    const bytes = p2.secretInputBytes(sample.form === 'path' ? 'controlled path input' : value, sample.encoding || 'utf8');
+    fs.writeFileSync(path.join(workspaceRoot, name), bytes);
+    return { name, digest: p2Bytes(bytes), path_sha256: sha256(name) };
+  }
+  function p2Neutralize(input) {
+    // Only the suite's own controlled input is overwritten/renamed, never a user file or historical evidence.
+    fs.writeFileSync(path.join(workspaceRoot, input.name), 'neutral fixture input\n', 'utf8');
+    if (input.name !== 'secret-input.txt') fs.renameSync(path.join(workspaceRoot, input.name), path.join(workspaceRoot, `input-${input.path_sha256.slice(0, 16)}.txt`));
+  }
+  const p2Marker = () => p2File('dispatch-marker.txt');
+  function p2MarkerStart() { fs.writeFileSync(path.join(workspaceRoot, 'dispatch-marker.txt'), 'unchanged\n', 'utf8'); return p2Marker(); }
+  async function p2Blocked(sample, value, extra = {}) {
+    const input = p2Input(sample, value); const before = p2MarkerStart();
+    const turn = await p2Turn(`b2:fixed-${sample.id}`);
+    const c = p2.secretCredentials(); const material = p2Materials([c.api, c.password, c.header, c.oldApi, `${c.username}:${c.password}`, value]);
+    const row = { id: sample.id, input: input.digest, input_path_sha256: input.path_sha256, ...extra, error: p2Error(turn.reply), runner_dispatches: turn.runner_dispatches,
+      tool_starts: turn.tool_starts, marker_before: before, marker_after: p2Marker(), ipc_submit: ipcLog.some((e) => e.action === 'a9.turn.submit'), scan: await p2Scan(material) };
+    p2Observe(row, /A9_CHECKPOINT_SECRET_BLOCKED/.test(row.error) && phase2Zero(row) && phase2Scan(row.scan));
+    p2Neutralize(input); return row;
+  }
+  async function p2RestoreSample(sample) {
+    const original = p2.secretInputBytes(p2.secretExample(sample.example), sample.encoding || 'utf8');
+    fs.writeFileSync(path.join(workspaceRoot, 'sample.txt'), original);
+    const fileOnly = p2Case === 'B2-A38-06';
+    const b0 = p2File('sample.txt'); const turn = await p2Turn(fileOnly ? `b2:fixed-${sample.id}` : `b2:fixed-${sample.id} ${p2.secretExample(sample.example)}`);
+    const b1 = p2File('sample.txt'); const diff = await p2Call('getDiff', turn.turnId);
+    const recovery = p2Files(path.join(workspaceRoot, '.agent_recovery')); const checkpoints = await p2Call('listCheckpoints', {});
+    const undo = await p2Call('undoTurn', turn.turnId); const surfaces = await p2Surfaces();
+    const expected = { header: 'Authorization: ***redacted***', source: 'const headers = { authorization: ***redacted*** };',
+      url: 'https://***redacted***@example.invalid/api', unregistered: 'Proxy-Authorization: ***redacted***', 'unregistered-base64': 'Authorization: ***redacted***', documentation: 'Authorization: ***redacted***' }[sample.example];
+    // File-only examples use the fixture's final response for the conservative log projection.
+    const expectedProjection = fileOnly ? expected : `b2:fixed-${sample.id} ${expected}`;
+    const checkpoint = p2Array(checkpoints.checkpoints).find((r) => r.turnId === turn.turnId);
+    const row = { id: sample.id, input: p2Bytes(original), b0, b1, b2: p2File('sample.txt'), turn_id: turn.turnId,
+      runner_dispatches: turn.runner_dispatches, tool_starts: turn.tool_starts, shell_ends: turn.shell_ends, shell_exit: turn.shell_exit,
+      diff_ok: diff.ok, diff_paths: p2Array(diff.review && diff.review.files).map((r) => r.path), checkpoint_turn: checkpoint && checkpoint.turnId,
+      undo_ok: undo.ok, undo_errors: p2Array(undo.outcome && undo.outcome.errors).length, restored: p2Array(undo.outcome && undo.outcome.restored),
+      recovery_hashes: recovery.map((r) => r.sha256), projections: p2Projections(surfaces, [expectedProjection]), scan: await p2Scan(p2Materials([p2.secretCredentials().api])) };
+    return p2Observe(row, phase2Restore(row) && phase2Scan(row.scan) && phase2Exact(row));
+  }
+  async function phase2Ordinary() {
+    await p2Bootstrap(false); const rows = [];
+    if (p2Case === 'B2-A38-06') await p2Config({ proxy: p2Proxy(p2.secretCredentials()) });
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) { await p2Select(sample); rows.push(await p2RestoreSample(sample)); }
+    p2Finish(rows);
+  }
+  async function phase2Registered() {
+    await p2Bootstrap(false); const rows = []; const c = p2.secretCredentials();
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); let value;
+      if (p2Case === 'B2-A37-02') {
+        value = { api: c.api, 'proxy-password': c.password, 'custom-header': c.header, 'previous-api': c.oldApi }[sample.source];
+        const config = await p2Config({ apiKey: sample.source === 'previous-api' ? c.oldApi : c.api,
+          customHeaders: sample.source === 'custom-header' ? { 'X-Fixture-Secret': c.header } : {}, proxy: sample.source === 'proxy-password' ? p2Proxy(c) : null });
+        if (!config.ok) throw new Error('A9_39_SECRET_REGISTRATION');
+        if (sample.source === 'previous-api' && !(await p2Config()).ok) throw new Error('A9_39_PREVIOUS_SECRET');
+        value = p2.secretForm(value, sample.form);
+      } else {
+        if (!(await p2Config({ proxy: p2Proxy(c) })).ok) throw new Error('A9_39_BASIC_REGISTRATION');
+        value = p2.phase2SecretValue(sample);
+      }
+      rows.push(await p2Blocked(sample, value));
+    }
+    p2Finish(rows);
+  }
+  async function phase2Rotations() {
+    await p2Bootstrap(false); const rows = []; const c = p2.secretCredentials();
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); const replies = [];
+      replies.push(await p2Config({ proxy: p2Proxy(c) }));
+      const next = { ...c, ...(sample.change === 'username' ? { username: c.username + 'new' } : sample.change === 'password' ? { password: c.password + '-new' } : {}) };
+      replies.push(await p2Config({ proxy: sample.change === 'clear' ? null : p2Proxy(next) }));
+      if (replies.some((r) => !r.ok)) throw new Error('A9_39_ROTATION_CONFIG');
+      const selected = sample.pair === 'old' ? c : next; const value = p2.secretForm(`${selected.username}:${selected.password}`, 'base64');
+      rows.push(await p2Blocked(sample, value, { config_steps: replies.length, config_sequence_sha256: sha256(JSON.stringify([sample.change, replies.map((r) => r.ok)])) }));
+    }
+    p2Finish(rows);
+  }
+  async function phase2Instructions() {
+    await p2Bootstrap(false); const rows = [];
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); const bytes = p2.secretInputBytes(p2.secretExample(sample.example), sample.encoding);
+      fs.writeFileSync(path.join(workspaceRoot, 'AGENTS.md'), bytes); const before = await counters();
+      const turn = await p2Turn(`b2:fixed-${sample.id}`); const after = await counters();
+      const bodies = (after.phase2_bodies || []).filter((r) => r.index > before.requests);
+      const started = turn.events.find((e) => e.eventType === 'turn_started');
+      const row = { id: sample.id, input: p2Bytes(bytes), load_status: started && eventData(started).projectInstructions && eventData(started).projectInstructions.status,
+        provider_requests: after.requests - before.requests, instruction_body_hits: bodies.reduce((n, r) => n + r.instruction_body_hits, 0),
+        provider_body_sha256: sha256(JSON.stringify(bodies)), provider_bodies: bodies, runner_dispatches: turn.runner_dispatches };
+      rows.push(p2Observe(row, row.load_status === sample.expected && row.provider_requests > 0 && row.instruction_body_hits === 0 && row.runner_dispatches === 0));
+      fs.writeFileSync(path.join(workspaceRoot, 'AGENTS.md'), 'neutral instructions\n', 'utf8');
+    }
+    p2Finish(rows);
+  }
+  async function phase2Overlays() {
+    await p2Bootstrap(false); const rows = [];
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); const c = p2.secretCredentials(sample.id); const value = p2.secretForm(`${c.username}:${c.password}`, sample.form, sample.material);
+      await p2Call('configureShell', { kind: 'automatic', envOverlay: {} });
+      let setting; let registration; let saved = false;
+      const d0 = p2Dispatches.length; const a0 = p2Automatic.length; const before = p2MarkerStart();
+      if (sample.stage === 'revalidate') { setting = await p2Call('configureShell', { kind: 'automatic', envOverlay: { BUILD_MODE: value } }); saved = setting.ok === true; registration = await p2Config({ proxy: p2Proxy(c) }); }
+      else { registration = await p2Config({ proxy: p2Proxy(c) }); setting = await p2Call('configureShell', { kind: 'automatic', envOverlay: { BUILD_MODE: value } }); }
+      const snap = await snapshot();
+      // A rejected old setting is exercised through actual automatic selection/Runner, not just its settings response.
+      const attempted = sample.stage === 'revalidate' ? await p2Turn(`b2:fixed-${sample.id}`) : null;
+      const sensitive = p2Materials([value, c.password, `${c.username}:${c.password}`, p2.secretCredentials().api]);
+      const row = { id: sample.id, stage: sample.stage, input: p2Bytes(Buffer.from(value)), setting_ok: sample.stage === 'new' ? setting.ok : registration.ok,
+        error: p2Error(sample.stage === 'new' ? setting : registration), saved_before_registration: saved, diagnostic: snap.shell && snap.shell.diagnostics && snap.shell.diagnostics.code,
+        runner_dispatches: p2Dispatches.length - d0, tool_starts: attempted ? attempted.tool_starts : 0, marker_before: before, marker_after: p2Marker(),
+        runner_overlay_hits: p2Dispatches.slice(d0).reduce((n, r) => n + p2Hits(Buffer.from(r.overlay || ''), sensitive), 0),
+        automatic_overlay_hits: p2Automatic.slice(a0).reduce((n, r) => n + p2Hits(Buffer.from(r.overlay || ''), sensitive), 0), scan: await p2Scan(sensitive) };
+      rows.push(p2Observe(row, /A9_ENV_OVERLAY_REJECTED/.test(row.error) && row.setting_ok === false && phase2Zero(row) && phase2Scan(row.scan)));
+      await p2Call('configureShell', { kind: 'automatic', envOverlay: {} });
+    }
+    p2Finish(rows);
+  }
+  async function phase2Projection() {
+    await p2Bootstrap(false); const rows = [];
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); const auth = p2.phase2AuthInput(sample); const conv = await conversationId();
+      const title = await p2Call('renameConversation', conv, auth.input.split('\n')[0]);
+      const turn = await p2Turn(auth.input); const surfaces = await p2Surfaces();
+      const c = p2.secretCredentials(); const values = p2Materials([c.api, auth.token]);
+      const step = p2.phase2ProviderStep({ messages: [{ role: 'user', content: auth.input }] }, { phase2Case: p2Case, phase2Sample: sample.id, shellKind: (await snapshot()).shell.kind });
+      // Exact expected command, prompt, title and final text; ordinary next-line text must survive.
+      const line = auth.expected.split('\n');
+      const shellKind = (await snapshot()).shell.kind;
+      const commandExpected = shellKind === 'powershell' ? `Write-Output 'A939-COMMAND'; # ${line[0]}\n# ${line[1]}` : `echo A939-COMMAND & rem ${line[0]}\nrem ${line[1]}`;
+      const expected = p2Case === 'B2-A38-04' ? [auth.expected, commandExpected] : [auth.expected];
+      const projections = p2Projections(surfaces, expected);
+      const requestRow = dbAll("SELECT payload_json FROM a9_events WHERE session_id = ? AND event_type = 'conversation.request' ORDER BY id DESC LIMIT 1", conv)[0];
+      const start = turn.events.find((e) => e.eventType === 'tool_start' && eventData(e).toolName === 'shell');
+      const rawKinds = { prompt: requestRow ? JSON.parse(requestRow.payload_json).requestPrompt : null, title: title.conversation && title.conversation.title,
+        command: start && eventData(start).args && eventData(start).args.command, final: turn.reply && turn.reply.result && turn.reply.result.finalMessage };
+      const projectionKinds = Object.entries(rawKinds).map(([kind, actual]) => { const wanted = kind === 'command' ? commandExpected : kind === 'title' ? auth.expected.split('\n')[0] : auth.expected;
+        return { kind, expected: wanted, actual: actual === wanted ? actual : null, actual_sha256: typeof actual === 'string' ? sha256(actual) : null }; });
+      const row = { id: sample.id, input: p2Bytes(Buffer.from(auth.input)), runner_dispatches: turn.runner_dispatches, tool_starts: turn.tool_starts, shell_exit: turn.shell_exit, projections, projection_kinds: projectionKinds, surfaces_complete: title.ok === true && turn.runner_dispatches === 1 && turn.shell_exit === 0 && turn.reply.ok === true && step.tool.name === 'shell', scan: await p2Scan(values) };
+      rows.push(p2Observe(row, phase2Exact(row) && phase2Scan(row.scan) && row.surfaces_complete && projectionKinds.every((p) => p.actual === p.expected)));
+    }
+    p2Finish(rows);
+  }
+  async function phase2CachePrepare() {
+    await p2Bootstrap(false); const sample = p2.SECRET_SAMPLES[p2Case][0]; await p2Select(sample);
+    const value = ['FUTURE', 'A939-RECOVERY-VALUE'].join('-');
+    fs.writeFileSync(path.join(workspaceRoot, 'sample.txt'), value, 'utf8');
+    const turn = await p2Turn('b2:fixed-s001'); const modified = p2File('sample.txt');
+    const recovery = p2Files(path.join(workspaceRoot, '.agent_recovery'));
+    const config = await p2Config({ apiKey: value, rememberApiKey: true }); const markerBefore = p2MarkerStart(); const d0 = p2Dispatches.length;
+    const undo = await p2Call('undoTurn', turn.turnId); const listed = await p2Call('listCheckpoints', {});
+    const after = p2Files(path.join(workspaceRoot, '.agent_recovery'));
+    const row = { id: 's001', input: p2Bytes(Buffer.from(value)), undo_errors: p2Array(undo.outcome && undo.outcome.errors).length, undo_restored: p2Array(undo.outcome && undo.outcome.restored).length, error: p2Error(undo) || JSON.stringify((await snapshot()).checkpointRecoveryDiagnostics || {}), config_error: p2Error(config), undo_ok: undo.ok,
+      runner_dispatches: p2Dispatches.length - d0, tool_starts: 0, marker_before: markerBefore, marker_after: p2Marker(), modified_sha256: modified.sha256, after_sha256: p2File('sample.txt').sha256,
+      full_restore_reported: undo.ok === true && p2Array(undo.outcome && undo.outcome.errors).length === 0, recovery_files_before: recovery.length,
+      new_unsafe_artifacts: after.filter((r) => !recovery.some((old) => old.file === r.file && old.sha256 === r.sha256) && p2Hits(fs.readFileSync(r.file), [value]) > 0).map((r) => r.sha256),
+      checkpoint_index_sha256: sha256(JSON.stringify(listed)) };
+    p2Observe(row, /A9_CHECKPOINT_SECRET_BLOCKED/.test(row.config_error) && row.full_restore_reported === false && row.after_sha256 === row.modified_sha256 && phase2Zero(row));
+    // Save the newly known value using the real provider/vault in a separate clean workspace, then reopen the original on restart.
+    fs.mkdirSync(env.A9_BATCH2_NEUTRAL_WORKSPACE, { recursive: true }); workspaceChoice = env.A9_BATCH2_NEUTRAL_WORKSPACE;
+    await selectWorkspace(); await ensureMode();
+    const saved = await p2Config({ apiKey: value, rememberApiKey: true });
+    if (!saved.ok || (await snapshot()).provider.apiKey.source !== 'dpapi') throw new Error('A9_39_RECOVERY_RESTART_KEY_NOT_SAVED');
+    p2Stage([row], { turn_id: turn.turnId, modified_sha256: modified.sha256, recovery_inputs: recovery.map((r) => ({ path_sha256: sha256(r.file), size: r.size, sha256: r.sha256 })) });
+  }
+  async function phase2CacheRestart() {
+    await p2Bootstrap(true); const pre = p2Prepared(); const d0 = p2Dispatches.length; const before = p2MarkerStart();
+    const undo = await p2Call('undoTurn', pre.turn_id); const snap = await snapshot(); const listed = await p2Call('listCheckpoints', {});
+    const row = { id: 's002', input: pre.rows[0].input, ...p2RestartFacts(pre), undo_errors: p2Array(undo.outcome && undo.outcome.errors).length, undo_restored: p2Array(undo.outcome && undo.outcome.restored).length, error: p2Error(undo) || JSON.stringify(snap.checkpointRecoveryDiagnostics || {}), undo_ok: undo.ok,
+      runner_dispatches: p2Dispatches.length - d0, tool_starts: 0, marker_before: before, marker_after: p2Marker(), after_sha256: p2File('sample.txt').sha256,
+      modified_sha256: pre.modified_sha256, full_restore_reported: undo.ok === true && p2Array(undo.outcome && undo.outcome.errors).length === 0,
+      new_unsafe_artifacts: p2Files(path.join(workspaceRoot, '.agent_recovery')).filter((r) => !pre.recovery_inputs.some((old) => old.path_sha256 === sha256(r.file) && old.sha256 === r.sha256)).map((r) => r.sha256),
+      recovery_files_before: pre.recovery_inputs.length, checkpoint_index_sha256: sha256(JSON.stringify(listed)), key_source: snap.provider && snap.provider.apiKey && snap.provider.apiKey.source };
+    p2Finish(pre.rows.concat(row));
+  }
+  async function phase2SaveProxy() {
+    await p2Bootstrap(false); const saved = await p2Config({ proxy: p2Proxy(p2.secretCredentials()), rememberApiKey: true });
+    const snap = await snapshot(); const files = p2Files(path.join(dataRoot, 'a9-vault-secrets'));
+    const bytes = Buffer.concat(files.map((r) => fs.readFileSync(r.file))); const material = p2Materials([p2.secretCredentials().password]);
+    const row = { id: 's001', input: p2Bytes(Buffer.from(JSON.stringify(p2Proxy(p2.secretCredentials())))), runner_dispatches: p2Dispatches.length, saved_ok: saved.ok, encryption_available: require('electron').safeStorage.isEncryptionAvailable(),
+      key_source: snap.provider && snap.provider.apiKey && snap.provider.apiKey.source, ciphertext: p2Bytes(bytes), ciphertext_plaintext_hits: p2Hits(bytes, material) };
+    p2Observe(row, row.saved_ok === true && row.encryption_available === true && row.key_source === 'dpapi' && row.ciphertext.size > 0 && row.ciphertext_plaintext_hits === 0);
+    p2Stage([row]);
+  }
+  async function phase2ProxyRestart() {
+    const snap = await p2Bootstrap(true); const pre = p2Prepared(); const sample = p2.SECRET_SAMPLES[p2Case][1]; await p2Select(sample);
+    const c = p2.secretCredentials(); const row = await p2Blocked(sample, `${c.username}:${c.password}`, { ...p2RestartFacts(pre), key_source: snap.provider && snap.provider.apiKey && snap.provider.apiKey.source,
+      proxy_password_available: snap.provider && snap.provider.proxy && snap.provider.proxy.passwordAvailable });
+    p2Finish(pre.rows.concat(row));
+  }
+  async function phase2Streams() {
+    await p2Bootstrap(false); if (!(await p2Config({ proxy: p2Proxy(p2.secretCredentials()), rememberApiKey: true })).ok) throw new Error('A9_39_STREAM_PROXY');
+    const rows = [];
+    for (const sample of p2.SECRET_SAMPLES[p2Case]) {
+      await p2Select(sample); const value = p2.phase2SecretValue(sample); const cut = Math.floor(value.length / 2);
+      p2Watch = { head: value.slice(0, cut), tail: value.slice(cut), first: null, second: null };
+      const values = p2Materials([value, p2.secretCredentials().api, p2.secretCredentials().password]);
+      const conv = await conversationId(); const d0 = p2Dispatches.length;
+      const pending = p2Call('submitTurn', `b2:fixed-${sample.id}`); let rejection = null; pending.catch((e) => { rejection = e; });
+      let first;
+      if (sample.surface === 'model') first = await waitFor(async () => { if (rejection) throw rejection; const c = await counters(); return c.phase2_stream && c.phase2_stream.id === sample.id ? c.phase2_stream.first_chunk_at : null; }, 60000, 'model first chunk');
+      else first = await waitFor(() => p2Watch.first, 60000, 'real Runner first chunk');
+      const previews = [];
+      for (let i = 0; i < 3; i++) { const snap = await snapshot(); const preview = sample.surface === 'model' ? snap.liveModelPreview : snap;
+        if (sample.surface === 'model' && (!preview || typeof preview.text !== 'string')) { await sleep(250); i--; if (Date.now() - first > 3000) throw new Error('A9_39_MODEL_PREVIEW_MISSING'); continue; }
+        previews.push({ at: Date.now(), bytes: Buffer.from(JSON.stringify(preview)) }); await sleep(100); }
+      if (sample.surface === 'model') await setFixture({ phase2Release: sample.id });
+      const reply = await pending; await waitIdle(30000, 'split terminal');
+      const second = sample.surface === 'model' ? (await counters()).phase2_stream.second_chunk_at : p2Watch.second;
+      const surfaces = await p2Surfaces(); const ev = (await events(conv, 1000)).events; const shell = toolEndsFor(ev, 'shell')[0];
+      const prefix = [value, value.slice(0, cut)]; const bytes = Buffer.concat(previews.map((r) => r.bytes));
+      const row = { id: sample.id, input: p2Bytes(Buffer.from(value)), conversation_id: conv, preview_kind: sample.surface === 'model' ? 'liveModelPreview' : 'shell_snapshot', first_chunk_at: first,
+        preview_at: previews[0].at, second_chunk_at: second, terminal_at: Date.now(), preview_reads: previews.length, preview: p2Bytes(bytes), preview_hits: p2Hits(bytes, prefix),
+        final_hits: p2Hits(Buffer.from(JSON.stringify([reply, surfaces])), [value]), scan: await p2Scan(values), runner_dispatches: p2Dispatches.length - d0,
+        shell_exit: shell && eventData(shell).shell && eventData(shell).shell.exitCode,
+        chunks: [{ ordinal: 1, at: first }, { ordinal: 2, at: second }] };
+      rows.push(p2Observe(row, row.first_chunk_at < row.preview_at && row.preview_at < row.second_chunk_at && row.preview_hits === 0 && row.final_hits === 0 && phase2Scan(row.scan)));
+      p2Watch = null;
+    }
+    p2Stage(rows);
+  }
+  async function phase2StreamsRestart() {
+    await p2Bootstrap(true); const pre = p2Prepared(); const rows = [];
+    for (const row of pre.rows) {
+      const sample = p2.phase2Sample(p2Case, row.id);
+      const current = await conversationId();
+      if (current !== row.conversation_id) { await p2Call('archiveConversation', current); await p2Call('restoreConversation', row.conversation_id); await p2Call('activateConversation', row.conversation_id); }
+      const surfaces = await p2Surfaces(); const bytes = Buffer.from(JSON.stringify(surfaces)); const value = p2.phase2SecretValue(sample);
+      rows.push({ ...row, ...p2RestartFacts(pre), restart_hits: p2Hits(bytes, [value]), restart_sha256: sha256(bytes) });
+    }
+    p2Finish(rows);
+  }
+  // Observe, do not substitute, the real transport and environment. No command or response is changed.
+  function installPhase2Observer() {
+    const spawn = childProcess.spawn; const sync = childProcess.spawnSync;
+    childProcess.spawn = function(file, args, options) {
+      const child = spawn.call(this, file, args, options);
+      if (/\.exe$/i.test(String(file)) && /helper|powershell|cmd\.exe/i.test(String(file))) {
+        const row = { pid: child.pid, at: Date.now(), executable_sha256: sha256(String(file)), overlay: options && options.env && options.env.BUILD_MODE || '' }; p2Dispatches.push(row);
+        if (p2Watch && /helper/i.test(String(file)) && child.stdin && child.stdout) {
+          const observer = createPhase2OutputObserver(p2Watch, () => Date.now());
+          const write = child.stdin.write;
+          child.stdin.write = function(chunk, encoding, callback) {
+            observer.request(chunk, typeof encoding === 'string' ? encoding : undefined);
+            return write.call(this, chunk, encoding, callback);
+          };
+          child.stdout.on('data', (chunk) => observer.output(chunk));
+        }
+      }
+      return child;
+    };
+    childProcess.spawnSync = function(file, args, options) {
+      if (/powershell|cmd\.exe/i.test(String(file))) p2Automatic.push({ overlay: options && options.env && options.env.BUILD_MODE || '' });
+      return sync.call(this, file, args, options);
+    };
+  }
+
   // ---- Dispatcher ------------------------------------------------------------------------------------------------------------------
   const MODE_TABLE = {
+    secrets_a37_01: phase2Ordinary, secrets_a37_02: phase2Registered, secrets_a37_03_prepare: phase2CachePrepare, secrets_a37_03_restart: phase2CacheRestart,
+    secrets_a37_04: phase2Instructions, secrets_a38_01: phase2Registered, secrets_a38_02: phase2Rotations, secrets_a38_03: phase2Overlays,
+    secrets_a38_04: phase2Projection, secrets_a38_05: phase2Streams, secrets_a38_05_restart: phase2StreamsRestart, secrets_a38_06: phase2Ordinary,
+    secrets_a38_07_save: phase2SaveProxy, secrets_a38_07_restart: phase2ProxyRestart, secrets_a38_08: phase2Projection,
     chain_a: chainA, chain_interrupt: chainInterrupt, chain_recover: chainRecover, chain_exit: chainExit,
     stream_live: streamLive, stream_encodings: streamEncodings, stream_limits: streamLimits, audit_stop: auditStop,
     session_bg: sessionBg, session_restart: sessionRestart, release_exit: releaseExit,
@@ -3097,6 +3667,7 @@ async function runDriver() {
   // Pre-ready seams ---------------------------------------------------------------------------------------------------------------------
   const cmdExecutable = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'cmd.exe');
   dialog.showOpenDialog = async (...args) => openDialogAnswer(args, workspaceRoot, cmdExecutable);
+  if (p2Case) dialog.showOpenDialog = async (...args) => openDialogAnswer(args, workspaceChoice, cmdExecutable);
   const originalMessageBox = dialog.showMessageBox.bind(dialog);
   dialog.showMessageBox = async (...args) => {
     const options = args.find((item) => item && typeof item === 'object' && !item.webContents) || {};
@@ -3122,6 +3693,7 @@ async function runDriver() {
     });
   };
   if (MODE === 'supplement_real_model' && env.A9_ALPHA2_SUPPLEMENT_MODE === MODE) installRealProviderBudget();
+  if (p2Case) installPhase2Observer();
   require(env.A9_BATCH2_PRODUCT_MAIN);
   if (env.A9_ALPHA2_SUPPLEMENT_MODE === MODE) {
     const expectedUserData = path.join(env.LOCALAPPDATA, 'Win7CodingAgent');
@@ -3143,7 +3715,13 @@ async function runDriver() {
         if (wmicFailures > 0 || tree.some((p) => wmiStampMicros(p.created) === null)) throw new Error('A9_36_PREQUIT_TREE_UNKNOWN'); }
       catch (failure) { error = failure; }
     }
-    const payload = { schema_version: 1, mode: MODE, status: error ? 'ERROR' : 'DONE', error: error ? String(error && error.stack ? error.stack : error).slice(0, 1500) : null,
+    if (p2Case) {
+      const rows = wmicRows(); const root = rows.find((r) => Number(r.ProcessId) === process.pid);
+      const tree = [{ pid: process.pid, parent: root ? Number(root.ParentProcessId) : null, name: root && root.Name, created: root && root.CreationDate }, ...descendantsOf(rows, process.pid)];
+      out(`${MODE}-prequit.json`, { sid: p2Sid, tree, wmic_failures: wmicFailures });
+      if (wmicFailures || !tree.length) error = error || new Error('A9_39_PREQUIT_TREE_UNKNOWN');
+    }
+    const payload = { schema_version: 1, mode: MODE, status: error ? 'ERROR' : 'DONE', error: error ? (p2Case ? String(error.message || error).replace(/[^A-Z0-9_:-]/g, '').slice(0, 180) : String(error && error.stack ? error.stack : error).slice(0, 1500)) : null,
       assertions: results, evidence: evidenceIndex, ipc: ipcLog.slice(-200), dialogs: dialogLog, duration_ms: Date.now() - startedAt };
     try { writeJson(resultFile, payload); } catch (_error) { /* reported by the exit code */ }
     driverExitCode = error ? 1 : 0;
@@ -3169,6 +3747,7 @@ async function runDriver() {
 }
 
 module.exports = {
+  createPhase2OutputObserver, evaluatePhase2Case, phase2Identity, phase2Scan, phase2Zero, phase2Restore, phase2Exact, phase2Restart, phase2Fixtures,
   continuationSchemaCases, continuationRequestFacts, evaluateContinuationSchema, supplementalRowsFacts, supplementalWorkspaceFacts, supplementalReadOnlyFacts, journeyToolFacts, journeyShellChecks, journeyReadCitations,
   assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, exitDialogFacts, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,

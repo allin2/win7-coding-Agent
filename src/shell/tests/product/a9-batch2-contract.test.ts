@@ -1435,10 +1435,10 @@ describe('A9-33 batch-2 evidence contract', () => {
   test('the contract is a closed set with the expected shape', () => {
     const check = fixtures.selfCheck();
     expect(check.problems).toEqual([]);
-    expect(check).toMatchObject({ ok: true, cases: 25, assertions: 43, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
+    expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
-    expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 7200, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-45', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-46', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -1447,14 +1447,14 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(ids).not.toContain('B2-CONT-02-CRASH-POINTS-DEDUP');
     expect(ids).not.toContain('B2-SAFE-01-CURRENT-RULES-BUDGET');
     expect(fixtures.casesForPhase('p06-continue').map((item: any) => item.case_id)).toEqual(['B2-CONT-01-RESTART-ZERO-REQUEST', 'B2-CONT-03-APPROVAL-UNKNOWN-EFFECTS']);
-    expect(fixtures.casesForPhase('p07-safe').map((item: any) => item.case_id)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP']);
+    expect(fixtures.casesForPhase('p07-safe').map((item: any) => item.case_id)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP', ...fixtures.SECRET_CASE_IDS]);
     expect(fixtures.casesForPhase('p08-ui').map((item: any) => item.case_id)).toEqual(['B2-UI-01-CONTINUE-INTERACTION', 'B2-UI-02-LAYOUTS-DPI']);
     expect(fixtures.KNOWN_LIMITS.some((item: string) => item.startsWith('CONT-02 crash points'))).toBe(true);
     expect(fixtures.KNOWN_LIMITS.some((item: string) => item.startsWith('SAFE-01 incompressible'))).toBe(true);
     const evidence = fixtures.evidenceSet();
     expect(evidence).not.toContain('cont02-crash-points.json');
     expect(evidence).not.toContain('safe01-rules-budget.json');
-    expect(evidence.length).toBe(55);
+    expect(evidence.length).toBe(67);
   });
 
   test('every assertion needs an observed value before a case can pass', () => {
@@ -1846,7 +1846,7 @@ describe('A9-33 batch-2 request and ledger', () => {
     // The request count and the wall-clock budget are hard limits.
     const full = Array.from({ length: 16 }, (_, i) => [consumed(i + 1, 'p01-env'), completed(i + 1, 'p01-env')]).flat();
     expect(requests.verifyRequest(request({ requestIndex: 16 }), { now: new Date(), ledger: full }).problems).toContain('REQUEST_CAP_REACHED');
-    const late = [consumed(1, 'p01-env', new Date(Date.now() - 7300 * 1000).toISOString()), completed(1, 'p01-env')];
+    const late = [consumed(1, 'p01-env', new Date(Date.now() - (fixtures.LIMITS.max_wall_seconds + 100) * 1000).toISOString()), completed(1, 'p01-env')];
     expect(requests.verifyRequest(request({ requestIndex: 2 }), { now: new Date(), ledger: late }).problems).toContain('WALL_TIME_EXCEEDED');
   });
 
@@ -2175,7 +2175,8 @@ describe('A9-33 batch-2 smoke pieces', () => {
     fs.writeFileSync(path.join(root, 'deep.log'), Buffer.concat([Buffer.alloc(2 * 1024 * 1024 + 17, 0x20), Buffer.from(`token=${secret}`)]));
     const scan = smoke.scanRun(root, secret);
     expect(scan.positive_control_detected).toBe(true);
-    expect(scan.files_scanned).toBe(9);
+    // A9-39 also scans raw SQLite/database bytes; the two historical skip fixtures must now be findings.
+    expect(scan.files_scanned).toBe(11);
     expect([...scan.findings].sort((left: any, right: any) => (left.file < right.file ? -1 : 1))).toEqual([
       { file: path.join('.dot', 'leak.log'), hits: ['api-key-prefix', 'configured-secret-literal'] },
       { file: '.hidden.log', hits: ['api-key-prefix', 'configured-secret-literal'] },
@@ -2186,6 +2187,8 @@ describe('A9-33 batch-2 smoke pieces', () => {
       { file: 'leak.exe', hits: ['api-key-prefix', 'configured-secret-literal'] },
       { file: 'leak.json', hits: ['api-key-prefix', 'configured-secret-literal'] },
       { file: 'leak.txt', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'skip.db', hits: ['api-key-prefix', 'configured-secret-literal'] },
+      { file: 'skip.sqlite', hits: ['api-key-prefix', 'configured-secret-literal'] },
     ]);
   });
 
@@ -2271,7 +2274,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
     const table = /const MODE_TABLE = \{([\s\S]*?)\n  \};/.exec(source);
     expect(table).not.toBeNull();
-    const tableModes = Array.from((table as RegExpExecArray)[1].matchAll(/([a-z_]+): [A-Za-z]+/g)).map((match) => match[1]).sort();
+    const tableModes = Array.from((table as RegExpExecArray)[1].matchAll(/([a-z0-9_]+): [A-Za-z0-9]+/g)).map((match) => match[1]).sort();
     expect(tableModes).toEqual(Object.keys(smoke.DRIVER_MODES).sort());
     expect(source).not.toMatch(/NOT_IMPLEMENTED|notPerformed\(|continue_crash_points/);
     expect(() => smoke.clickExitDialog('c.ps1', 0, 0)).toThrow(/ARGUMENT_INVALID/);
@@ -2419,17 +2422,26 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
     const assertions = [{ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP', assertion_id: 'B2-SAFE-02-AUDIT-HARD-STOP-A01', status: 'PASS', observed: 'hard stop before side effect' }];
     const result = await smoke.runDriverPhase(ctx, {
-      runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
+      runtime, exec: (name: string) => ({ status: 0, stdout: name === 'wmic_processes' ? 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId,CreationDate\nPC,2,0,other.exe,C:\\other.exe,5,20261017000000.000000+000\n' : 'CommandLine=x\nProcessId=2\n', stderr: '', error: null }),
       launchDriver: async (_runtime: any, env: any) => {
-        expect(env.A9_BATCH2_MODE).toBe('safe_rules');
+        expect(smoke.DRIVER_PLANS['p07-safe']).toContain(env.A9_BATCH2_MODE);
         expect(env.A9_BATCH2_SECRET_LITERAL).toBe(fixtures.testOnlySecret());
         expect(env.A9_BATCH2_FIXTURE_URL).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);
-        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions }));
+        const mode = env.A9_BATCH2_MODE; const spec = smoke.PHASE2_MODES[mode];
+        const modeAssertions = spec && !mode.endsWith('_prepare') && !mode.endsWith('_save') && !(mode === 'secrets_a38_05')
+          ? fixtures.CASES.find((c: any) => c.case_id === spec.caseId).assertions.map((a: any) => ({ case_id: spec.caseId, assertion_id: a.assertion_id, status: 'PASS', observed: 'TEST_ONLY observed' })) : spec ? [] : assertions;
+        if (spec) {
+          expect(env.WIN7AGENT_PORTABLE).toBe('0'); expect(env.LOCALAPPDATA).toContain(path.join('secrets', spec.caseId.slice(3).toLowerCase(), 'profile'));
+          expect(env.A9_BATCH2_WORKSPACE).toContain(path.join('secrets', spec.caseId.slice(3).toLowerCase(), 'workspace'));
+          fs.writeFileSync(path.join(attempt, `${mode}-prequit.json`), JSON.stringify({ sid: TARGET.account_sid, tree: [{ pid: 999, created: '20261017000000.000000+000' }], wmic_failures: 0 }));
+        }
+        fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions: modeAssertions }));
         return { code: 0, signal: null, killed_by: null, duration_ms: 1, stdout: 'out', stderr: '', pid: 1 };
       },
     });
-    // p07 holds only SAFE-02 after the narrowing, so the driver's single observed PASS carries the phase.
-    expect(result.cases.map((item: any) => item.case_id)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP']);
+    // SAFE-02 remains observed; each A9-39 case requires its own assertions and isolated roots.
+    expect(result.cases.map((item: any) => item.case_id)).toEqual(['B2-SAFE-02-AUDIT-HARD-STOP', ...fixtures.SECRET_CASE_IDS]);
+    expect(JSON.parse(fs.readFileSync(path.join(attempt, 'driver-launches.json'), 'utf8')).launches).toHaveLength(16);
     expect(result.cases[0].status).toBe('PASS');
     expect(fs.readFileSync(path.join(attempt, 'product.log'), 'utf8')).toContain('==== safe_rules (exit=0; killed_by=null) ====');
     expect(JSON.parse(fs.readFileSync(path.join(attempt, 'driver-launches.json'), 'utf8')).launches[0]).toMatchObject({ mode: 'safe_rules', code: 0 });
@@ -2450,7 +2462,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
   test('a driver ERROR or non-zero exit fails the phase even when every assertion was already recorded as PASS', async () => {
     const { ctx } = phaseContext('p07-safe');
     const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
-    const assertions = [{ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP', assertion_id: 'B2-SAFE-02-AUDIT-HARD-STOP-A01', status: 'PASS', observed: 'hard stop before side effect' }];
+    const assertions = fixtures.casesForPhase('p07-safe').flatMap((c: any) => c.assertions.map((a: any) => ({ case_id: c.case_id, assertion_id: a.assertion_id, status: 'PASS', observed: 'hard stop before side effect' })));
     const result = await smoke.runDriverPhase(ctx, {
       runtime, exec: () => ({ status: 0, stdout: '', stderr: '', error: null }),
       launchDriver: async (_runtime: any, env: any) => {
@@ -3727,13 +3739,14 @@ describe('A9-33 batch-2 smoke pieces', () => {
 
     test('a driver killed by the harness is followed by a recorded sweep; a normal exit is not swept; a stray that stays or a listing that fails ends the phase', async () => {
       const runtime = { electronPath: 'electron.exe', appRoot: 'app', driverSha256: sha('driver') };
-      const assertions = [{ case_id: 'B2-SAFE-02-AUDIT-HARD-STOP', assertion_id: 'B2-SAFE-02-AUDIT-HARD-STOP-A01', status: 'PASS', observed: 'hard stop before side effect' }];
+      const assertions = fixtures.casesForPhase('p07-safe').flatMap((c: any) => c.assertions.map((a: any) => ({ case_id: c.case_id, assertion_id: a.assertion_id, status: 'PASS', observed: 'hard stop before side effect' })));
       const kills: number[] = [];
       const hooksFor = (killedBy: string | null, execFor: any) => ({
         runtime, exec: execFor, strays: { kill: (pid: number) => { kills.push(pid); }, wait: instant },
         launchDriver: async (_runtime: any, env: any) => {
           fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify({ status: 'DONE', assertions }));
-          fs.writeFileSync(path.join(env.A9_BATCH2_ATTEMPT_DIR, 'safe02-audit-hard-stop.json'), '{}');
+          for (const name of fixtures.evidenceForPhase('p07-safe')) fs.writeFileSync(path.join(env.A9_BATCH2_ATTEMPT_DIR, name), '{}');
+          if (smoke.PHASE2_MODES[env.A9_BATCH2_MODE]) fs.writeFileSync(path.join(env.A9_BATCH2_ATTEMPT_DIR, `${env.A9_BATCH2_MODE}-prequit.json`), JSON.stringify({ sid: TARGET.account_sid, tree: [{ pid: 999, created: '20261017000000.000000+000' }], wmic_failures: 0 }));
           return { code: killedBy ? 1 : 0, signal: null, killed_by: killedBy, duration_ms: 1, stdout: '', stderr: '', pid: 1 };
         },
       });
@@ -3743,12 +3756,13 @@ describe('A9-33 batch-2 smoke pieces', () => {
         return made;
       };
       const ctxRoot = (index: number) => ctxPhase('p07-safe', index);
-      // Normal exit: no process listing for a sweep, no kill, no strays entry.
+      // Normal exit: the fifteen new modes observe their post-exit trees; no sweep, kill or strays entry.
       let listings = 0;
       const normal = ctxRoot(1);
       const normalResult = await smoke.runDriverPhase(normal.ctx, hooksFor(null, answers(() => { listings += 1; return wmicCsv([]); })));
       expect(normalResult.status).toBe('PASS');
-      expect(listings).toBe(0);
+      expect(listings).toBe(Object.keys(smoke.PHASE2_MODES).length);
+      expect(kills).toEqual([]);
       expect(JSON.parse(fs.readFileSync(path.join(normal.attempt, 'driver-launches.json'), 'utf8')).launches[0].strays).toBeUndefined();
 
       // The UI phase starts with a kill-on-marker mode. A harness kill is followed by a sweep that removes this run's stray and records it.
@@ -4760,7 +4774,7 @@ describe('A9-33 batch-2 driver evaluators', () => {
     expect(text).toContain('CRLF and a final line without newline are preserved');
     expect(text).toContain('informational only, KL-5');
     expect(text).not.toContain('UTF-8, CP936 and UTF-16LE');
-    expect(fixtures.selfCheck()).toMatchObject({ ok: true, cases: 25, assertions: 43 });
+    expect(fixtures.selfCheck()).toMatchObject({ ok: true, cases: 37, assertions: 67 });
     const kl5 = fixtures.KNOWN_LIMITS.filter((item: string) => item.startsWith('KL-5'));
     expect(kl5).toHaveLength(1);
     expect(kl5[0]).toContain('A9_OUTPUT_ENCODING_ERROR');
@@ -6180,4 +6194,353 @@ describe('A9-33 batch-2 evaluators of fix round 6', () => {
     expect(sub(nothing).status).toBe('FAIL');
     expect(driver.evaluateUiJourney({ card0: card, enter: null, stopped: null, view_return: null, space: null }).find((item: any) => item.name === 'one_dispatch_while_busy').status).toBe('UNKNOWN');
   });
+});
+
+// A9-39: synthetic observations test the actual packaged evaluators; they are not Win7 product evidence.
+describe('A9-39 phase 2 fixed secrets contract', () => {
+  const H = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
+  const digest = (s: string) => ({ size: Buffer.byteLength(s), sha256: H(s) });
+  const scan = () => ({ surfaces: ['snapshot', 'events', 'sqlite', 'recovery', 'product-files'].map((name) => ({ name, ...digest(name), hits: 0 })),
+    positive_controls: [{ ...digest('encoded control'), hits: 1 }, { ...digest('UTF16 control'), hits: 1 }] });
+  const restart = () => ({ previous_pid: 100, pid: 101, previous_sid: TARGET.account_sid, sid: TARGET.account_sid,
+    previous_exit_code: 0, previous_ended_at: '2026-10-17T00:00:00Z', previous_tree_absent: true, started_ms: Date.parse('2026-10-17T00:00:01Z') });
+  function positive(caseId: string) {
+    return { schema_version: 1, case_id: caseId, started_ms: Date.parse('2026-10-17T00:00:01Z'), candidate: fixtures.CONTRACT.candidate, bindings: { source_commit: H('source').slice(0, 40), package_sha256: H('ZIP'), kit_sha256: H('Kit'), manifest_sha256: H('manifest') },
+      run_id: RUN_ID, pid: 101, sid: TARGET.account_sid, target: { ...TARGET },
+      rows: fixtures.SECRET_SAMPLES[caseId].map((sample: any) => ({ id: sample.id, input: digest('input'), runner_dispatches: 0, tool_starts: 0,
+        marker_before: digest('unchanged'), marker_after: digest('unchanged'), error: 'A9_CHECKPOINT_SECRET_BLOCKED', ipc_submit: true, scan: scan(),
+        ...(caseId === 'B2-A37-01' || caseId === 'B2-A38-06' ? { b0: digest('original'), b1: digest('changed'), b2: digest('original'), turn_id: 'turn-1',
+          runner_dispatches: 1, tool_starts: 1, shell_ends: 1, shell_exit: 0, diff_ok: true, diff_paths: ['sample.txt'], checkpoint_turn: 'turn-1',
+          undo_ok: true, undo_errors: 0, restored: ['sample.txt'], recovery_hashes: [H('original')],
+          projections: ['snapshot', 'events', 'sqlite'].map((surface) => ({ surface, expected: 'Authorization: ***redacted***', actual: 'Authorization: ***redacted***' })) } : {}),
+        ...(caseId === 'B2-A37-03' ? { ...restart(), config_error: 'A9_CHECKPOINT_SECRET_BLOCKED', undo_ok: false, undo_errors: 1, undo_restored: 0, full_restore_reported: false,
+          modified_sha256: H('modified'), after_sha256: H('modified'), new_unsafe_artifacts: [], recovery_files_before: 2, checkpoint_index_sha256: H('index'), key_source: 'dpapi' } : {}),
+        ...(caseId === 'B2-A37-04' ? { load_status: sample.expected, provider_requests: 1, instruction_body_hits: 0, provider_body_sha256: H('request body') } : {}),
+        ...(caseId === 'B2-A38-02' ? { config_steps: 2, config_sequence_sha256: H('clear/username/password') } : {}),
+        ...(caseId === 'B2-A38-03' ? { error: 'A9_ENV_OVERLAY_REJECTED', setting_ok: false, stage: sample.stage, saved_before_registration: true,
+          diagnostic: 'A9_ENV_OVERLAY_REJECTED', runner_overlay_hits: 0, automatic_overlay_hits: 0 } : {}),
+        ...(caseId === 'B2-A38-04' || caseId === 'B2-A38-08' ? { projections: ['snapshot', 'events', 'sqlite'].map((surface) => ({ surface,
+          expected: 'Authorization: ***redacted***\nNEXT-LINE-KEPT', actual: 'Authorization: ***redacted***\nNEXT-LINE-KEPT' })), surfaces_complete: true, runner_dispatches: 1, tool_starts: 1, shell_exit: 0, projection_kinds: ['prompt', 'title', 'command', 'final'].map((kind) => ({ kind, expected: 'Authorization: ***redacted***', actual: 'Authorization: ***redacted***' })) } : {}),
+        ...(caseId === 'B2-A38-05' ? { ...restart(), first_chunk_at: 1, preview_at: 2, second_chunk_at: 3, terminal_at: 4, preview_reads: 1,
+          preview: digest('live preview'), preview_hits: 0, final_hits: 0, restart_hits: 0, restart_sha256: H('restart'),
+          preview_kind: sample.surface === 'model' ? 'liveModelPreview' : 'shell_snapshot', runner_dispatches: sample.surface === 'shell' ? 1 : 0, shell_exit: 0 } : {}),
+        ...(caseId === 'B2-A38-07' ? { ...restart(), saved_ok: true, encryption_available: true, key_source: 'dpapi', ciphertext: digest('encrypted bytes'),
+          ciphertext_plaintext_hits: 0, proxy_password_available: true } : {}),
+      })) };
+  }
+  const bad: Record<string, (f: any) => void> = {
+    'B2-A37-01': (f) => { f.rows[0].b2 = digest('wrong restore'); },
+    'B2-A37-02': (f) => { f.rows[0].runner_dispatches = 1; },
+    'B2-A37-03': (f) => { f.rows[1].undo_ok = true; f.rows[1].full_restore_reported = true; },
+    'B2-A37-04': (f) => { f.rows[2].load_status = 'secret_blocked'; },
+    'B2-A38-01': (f) => { f.rows[0].runner_dispatches = 1; },
+    'B2-A38-02': (f) => { f.rows[0].error = 'accepted old pair'; },
+    'B2-A38-03': (f) => { f.rows[0].setting_ok = true; f.rows[0].runner_overlay_hits = 1; },
+    'B2-A38-04': (f) => { f.rows[0].projections[0].actual = 'Authorization: ***redacted*** TOKEN'; },
+    'B2-A38-05': (f) => { f.rows[0].preview_hits = 1; },
+    'B2-A38-06': (f) => { f.rows[0].runner_dispatches = 0; },
+    'B2-A38-07': (f) => { f.rows[1].previous_pid = f.rows[1].pid; },
+    'B2-A38-08': (f) => { f.rows[0].projections[0].actual = 'Authorization: ***redacted***'; },
+  };
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s evaluator accepts complete synthetic observations', (caseId) => {
+    expect(driver.evaluatePhase2Case(caseId, positive(caseId))).toMatchObject({ status: 'PASS', assertions: ['PASS', 'PASS'] });
+  });
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s evaluator counterexample is FAIL', (caseId) => {
+    const facts = positive(caseId); bad[caseId](facts);
+    expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+  });
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s refuses missing, duplicate and unknown sample observations', (caseId) => {
+    const facts = positive(caseId);
+    for (const rows of [[], facts.rows.slice(1), facts.rows.concat(facts.rows[0]), facts.rows.map((r: any, i: number) => i ? r : { ...r, id: 'unknown' })]) {
+      expect(driver.evaluatePhase2Case(caseId, { ...facts, rows }).status).toBe('FAIL');
+    }
+    for (const patch of [{ candidate: 'WIN7-45' }, { bindings: {} }, { sid: null }, { pid: null }]) expect(driver.evaluatePhase2Case(caseId, { ...facts, ...patch }).status).toBe('FAIL');
+  });
+  test.each(['B2-A37-02', 'B2-A38-01', 'B2-A38-02', 'B2-A38-03', 'B2-A38-07'])('%s refuses unknown dispatch counts and changed external markers', (caseId) => {
+    for (const count of [null, undefined, -1, '0', 1]) {
+      const facts = positive(caseId); facts.rows[facts.rows.length - 1].runner_dispatches = count;
+      expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+    }
+    const facts = positive(caseId); facts.rows[facts.rows.length - 1].marker_after = digest('changed');
+    expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+  });
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s enforces zero dispatch or the required real Shell dispatch, rather than inferring it', (caseId) => {
+    const facts = positive(caseId);
+    const mustRun = ['B2-A37-01', 'B2-A38-04', 'B2-A38-06', 'B2-A38-08'].includes(caseId);
+    const index = caseId === 'B2-A38-07' ? 1 : 0;
+    facts.rows[index].runner_dispatches = mustRun ? 0 : 1;
+    expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+    if (caseId === 'B2-A38-05') {
+      const shell = positive(caseId); const i = fixtures.SECRET_SAMPLES[caseId].findIndex((s: any) => s.surface === 'shell');
+      shell.rows[i].runner_dispatches = 0;
+      expect(driver.evaluatePhase2Case(caseId, shell).status).toBe('FAIL');
+    }
+  });
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s requires a typed envelope and matching case identity', (caseId) => {
+    for (const field of ['schema_version', 'case_id', 'started_ms', 'candidate', 'run_id', 'pid', 'sid', 'bindings.source_commit',
+      'bindings.package_sha256', 'bindings.manifest_sha256', 'bindings.kit_sha256', 'target.account_sid']) {
+      for (const value of [undefined, null, {}, [], 'wrong-type', NaN, Infinity]) {
+        const facts: any = positive(caseId); const keys = field.split('.'); let parent = facts;
+        for (const key of keys.slice(0, -1)) parent = parent[key];
+        if (value === undefined) delete parent[keys[keys.length - 1]]; else parent[keys[keys.length - 1]] = value;
+        expect({ field, value: String(value), status: driver.evaluatePhase2Case(caseId, facts).status })
+          .toEqual({ field, value: String(value), status: 'FAIL' });
+      }
+    }
+    const mismatch: any = positive(caseId); mismatch.case_id = fixtures.SECRET_CASE_IDS.find((id: string) => id !== caseId);
+    expect(driver.evaluatePhase2Case(caseId, mismatch).status).toBe('FAIL');
+    for (const rows of [null, undefined, {}, [null]]) expect(driver.evaluatePhase2Case(caseId, { ...positive(caseId), rows }).status).toBe('FAIL');
+    expect(driver.evaluatePhase2Case(caseId, null).status).toBe('FAIL');
+  });
+  // Exact false-PASS probes from missing-fields-extra.json and restart-identity-probe.json.
+  const reviewProbes: Array<[string, string, (f: any) => void]> = [
+    ['B2-A37-03', 'missing new_unsafe_artifacts', (f) => f.rows.forEach((r: any) => { delete r.new_unsafe_artifacts; })],
+    ['B2-A38-05', 'first_chunk_at null', (f) => { f.rows[0].first_chunk_at = null; }],
+    ['B2-A38-07', 'missing restart PID', (f) => { delete f.rows[1].pid; }],
+    ['B2-A38-07', 'missing both restart SIDs', (f) => { delete f.rows[1].sid; delete f.rows[1].previous_sid; }],
+    ['B2-A37-01', 'missing input digest', (f) => f.rows.forEach((r: any) => { delete r.input; })],
+    ['B2-A38-07', 'same envelope PID, missing row PID, wrong user SIDs', (f) => {
+      f.rows[1].previous_pid = f.pid; delete f.rows[1].pid; f.rows[1].sid = f.rows[1].previous_sid = 'S-1-5-21-999';
+    }],
+  ];
+  test.each(reviewProbes)('review regression %s: %s', (caseId, _label, mutate) => {
+    const facts = positive(caseId); mutate(facts);
+    expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+  });
+  // Independent required-field inventory: delete or corrupt each required path, including nested evidence.
+  const required: Record<string, string[]> = {
+    'B2-A37-01': ['input', 'b0', 'b1', 'b2', 'turn_id', 'checkpoint_turn', 'runner_dispatches', 'tool_starts', 'shell_ends', 'shell_exit', 'diff_ok', 'diff_paths', 'undo_ok', 'undo_errors', 'restored', 'recovery_hashes', 'projections', 'scan'],
+    'B2-A37-02': ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'ipc_submit', 'scan'],
+    'B2-A37-03': ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'undo_ok', 'undo_errors', 'undo_restored', 'modified_sha256', 'after_sha256', 'full_restore_reported', 'new_unsafe_artifacts', 'recovery_files_before', 'checkpoint_index_sha256'],
+    'B2-A37-04': ['input', 'load_status', 'provider_requests', 'instruction_body_hits', 'provider_body_sha256', 'runner_dispatches'],
+    'B2-A38-01': ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'ipc_submit', 'scan'],
+    'B2-A38-02': ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'ipc_submit', 'scan', 'config_steps', 'config_sequence_sha256'],
+    'B2-A38-03': ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'setting_ok', 'stage', 'runner_overlay_hits', 'automatic_overlay_hits', 'scan'],
+    'B2-A38-04': ['input', 'runner_dispatches', 'tool_starts', 'shell_exit', 'projections', 'projection_kinds', 'surfaces_complete', 'scan'],
+    'B2-A38-05': ['input', 'runner_dispatches', 'first_chunk_at', 'preview_at', 'second_chunk_at', 'terminal_at', 'preview_reads', 'preview', 'preview_hits', 'final_hits', 'preview_kind', 'restart_hits', 'restart_sha256', 'scan'],
+    'B2-A38-06': ['input', 'b0', 'b1', 'b2', 'turn_id', 'checkpoint_turn', 'runner_dispatches', 'tool_starts', 'shell_ends', 'shell_exit', 'diff_ok', 'diff_paths', 'undo_ok', 'undo_errors', 'restored', 'recovery_hashes', 'projections', 'scan'],
+    'B2-A38-07': ['input', 'runner_dispatches', 'saved_ok', 'encryption_available', 'key_source', 'ciphertext', 'ciphertext_plaintext_hits'],
+    'B2-A38-08': ['input', 'runner_dispatches', 'tool_starts', 'shell_exit', 'projections', 'surfaces_complete', 'scan'],
+  };
+  const restartPaths = ['pid', 'sid', 'previous_pid', 'previous_sid', 'previous_exit_code', 'previous_ended_at', 'previous_tree_absent', 'started_ms'];
+  const blockedPaths = ['input', 'error', 'runner_dispatches', 'tool_starts', 'marker_before', 'marker_after', 'ipc_submit', 'scan'];
+  test.each(fixtures.SECRET_CASE_IDS as string[])('%s required fields reject absence and wrong types before comparison', (caseId) => {
+    const good: any = positive(caseId);
+    const expand = (value: any, prefix: string): string[] => {
+      if (value && typeof value === 'object') return [prefix, ...Object.keys(value).flatMap((key) => expand(value[key], `${prefix}.${key}`))];
+      return [prefix];
+    };
+    good.rows.forEach((row: any, index: number) => {
+      let paths = required[caseId];
+      if (caseId === 'B2-A38-07' && index === 1) paths = [...blockedPaths, 'key_source', 'proxy_password_available'];
+      if (caseId === 'B2-A37-03') paths = [...paths, ...(index === 0 ? ['config_error'] : ['key_source', ...restartPaths])];
+      if (caseId === 'B2-A38-05' || (caseId === 'B2-A38-07' && index === 1)) paths = [...paths, ...restartPaths];
+      if (caseId === 'B2-A38-05' && fixtures.SECRET_SAMPLES[caseId][index].surface === 'shell') paths = [...paths, 'shell_exit'];
+      if (caseId === 'B2-A38-03' && row.stage === 'revalidate') paths = [...paths, 'saved_before_registration', 'diagnostic'];
+      // Only fields used by this row's contract are mandatory; unused supplemental metadata is not inferred.
+      for (const field of ['id', ...paths].flatMap((key) => expand(row[key], key))) {
+        for (const replacement of [undefined, null, {}, [], 'wrong-type', NaN, Infinity]) {
+          const original = field.split('.').reduce((v: any, key: string) => v[key], row);
+          if (Array.isArray(original) && original.length === 0 && Array.isArray(replacement) && replacement.length === 0) continue;
+          const facts: any = positive(caseId); const keys = field.split('.'); let parent = facts.rows[index];
+          for (const key of keys.slice(0, -1)) parent = parent[key];
+          if (replacement === undefined) delete parent[keys[keys.length - 1]]; else parent[keys[keys.length - 1]] = replacement;
+          expect({ caseId, index, field, replacement: String(replacement), status: driver.evaluatePhase2Case(caseId, facts).status })
+            .toEqual({ caseId, index, field, replacement: String(replacement), status: 'FAIL' });
+        }
+      }
+    });
+  });
+  test.each(['B2-A37-03', 'B2-A38-05', 'B2-A38-07'])('%s binds restart PID and SID to the current envelope', (caseId) => {
+    const index = caseId === 'B2-A38-05' ? 0 : 1;
+    for (const patch of [{ pid: 999 }, { sid: 'S-1-5-21-999', previous_sid: 'S-1-5-21-999' }, { started_ms: null }, { previous_pid: '100' }]) {
+      const facts: any = positive(caseId); Object.assign(facts.rows[index], patch);
+      expect(driver.evaluatePhase2Case(caseId, facts).status).toBe('FAIL');
+    }
+  });
+  // These are the exact two valid frames in observer-v3-repro.json, kept in the test rather than depending on outputs/.
+  const reviewFrames = [
+    { schemaVersion: 3, type: 'output_chunk', profileId: 'a9-trusted-shell-current-user-v2', requestId: 'probe', seq: 1, stream: 'stdout', streamOffset: 0, byteLength: 22, dataBase64: 'WVRsbWFYaDBkWEpsT2tFNUxUTTVMWA==' },
+    { schemaVersion: 3, type: 'output_chunk', profileId: 'a9-trusted-shell-current-user-v2', requestId: 'probe', seq: 2, stream: 'stdout', streamOffset: 22, byteLength: 22, dataBase64: 'Qnl3Nmw0ZVMxK2ZuNC9Qejk0ZVhvPQ==' },
+  ];
+  function observerProbe() {
+    const code = fs.readFileSync(path.join(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const start = code.indexOf('  function installPhase2Observer()'); const end = code.indexOf('  // ---- Dispatcher', start);
+    const child = { pid: 200, stdout: new EventEmitter(), stdin: { write: jest.fn((_chunk: string) => true) } };
+    const watch = { head: Buffer.from(reviewFrames[0].dataBase64, 'base64').toString(), tail: Buffer.from(reviewFrames[1].dataBase64, 'base64').toString(), first: null, second: null };
+    let now = 100;
+    const context: any = { childProcess: { spawn: () => child, spawnSync: () => ({ status: 0 }) }, p2Dispatches: [], p2Automatic: [], p2Watch: watch,
+      createPhase2OutputObserver: driver.createPhase2OutputObserver, sha256: H, Date: { now: () => now }, Buffer };
+    const originalWrite = child.stdin.write;
+    vm.runInNewContext(code.slice(start, end) + '\ninstallPhase2Observer();', context);
+    context.childProcess.spawn('C:\\runtime\\helper.exe');
+    const request = JSON.stringify({ schemaVersion: 3, profileId: reviewFrames[0].profileId, requestId: 'probe' }) + '\n';
+    child.stdin.write(request.slice(0, 12)); child.stdin.write(request.slice(12));
+    return { watch, child, originalWrite, send: (text: string, at = 100) => { now = at; child.stdout.emit('data', Buffer.from(text)); } };
+  }
+  test('review observer v3 repro decodes matching output_chunk frames across data event boundaries', () => {
+    const probe = observerProbe();
+    reviewFrames.forEach((frame, index) => { const line = JSON.stringify(frame) + '\r\n'; probe.send(line.slice(0, 29), 100 + index * 100); probe.send(line.slice(29), 100 + index * 100); });
+    expect(probe.watch).toMatchObject({ first: expect.any(Number), second: expect.any(Number) });
+    expect(probe.watch.first).toBeLessThan(probe.watch.second as any);
+    expect(probe.originalWrite).toHaveBeenCalledTimes(2);
+  });
+  test('review observer never times plaintext in non-output fields or another request', () => {
+    const probe = observerProbe();
+    probe.send(JSON.stringify({ schemaVersion: 3, type: 'execution_result', requestId: 'probe', detail: probe.watch.head + probe.watch.tail }) + '\n');
+    probe.send(reviewFrames.map((frame) => JSON.stringify({ ...frame, requestId: 'foreign', detail: probe.watch.head + probe.watch.tail })).join('\n') + '\n');
+    expect(probe.watch).toMatchObject({ first: null, second: null });
+  });
+  test('observer assembles stream offsets, never bridges gaps or stdout/stderr', () => {
+    const probe = observerProbe();
+    probe.send(JSON.stringify(reviewFrames[1]) + '\n'); expect(probe.watch.first).toBeNull(); expect(probe.watch.second).toBeNull();
+    probe.send(JSON.stringify(reviewFrames[0]) + '\n', 200);
+    expect(probe.watch).toMatchObject({ first: expect.any(Number), second: expect.any(Number) });
+    const split = observerProbe();
+    split.send(JSON.stringify({ ...reviewFrames[1], stream: 'stderr', streamOffset: 0 }) + '\n');
+    split.send(JSON.stringify(reviewFrames[0]) + '\n', 200);
+    expect(split.watch.first).not.toBeNull(); expect(split.watch.second).toBeNull();
+  });
+  test('observer joins payload fragments by byte offsets across merged JSON lines', () => {
+    const probe = observerProbe(); const bytes = Buffer.concat(reviewFrames.map((f) => Buffer.from(f.dataBase64, 'base64')));
+    const parts = [bytes.subarray(0, 11), bytes.subarray(11, 33), bytes.subarray(33)]; let offset = 0;
+    const frames = parts.map((part, i) => { const frame = { ...reviewFrames[0], seq: i + 1, streamOffset: offset, byteLength: part.length, dataBase64: part.toString('base64') }; offset += part.length; return frame; });
+    probe.send(frames.slice(0, 2).map((f) => JSON.stringify(f)).join('\n') + '\n', 100);
+    expect(probe.watch.first).not.toBeNull(); expect(probe.watch.second).toBeNull();
+    probe.send(JSON.stringify(frames[2]) + '\n', 200);
+    expect(probe.watch.second).toBe(200);
+  });
+  test.each([{ byteLength: '22' }, { dataBase64: 'not base64' }, { streamOffset: null }])('observer rejects malformed matching chunks %j', (patch) => {
+    const probe = observerProbe(); probe.send(JSON.stringify({ ...reviewFrames[0], ...patch }) + '\n');
+    probe.send(reviewFrames.map((f) => JSON.stringify(f)).join('\n') + '\n', 200);
+    expect(probe.watch).toMatchObject({ first: null, second: null, protocol_error: true });
+  });
+  test('A38-06 includes an independent bare base64 pair file sample', () => {
+    const samples = fixtures.SECRET_SAMPLES['B2-A38-06'];
+    expect(samples.map((s: any) => s.example)).toEqual(['unregistered', 'documentation', 'unregistered-base64']);
+    expect(fixtures.secretExample('unregistered-base64')).toBe(Buffer.from('other:other-pass').toString('base64'));
+  });
+  test.each(['unregistered', 'documentation', 'unregistered-base64'])('A38-06 file-only input %s never enters submitTurn', (example) => {
+    const samples = fixtures.SECRET_SAMPLES['B2-A38-06'];
+    const code = fs.readFileSync(path.join(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const start = code.indexOf('  async function p2RestoreSample('); const end = code.indexOf('  async function phase2Ordinary(', start);
+    const body = code.slice(start, end);
+    const sample = samples.find((s: any) => s.example === example); const secret = fixtures.secretExample(sample.example);
+    const context: any = { p2: fixtures, p2Case: 'B2-A38-06', workspaceRoot: 'controlled-workspace', path,
+      fs: { writeFileSync: jest.fn() }, p2File: () => digest('file'), p2Turn: jest.fn(async () => ({ turnId: 'turn-1' })),
+      p2Call: async () => ({}), p2Files: () => [], p2Surfaces: async () => ({}), p2Projections: () => [], p2Array: (v: any) => Array.isArray(v) ? v : [],
+      p2Bytes: (b: Buffer) => ({ size: b.length, sha256: H(b.toString()) }), p2Scan: async () => scan(), p2Materials: (v: any) => v,
+      p2Observe: (r: any) => r, phase2Restore: () => true, phase2Scan: () => true, phase2Exact: () => true, Buffer };
+    vm.runInNewContext(body + '\nglobalThis.restore = p2RestoreSample;', context);
+    return context.restore(sample).then(() => {
+      expect(context.p2Turn).toHaveBeenCalledWith(`b2:fixed-${sample.id}`);
+      expect(context.fs.writeFileSync.mock.calls[0][1].toString()).toBe(secret);
+      const final = fixtures.phase2ProviderStep({ messages: [{ role: 'user', content: `b2:fixed-${sample.id}` }, { role: 'tool', content: 'changed' }] },
+        { phase2Case: 'B2-A38-06', phase2Sample: sample.id, shellKind: 'cmd' });
+      expect(final.content).toBe(example === 'unregistered-base64' ? `Authorization: Basic ${secret}` : secret);
+    });
+  });
+  test('original 25 cases and all 43 assertions retain their exact serialized contract', () => {
+    const old = fixtures.CASES.filter((c: any) => !fixtures.SECRET_CASE_IDS.includes(c.case_id));
+    expect(old).toHaveLength(25); expect(old.reduce((sum: number, c: any) => sum + c.assertions.length, 0)).toBe(43);
+    expect(H(JSON.stringify(old))).toBe('d4dea48b16626267f2310faabb5dd78b6db6018697417da1775116998649ade2');
+  });
+  test('fixed variants really exercise padding, URL-safe forms, Latin-1 and three file decoders', () => {
+    const c = fixtures.secretCredentials(); const text = c.username + ':' + c.password;
+    for (const material of ['utf8', 'latin1']) {
+      const b64 = fixtures.secretForm(text, 'base64', material);
+      expect(b64).toMatch(/=+$/); expect(fixtures.secretForm(text, 'base64-unpadded', material)).not.toContain('=');
+      expect(fixtures.secretForm(text, 'base64url', material)).not.toMatch(/[+/]/);
+    }
+    expect(fixtures.secretForm(text, 'base64', 'utf8')).not.toBe(fixtures.secretForm(text, 'base64', 'latin1'));
+    const gbk = fixtures.secretInputBytes(text, 'gbk'); expect(new util.TextDecoder('gbk', { fatal: true }).decode(gbk)).toBe('中文\n' + text);
+    expect(() => new util.TextDecoder('utf-8', { fatal: true }).decode(gbk)).toThrow();
+    for (const encoding of ['utf8', 'utf16le']) expect(new util.TextDecoder(encoding === 'utf8' ? 'utf-8' : 'utf-16le', { fatal: true }).decode(fixtures.secretInputBytes(text, encoding))).toBe(text);
+  });
+  test('new phase plans use only fixed samples and keep each restart immediately after its exited predecessor', () => {
+    const plan = smoke.DRIVER_PLANS['p07-safe']; expect(plan[0]).toBe('safe_rules');
+    expect(new Set(Object.values(smoke.PHASE2_MODES).map((s: any) => s.caseId))).toEqual(new Set(fixtures.SECRET_CASE_IDS));
+    for (const [mode, spec] of Object.entries(smoke.PHASE2_MODES) as any) {
+      if (spec.previous) expect(plan.indexOf(mode)).toBe(plan.indexOf(spec.previous) + 1);
+      expect(spec).not.toHaveProperty('command'); expect(spec).not.toHaveProperty('script');
+    }
+    expect(() => fixtures.phase2ProviderStep({ messages: [] }, { phase2Case: 'B2-A37-02', phase2Sample: 'arbitrary command' })).toThrow('A9_39_PROVIDER_SAMPLE_UNKNOWN');
+    expect(fixtures.SECRET_SAMPLES['B2-A37-04'].map((s: any) => s.expected)).toEqual(['secret_blocked', 'secret_blocked', 'decode_error', 'decode_error']);
+  });
+  test('stream evaluators require both surfaces and an actual pre-second-chunk preview', () => {
+    for (const patch of [{ preview_at: 3 }, { second_chunk_at: null }, { preview_kind: 'inferred response' }, { preview_reads: 0 }, { restart_hits: 1 }]) {
+      const facts = positive('B2-A38-05'); Object.assign(facts.rows[0], patch);
+      expect(driver.evaluatePhase2Case('B2-A38-05', facts).status).toBe('FAIL');
+    }
+  });
+});
+
+describe('A9-39 phase 2 collection boundaries', () => {
+  test('post-exit observations refuse an unknown stamp, wrong SID, failed listing and live instance', async () => {
+    const sid = TARGET.account_sid; const stamp = '20261017000000.000000+000';
+    const pre = { sid, wmic_failures: 0, tree: [{ pid: 999, created: stamp }] };
+    const answer = (alive: boolean, fail = false) => (name: string) => ({ status: fail ? 1 : 0, error: fail ? 'unavailable' : null, stderr: '',
+      stdout: name === 'wmic_processes' ? 'Node,ProcessId,ParentProcessId,Name,ExecutablePath,SessionId,CreationDate\n'
+        + (alive ? `PC,999,1,electron.exe,C:\\electron.exe,5,${stamp}\n` : `PC,2,1,other.exe,C:\\other.exe,5,${stamp}\n`) : 'CommandLine=x\nProcessId=2\n' });
+    expect((await smoke.phase2PostExit(pre, sid, answer(false), async () => {})).observed).toBe(true);
+    expect((await smoke.phase2PostExit({ ...pre, tree: [{ pid: 999, created: '' }] }, sid, answer(false))).observed).toBe(false);
+    expect((await smoke.phase2PostExit(pre, 'wrong SID', answer(false))).observed).toBe(false);
+    expect((await smoke.phase2PostExit(pre, sid, answer(false, true))).observed).toBe(false);
+    expect((await smoke.phase2PostExit(pre, sid, answer(true), async () => {})).reason).toBe('PROCESS_RESIDUE');
+  });
+  test('the run scanner covers new encoded credentials in SQLite bytes and UTF-16LE and keeps only the exact pre-registration input exception', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a939-scan-'));
+    const c = fixtures.secretCredentials(); const value = fixtures.secretForm(c.username + ':' + c.password, 'base64', 'latin1');
+    fs.writeFileSync(path.join(root, 'state.sqlite'), value, 'utf8');
+    fs.writeFileSync(path.join(root, 'projection.json'), fixtures.secretForm(c.username + ':' + c.password, 'base64url'), 'utf16le');
+    const input = path.join(root, 'secrets/a37-03/workspace/.agent_recovery/input'); fs.mkdirSync(path.dirname(input), { recursive: true });
+    fs.writeFileSync(input, ['FUTURE', 'A939-RECOVERY-VALUE'].join('-'));
+    const result = smoke.scanRun(root, fixtures.testOnlySecret());
+    expect(result.phase2_controls_detected).toBe(true); expect(result.controlled_inputs).toHaveLength(1);
+    expect(result.findings.map((r: any) => r.file).sort()).toEqual(['projection.json', 'state.sqlite']);
+    fs.writeFileSync(input, ['FUTURE', 'A939-RECOVERY-VALUE'].join('-') + ' extra');
+    const changed = smoke.scanRun(root, fixtures.testOnlySecret()); expect(changed.controlled_inputs).toHaveLength(0); expect(changed.findings).toHaveLength(3);
+  });
+  test('the real loopback fixture gates model chunk two and accepts only a fixed sample ID', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a939-http-')); const fixture = new smoke.ProviderFixture(path.join(root, 'requests.jsonl'));
+    const port = await fixture.listen();
+    const send = (pathname: string, body?: any) => new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = http.request({ hostname: '127.0.0.1', port, path: pathname, method: body ? 'POST' : 'GET' }, (res) => {
+        let text = ''; res.on('data', (chunk) => { text += chunk; }); res.on('end', () => resolve({ status: res.statusCode || 0, body: text }));
+      }); req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
+    });
+    try {
+      const invalid = await send('/__b2/state', { phase2Case: 'B2-A38-05', phase2Sample: 'free script', command: 'must never dispatch' });
+      expect(invalid.status).toBe(400); expect(fixture.requestCount).toBe(0);
+      const sample = fixtures.SECRET_SAMPLES['B2-A38-05'].find((s: any) => s.surface === 'model');
+      expect((await send('/__b2/state', { phase2Case: 'B2-A38-05', phase2Sample: sample.id })).status).toBe(200);
+      let firstResolve: () => void = () => {}; const first = new Promise<void>((resolve) => { firstResolve = resolve; });
+      const response = new Promise<string>((resolve, reject) => {
+        const req = http.request({ hostname: '127.0.0.1', port, path: '/v1/chat/completions', method: 'POST' }, (res) => {
+          let text = ''; res.on('data', (chunk) => { text += chunk; firstResolve(); }); res.on('end', () => resolve(text));
+        }); req.on('error', reject); req.end(JSON.stringify({ messages: [{ role: 'user', content: 'fixed streaming input' }] }));
+      });
+      await first; const before = JSON.parse((await send('/__b2/counters')).body);
+      expect(before.phase2_stream).toMatchObject({ id: sample.id, second_chunk_at: null });
+      expect((await send('/__b2/state', { phase2Release: sample.id })).status).toBe(200);
+      expect(await response).toContain('[DONE]');
+      const after = JSON.parse((await send('/__b2/counters')).body); expect(after.phase2_stream.second_chunk_at).toBeGreaterThanOrEqual(after.phase2_stream.first_chunk_at);
+      expect((await send('/__b2/state', { phase2Release: sample.id })).status).toBe(400);
+      const fixed = fixtures.phase2ProviderStep({ messages: [{ role: 'user', content: 'arbitrary user command' }] }, { phase2Case: 'B2-A37-02', phase2Sample: 's001', shellKind: 'cmd' });
+      expect(fixed.tool.args.command).toBe('>dispatch-marker.txt echo DISPATCHED'); expect(fixed.tool.args.command).not.toContain('arbitrary');
+    } finally { await fixture.close(); }
+  });
+});
+
+
+test('A9-39 ordinary packaged modes derive identity from the candidate fixtures without the new-mode override', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a939-identity-')); fs.mkdirSync(path.join(root, 'validation'));
+  fs.copyFileSync(path.join(releaseDir, 'a9-batch2-fixtures.cjs'), path.join(root, 'validation/a9-batch2-fixtures.cjs'));
+  const candidate = process.env.A9_BATCH2_CANDIDATE_ROOT; const override = process.env.A9_BATCH2_FIXTURES;
+  try { process.env.A9_BATCH2_CANDIDATE_ROOT = root; delete process.env.A9_BATCH2_FIXTURES;
+    expect(driver.phase2Fixtures().CONTRACT.candidate).toBe(fixtures.CONTRACT.candidate);
+  } finally {
+    if (candidate === undefined) delete process.env.A9_BATCH2_CANDIDATE_ROOT; else process.env.A9_BATCH2_CANDIDATE_ROOT = candidate;
+    if (override === undefined) delete process.env.A9_BATCH2_FIXTURES; else process.env.A9_BATCH2_FIXTURES = override;
+  }
 });

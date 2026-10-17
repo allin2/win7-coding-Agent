@@ -10,7 +10,8 @@ Candidate: WIN7-46 (proposed; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0250, ADR-0251
-Revision: r3 (2026-10-16; option A approval and phase 1 execution)
+Revision: r5 (2026-10-17; phase 2 independent review fixes)
+Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
 ## 1. 结论、交付目标与本轮边界
@@ -19,7 +20,8 @@ Revision: r3 (2026-10-16; option A approval and phase 1 execution)
 A9-36 产品绑定改为 WIN7-46，M6 回退目标仍为 WIN7-42。
 Alpha 2 最终候选须包含 A9-37、A9-38；构建和冻结须等待 §6 的前置顺序。
 负责人已批准选项 A，本任务为 `APPROVED_FOR_IMPLEMENTATION`。
-本轮只做阶段 1：同步非共享文件的候选身份，完成本地检查并保存证据。
+本轮实施阶段 2：A9-36 已合入 `f37811b…`，追加十二项固定用例并完成开发机检查。
+阶段 1 历史记录保留在 §11.1～§11.2；阶段 2 见 §11.3。
 
 负责人 2026-10-16 原话：
 
@@ -29,9 +31,9 @@ Alpha 2 最终候选须包含 A9-37、A9-38；构建和冻结须等待 §6 的�
 WIN7-46 是拟用编号，不是已形成的候选。执行与门 B 另行授权。
 任务批准也不代替负责人签发门 A，不直接产生 Alpha 2/RC 结论。
 
-阶段 1 只修改 §3 中本轮指定的七条实现路径、本文与任务索引。
+阶段 1 曾只修改 §3 指定的七条实现路径、本文与任务索引。
 不提交、不推送、不连接远端或目标机、不构建正式候选。
-不写其他工作树，不安装依赖，不修改共享 driver 或 contract-test。没有派发子代理。
+本轮不写其他工作树，不安装依赖。共享 driver 与 contract-test 已按 ADR-0251 交接给 A9-39。没有派发子代理。
 
 治理依据为 `CLAUDE.md`、`AGENTS.md` §3/C14、全局 `ACCEPTANCE_AND_RELEASE_WORKFLOW.md`。
 写作只读引用主工作区 `/Users/qlyf/Developer/win7-coding-Agent/docs/OUTPUT_STYLE.md` 与同目录 `GLOSSARY.md`。
@@ -86,9 +88,9 @@ A9-36 合入整合分支后，再在驱动与合同测试中追加 §5 的 12 �
 当前分支须为 `codex/a9-alpha2-integration-r2`，实现只限下表。
 不借用 A9-33/36 的批准修改新候选。
 
-本轮仅阶段 1：下表前六条路径与 package-test，共七条。
-fixtures 本轮仅改身份字段，保留原 25/43；smoke、driver、contract-test 本轮不改。
-共享 driver 与 contract-test 继续按 ADR-0251 串行交接。
+阶段 1 的七路径身份同步已完成。阶段 2 在下表十路径白名单内追加 §5 用例。
+A9-36 已于 2026-10-17 合入整合分支 `f37811b…`。
+共享 driver 与 contract-test 的写者现为 A9-39，原 M1～M6 判定和反例保留。
 
 | 实现路径 | 最小修改责任 |
 |---|---|
@@ -106,7 +108,7 @@ fixtures 本轮仅改身份字段，保留原 25/43；smoke、driver、contract-
 套件 JSON 的准确产物路径为包根 `A9_BATCH2_VALIDATION_KIT.json`。
 它由上述生产者与 fixtures 生成，不在 `release/` 下新增手写副本。
 双构建输出中的 JSON 均须比对；冻结副本保持只读。
-新增 12 用例后，原集合仍为 25/43；拟新集合为 37 用例，断言总数依实现合同核定，不预填 PASS。
+新增 12 用例后，原集合仍为 25/43；新集合为 37 用例/67 断言，其中新增 24 条。用例实现不预填 Win7 PASS。
 
 上述十路径是 A9-39 的完整实现白名单。
 方案 R2 下 A9-36 编排器、请求模块、桌面入口和其验证说明的候选适配，须由修订后的 A9-36 六路径合同承担。
@@ -175,12 +177,14 @@ A9-38 改 Basic 组合登记、Shell 敏感值、实时预览保留长度与单�
 全部 25/43 均可保留原判据复跑，候选身份必须更新。
 没有一项原用例直接证明普通示例的逐字节撤销、项目说明保守门或新增 Basic 组合闭包，故另加 §5。
 
-## 5. A9-37/38 新增 Win7 直接用例提案
+## 5. A9-37/38 新增 Win7 直接用例
 
-拟新增 12 用例：A9-37 四项、A9-38 八项。
+新增 12 用例：A9-37 四项、A9-38 八项，共 24 条断言。
 新增模式归入新候选的 p07-safe，原十阶段顺序与原 25/43 保留。
 实施时以固定子样本表列出每个变体，不用一次 PASS 代替未执行的变体。
-新增断言数、阶段耗时与有界预算在冻结前核定；不沿用旧 7200 秒已足够的假设。
+当前集合为 37/67。固定子样本共 251 项，新增模式时长上限合计 10200 秒。
+全部驱动模式上限合计 16620 秒，总墙钟上限为 21600 秒。
+实际 Win7 耗时为 `UNKNOWN`；准确执行材料仍须核定共同窗口，不沿用旧 7200 秒。
 
 共同入口为冻结包真实 main/preload/Schema IPC/Core/Workspace/Runner 与 SQLite。
 用隔离工作区、候选外隔离数据根及合成凭据；新用例使用本机回环固定响应，不调用真实服务。
@@ -203,7 +207,7 @@ SQLite、事件、Provider 记录和文件清单逐件计算 SHA-256；不在报
 | B2-A38-03 | 在公开 Shell 设置写入包含已知组合的环境覆盖；UTF-8/Latin-1 及 URL-safe 形式分别覆盖。新设置拒绝；先写普通设置再登记秘密时旧覆盖被重校验。自动 Shell 选择和真实 Runner 不接收该覆盖 | `a38-03.json`；设置响应、重校验诊断、实际 Shell 身份/Runner 输入的脱敏摘要与零派发证据 |
 | B2-A38-04 | 未登记合成令牌采用 Authorization/Proxy-Authorization、大小写、冒号/等号，方案 Basic/NTLM/Negotiate/1Custom/!Custom/_Custom。提示、标题、命令、最终消息均将完整单令牌替换；快照、事件与 SQLite 不留令牌 | `a38-04.json`；按输入/投影表面分行的脱敏结果、快照/事件扫描与 SQLite 查询摘要 |
 | B2-A38-05 | 模型流式预览独立子样本：回环 Provider 分块返回已登记 Basic 组合及编码变体，分界落在组合及其编码中间。在第二段到达前读取真实 `liveModelPreview`，核对秘密前缀未提前显示；再核对终态、SQLite 与重启后投影。保留 Shell 独立子样本：分块输出相同组合及变体，核对完整输出、实时快照、事件、SQLite 与重启后投影均无泄漏 | `a38-05.json`；模型与 Shell 子样本分列。记录实际 chunk 的序号/时刻、第二段到达前的真实 `liveModelPreview`、终态与各表面扫描、SQLite 和重启后查询摘要 |
-| B2-A38-06 | 未登记 `other:other-pass` 及文档 `Authorization: Basic dXNlcjpwYXNz` 只放工作区文件。Shell 执行、恢复与撤销逐字节相同；日志仍保守脱敏。只证明未登记组合不误拦，不保证其安全识别 | `a38-06.json`；B0/B1/B2、Shell 事件、checkpoint 和投影对照 |
+| B2-A38-06 | 未登记 `other:other-pass` 的 Basic 头、文档 `Authorization: Basic dXNlcjpwYXNz`，以及独立裸 `base64(other:other-pass)` 三个子样本只作为工作区文件输入；submitTurn 提示只带固定 ID。回环最终响应另核对保守日志投影，裸 base64 子样本在响应中包装为 Basic 头；响应不作为文件输入证据。Shell 执行、恢复与撤销逐字节相同；日志仍保守脱敏。只证明未登记组合不误拦，不保证其安全识别 | `a38-06.json`；B0/B1/B2、Shell 事件、checkpoint 和投影对照 |
 | B2-A38-07 | 同一普通 agent 身份通过真实 safeStorage/DPAPI 保存合成代理配置，退出后重启；当前组合在裸串文件中仍阻断，零 Shell 派发。不得用 fake safeStorage，旧进程已清除的组合不要求跨重启恢复 | `a38-07.json`；保存/退出/重启与密文来源元数据、当前组合拒绝、进程身份/退出记录；不回传 vault |
 | B2-A38-08 | 单令牌方案后接空格/制表符的正例；凭据结束后普通下一行保持。另对 Bearer 与 URL userinfo 做回归，凭据仍脱敏。比较精确投影文本，不因多吞普通下一行而通过 | `a38-08.json`；逐输入预期/实际文本、换行边界、快照/事件/SQLite 扫描 |
 
@@ -477,3 +481,130 @@ fixtures 从 `LIMITS` 到文件末尾逐字节不变，仍为 25 用例/43 断�
 逐行位置、保留理由及补充 `WIN7_45` 检索见上述报告。
 文档与差异检查的实际退出码见同目录 `docs-check.command.json` 与 `diff-check.command.json`。
 阶段 1 记录不改变 §6 串行交接、冻结前核号、KL-12 或后续门的边界。
+
+### 11.3 阶段 2：十二项固定用例与开发机检查（2026-10-17）
+
+执行代理已完成阶段 2 的本地实现。绑定分支 `codex/a9-alpha2-integration-r2`、入场 HEAD `f37811b…` 加本轮八件文件字节。
+入场工作区干净；A9-36 已合入。ADR-0251 的共享文件交接顺序已满足。
+A9-39 是本轮 driver 与 contract-test 的唯一写者。本轮没有派发子代理。
+
+负责人 2026-10-16 的选项 A 批准见 §3。本轮继续使用该批准。
+范围限十条实现白名单内的必要文件，以及本任务执行记录。
+不提交、不推送、不连接远端或目标机、不构建正式候选、不安装依赖、不写其他工作树。
+候选 WIN7-46 仍为暂定编号，冻结前重新核号。
+
+| 改动文件 | 变化与影响 |
+|---|---|
+| `release/win7-product-v3/a9-batch2-fixtures.cjs` | 登记十二用例、固定子样本、24 条新增断言与证据合同；保留原 25/43 |
+| `release/win7-product-v3/a9-batch2-smoke.cjs` | p07 固定模式、隔离 profile/workspace/data、相邻重启、进程退出观察与新秘密扫描正控 |
+| `src/shell/tests/product/a9-batch2-driver-entry.cjs` | 候选身份由包内 fixtures 派生；经真实窗口、preload、Schema IPC 执行新用例，观察真实 Runner 派发与 SQLite |
+| `src/shell/tests/product/a9-batch2-contract.test.ts` | 新判定器正例、十二项错误观测反例、未知/非零派发反例、原集合摘要保护、回环与收尾检查 |
+| `scripts/release/test/a9-batch2-package.test.mjs` | 新集合计数为 37/67；旧 WIN7-45 授权拒绝负例保留 |
+| `release/win7-product-v3/A9_BATCH2_WIN7_VALIDATION.md` | 用例、阶段、预算、隔离、扫描与未执行边界 |
+| `release/win7-product-v3/README.md` | 十二项清单、子样本计数、总集合与预算 |
+| 本任务书 | 当前阶段、计数、执行记录与限制 |
+
+新集合为 **37 用例/67 断言**：原 25/43 加十二用例/24 断言。
+十二用例共有 **250 个固定子样本**。每个判定器要求准确且无重复的完整样本集合。
+原 25 项及其 43 条断言的序列化摘要保持 `d4dea48b…`。
+A9-36 M1～M6 判定及反例保留；没有修改其四个独立实现/说明文件。
+不改产品、Core、原生组件、依赖、持久化格式、输入锁或批准登记。
+适用项为 C14、C15/C16 现有依赖边界、显式编码、P01/P02/P15、必需审计与证据分级。
+
+A37-04 分别判定两项 UTF-8 `secret_blocked` 和两项 `decode_error`。
+A38-05 分别覆盖十个模型预览与十个 Shell 子样本。
+模型子样本在真实 `liveModelPreview` 读取后才释放回环响应第二段。
+A37-03 和 A38-07 的重启必须使用新 PID、相同 SID，并先确认前进程树缺席。
+固定输入、输出、恢复区、SQLite、事件与报告均按合同登记和扫描。
+A37-03 在登记前生成的准确恢复输入单列，不据此放行新增不安全副本。
+首个不满足的观察先写证据并停止本用例，不继续重置标记或覆盖首失败。
+
+原十阶段和 16 请求上限保留。p07 为原 `safe_rules` 加十五个固定模式。
+新增模式时长上限合计 10200 秒，p07 合计 10440 秒。
+全部驱动模式上限合计 16620 秒，总墙钟上限为 21600 秒。
+回环请求上限为 4096，每个请求体上限为 4 MiB；请求消费有效期仍为 900 秒。
+这些是资源上限，不是 Win7 实测耗时或已签发预算。
+A9-36 的独立账本、M5 真实服务和共同窗口仍须写入准确门 A。
+
+开发机使用 nvm 绝对路径 Node `v20.17.0`。
+先执行 `verify:quick`，再由 shell 测试读取本轮构建输出。
+证据根为 `outputs/a9-39-phase2/`；完整命令、退出码、SHA、反例逐项结果与保护核对见 `report.md`。
+
+| 检查 | 实际计数与证据 |
+|---|---|
+| `verify:quick` | 退出码 0；七模块编译/静态检查与七项设计门；`verify-quick.log` |
+| batch2 contract 末次 | 退出码 0；414 PASS/0 FAIL/0 SKIP；`contract-release-final.json` 与同名 `.command.json` |
+| lifecycle | 78 PASS/0 FAIL；`shell-tests-r1.json` |
+| redaction regex | 46 PASS/0 FAIL；`shell-tests-r1.json` |
+| Provider persistence | 26 PASS/0 FAIL；`shell-tests-r1.json` |
+| package-test | 退出码 0；9 PASS/0 FAIL；`package-release-final.command.json` 与日志；仅 TEST_ONLY 合成 PE/临时仓库的 `SURROGATE` 装配 |
+| 三份 CJS 解析、`docs:check`、`diff --check` | 三份解析退出码均为 0；docs 退出码 0，368 文档/54 任务书；diff 退出码 0。CMD 原字节未变，为 ASCII、16 个 CRLF，无孤立 CR/LF |
+
+入场 353 项合同测试保留，新增 61 项。十二项判定器反例均由合成错误观测得到 `FAIL`。
+这些结果证明判定器拒绝错误输入，不是十二项 Win7 产品用例的 PASS。
+首轮四文件合跑为 545 PASS/3 FAIL；原日志和退出码 1 保留。
+三项原因是共用函数参数误改，以及两处旧 p07 测试输入只提供 SAFE-02。
+执行代理恢复参数，补齐新集合输入，保留原断言与负例。
+后续扩大扫描到 SQLite 原始字节时，一项旧测试仍期望只扫描九件文件。
+实际为十一件；执行代理保留原九件断言，并新增两件数据库泄漏命中断言。
+该轮 400 PASS/1 FAIL 与退出码 1 同样保留，不改判。
+
+Jest 报告完成后一秒未退出，随后自然结束；没有使用 `--forceExit`。
+三个未改产品测试沿用本轮首跑的直接开发机结果，没有无变化复跑。
+构建造成的 tracked dist 漂移只按入场副本恢复本轮变化；恢复清单和哈希写入 `dist-restored.json`。
+
+已知限制保持：A9-38 K2～K8，KL-12 的 P1/NOT_PERFORMED，以及 ADR-0155 Proposed 下禁止继承。
+GBK 用例已实现，但 Win7 直接执行为 `NOT_PERFORMED`，不关闭 K5。
+新驱动的 Electron 22/Node 16.17.1、PowerShell/CMD、真实 DPAPI 与 Win7 运行时准入均为 `NOT_PERFORMED`。
+最短真实链仍为启动→普通示例 Shell→字节变更/Diff→撤销→已知秘密拒绝→正常退出，本轮未运行该产品链。
+正式双构建、冻结、门 A/门 B、Win10/Win7、Alpha 2/RC、提交、推送与发布均为 `NOT_PERFORMED`。
+
+### 11.4 第 2 阶段审核修复（2026-10-17）
+
+负责人已核实两条 P1 的源码依据，并裁决独立审核的 0P0/2P1/1P2 全部修复。
+输入为 `outputs/a9-39-phase2-review/report-codex.md`、`report.md` 及三份复现 JSON。
+入场仍为分支 `codex/a9-alpha2-integration-r2`、HEAD `f37811ba912efc10f926c3a249b006f708e4de39`，已有八件未提交改动。
+本轮仅在 §3 白名单修改 fixtures、driver、contract-test、两份套件说明与本文；其余两件原改动保持入场字节。
+证据根为 `outputs/a9-39-phase2-fix1/`；入场文件、差异、输入 SHA 和命令原始日志均保留。
+
+| 发现 | 修复与开发机红绿证据 |
+|---|---|
+| P1-1 v3 输出观察 | 从真实 helper stdin 请求绑定 requestId；stdout 按行解析 JSON，只解码匹配的 v3 output_chunk，按各 stream 的 streamOffset 拼接。支持跨 data 事件拆帧与合帧，不改变等待上限。审核两帧正例由 first/second=null 变为 100/200；非 output_chunk 字段明文由错误计时变为 null/null。另测错 request、缺口、跨流与畸形帧 |
+| P1-2 必需字段与重启身份 | 十二用例先校验 envelope 的 schema/case/启动时刻与绑定，再逐分支校验必需字段、嵌套证据的存在性与类型，再判定行为；缺清单、摘要、有限时刻或身份均 FAIL。重启行 PID/SID 必须存在，PID 等于 envelope 当前 PID 且异于前序，两个 SID 均绑定 envelope 用户。审核六个误判样本修复前均 PASS、修复后均 FAIL，完整正例保持 PASS；逐字段删除和类型破坏反例通过 |
+| P2-3 文件输入边界 | A38-06 提交提示只带固定 ID，三个示例独立写入工作区文件，增加未登记裸 base64(用户名:密码)。最终响应另验证保守日志投影，不把响应当文件输入证据。固定文件和提示参数的三个合同测试通过；§5、两份说明与样本总数同步 |
+
+原 **25 用例/43 断言**序列化 SHA-256 复算仍为 `d4dea48b16626267f2310faabb5dd78b6db6018697417da1775116998649ade2`。
+新集合仍为 **37 用例/67 断言**，新增断言仍为 24 条；固定子样本由 250 增为 **251**。
+A9-36 M1～M6 仍为 11/13/11/3/6/5，共 49 条断言。
+其判定区、采集区、测试前缀及四条独立路径保持原字节，原 evaluate 判定器也与 HEAD 相同；见 `preservation-final.json`。
+
+开发机固定使用 nvm 绝对路径 Node `v20.17.0`；先完成依赖构建，再执行四文件最终消费者检查。
+
+| 检查 | 实际计数 |
+|---|---|
+| `npm run verify:quick` | 退出码 0；七模块编译/静态检查与七项设计门通过 |
+| 修复前定向合同反例 | 25 FAIL/0 PASS，414 未选；`contract-red-r2.json`。首次测试脚手架类型错误未执行用例，另存 `contract-red.json`，不计有效红灯 |
+| 最终 batch2 contract | 458 PASS/0 FAIL/0 SKIP，比入场 414 新增 44 项；`shell-tests-built.json` |
+| lifecycle / redaction regex / Provider persistence | 78/46/26 PASS，四文件合计 608 PASS/0 FAIL/0 SKIP；`shell-tests-built.json` |
+| package-test | 9 PASS/0 FAIL，退出码 0；仅 TEST_ONLY 合成 PE/临时仓库的 `SURROGATE` 装配 |
+| 审核复现重放 | 退出码 0；六项错误观测全部拒绝，完整正例全部接受；`review-red-green.json` |
+
+中间定向绿灯首轮为 80 PASS/2 FAIL：一项反例错误地把合法空清单替换为同样的空清单；另一项仍对已包装的 stdin.write 检查 mock。
+修正测试输入与原 write 记录引用，保留原断言目的和失败日志 `contract-green-r1.*`，其后四文件合跑 596/596 通过。最终补入十二项 envelope 缺字段/错类型/错 case 反例，再对最终输入复验。
+三份 CJS 解析、文档和差异检查的最终退出码见同目录 `syntax-check-final.command.json`、`docs-check-closeout.command.json`、`diff-check-closeout.command.json`。
+最终补验前过早恢复 dist，导致 `shell-tests-final.json` 为 605 PASS/3 lifecycle FAIL；该轮加载旧 runner 输出，不计最终消费者通过。
+原日志与退出码 1 保留；准确核实并终止该失败测试留下的 PID 24360 子进程，父 Jest 随后退出，没有使用 forceExit；后飞行确认该 PID 已缺席。
+重新执行 `verify-quick-final.command.json` 的依赖构建，再按 `consumer-build-inputs.json` 的当前 dist 运行四文件，最终 608/608 PASS、退出码 0。
+最终测试结束后，24 件本轮 tracked dist 漂移才恢复入场字节；两次恢复均保存记录，最终见 `dist-restored-final.json`。
+
+本轮没有修改产品源码、原生输入、锁、依赖、批准登记、其他工作树或旧审核证据；没有提交、推送、连接远端或目标机、安装依赖。
+最短真实产品链、Electron 22/Node 16.17.1、PowerShell/CMD、真实 DPAPI、Win10/Win7、新候选双构建与冻结、门 A/门 B、Alpha 2/RC 均为 `NOT_PERFORMED`。
+开发机合同与协议重放不提升目标平台结论；KL-12、K2～K8 与 ADR-0155 Proposed 的既有限制不变。
+
+### 11.5 第 2 阶段独立复核与本地提交（2026-10-17）
+
+独立审核两轮：首轮 0P0/2P1/1P2（`outputs/a9-39-phase2-review/`），修复后聚焦复核 0P0/0P1/0P2（`outputs/a9-39-phase2-recheck/`）。证据层级为开发机。
+
+负责人 2026-10-17 原话：“批准本地提交 A9-39 第 2 阶段。提交后做双干净构建与比对，并准备 Win7 预演授权材料。不推送。”
+
+执行代理据此本地提交第 2 阶段，随后做双干净构建与比对，并起草 Win7 预演授权材料。预演、冻结、门 A/门 B 与 Win7 实机仍为 `NOT_PERFORMED`。
