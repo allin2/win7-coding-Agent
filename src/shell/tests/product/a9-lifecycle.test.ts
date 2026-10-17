@@ -287,7 +287,7 @@ function managedLifecycleModules() {
         if (!options.background || !options.managedOwner) return adapter.execute(command, options);
         const requestId = `TEST_ONLY-${Date.now()}-${Math.random()}`;
         const handle = await runner.getBackgroundManager().start(requestId, command, '/bin/sh', ['-c', command], options.cwd, process.env,
-          { schemaVersion: 3, requestId, command, cwd: options.cwd, managed: true, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } },
+          { schemaVersion: 3, profileId: 'a9-trusted-shell-current-user-v2', requestId, command, cwd: options.cwd, managed: true, outputEncoding: { stdout: 'utf-8', stderr: 'utf-8' } },
           { owner: options.managedOwner, onOutput: options.onOutput });
         // Preserve the external-change collection race exercised by the historical fixture.
         await new Promise((resolve) => setTimeout(resolve, 100));
@@ -302,6 +302,26 @@ function makeRuntime(env: ReturnType<typeof makeEnv>, managedFixture = false) {
     workspaceRoot: env.workspaceRoot,
     dataRoot: env.dataRoot,
     ownerId: `f5-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
+  });
+}
+
+/** A9-37 TEST_ONLY: real short POSIX Shell behind the product loop adapter.
+ * Windows native transport/Job evidence is NOT_PERFORMED. No production override.
+ */
+function makeCheckpointRuntime(env: ReturnType<typeof makeEnv>, onExecute = () => {}) {
+  const modules = managedLifecycleModules();
+  const adapt = modules.runner.createTrustedShellLoopAdapter;
+  modules.runner.createTrustedShellLoopAdapter = (runner: any) => ({
+    ...adapt(runner),
+    execute: async (command: string, options: any) => {
+      onExecute();
+      const stdout = execFileSync('/bin/sh', ['-c', command], { cwd: options.cwd || env.workspaceRoot, encoding: 'utf8', timeout: 5000 });
+      return { status: 'completed', exitCode: 0, stdout, stderr: '', durationMs: 1, timedOut: false, cancelled: false, processTreeReaped: true };
+    },
+  });
+  return createA9AgentRuntime({ modules, workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot,
+    ownerId: `checkpoint-${process.pid}-${Date.now()}-${Math.random()}`,
     openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
   });
 }
@@ -1016,6 +1036,151 @@ describe('F5: pending approval keeps active state and resume continues the same 
       fs.rmSync(env.root, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it.each([
+    ['Authorization', 'Authorization: Bearer A9-37-SYNTHETIC-UNREGISTERED-TOKEN', 'A9-37-SYNTHETIC-UNREGISTERED-TOKEN'],
+    ['URL userinfo', 'https://a9synthetic:unregisteredpass@example.invalid/api', 'a9synthetic:unregisteredpass@'],
+  ])('A9-37 blocks unregistered %s project instructions in Read Only without Shell', async (_label, instruction, credential) => {
+    const env = makeEnv();
+    fs.writeFileSync(path.join(env.workspaceRoot, 'AGENTS.md'), instruction, 'utf8');
+    const fixture = await startQuickFixture(); // read -> final; no Shell request.
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('read_only');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('read note.txt');
+      expect(result.ok).toBe(true);
+      expect(runtime.getSnapshot().mode).toBe('read_only');
+      expect(fixture.requests.length).toBeGreaterThan(0);
+      const toolNames = fixture.requests.flatMap((request) => request.messages)
+        .filter((message: any) => message.role === 'tool').map((message: any) => message.name);
+      expect(toolNames).toEqual(['read']);
+      const started = runtime.getSnapshot().timeline.find((event: any) => event.type === 'turn_started');
+      const sent = JSON.stringify(fixture.requests);
+      expect({ status: started?.data?.projectInstructions?.status, providerReceivedCredential: sent.includes(credential) })
+        .toEqual({ status: 'secret_blocked', providerReceivedCredential: false });
+      expect(sent).not.toContain(instruction);
+      expect(sent).not.toContain(credential);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A9-37: exact product Runtime/SQLite/Workspace with TEST_ONLY POSIX transport.
+  it.each([
+    ['header example', 'Authorization: Bearer YOUR_API_KEY', 'utf8'],
+    ['source variable', 'const headers = { authorization: token };', 'utf8'],
+    ['URL example', 'https://demo:demo@example.invalid/api', 'utf8'],
+    ['UTF-16LE example', 'Authorization: Bearer YOUR_API_KEY', 'utf16le'],
+  ])('A9-37 preserves and restores %s through a Shell checkpoint', async (_label, content, encoding) => {
+    const env = makeEnv();
+    const original = Buffer.from(content, encoding as BufferEncoding);
+    const target = path.join(env.workspaceRoot, 'example.txt');
+    fs.writeFileSync(target, original);
+    const fixture = await startQuickFixture({
+      name: 'shell', arguments: JSON.stringify({ command: 'printf changed > example.txt' }),
+    });
+    const runtime = makeCheckpointRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('update the example file');
+      expect(result.ok).toBe(true);
+      expect(fs.readFileSync(target, 'utf8')).toBe('changed');
+      const recovery = listDataFiles(path.join(env.workspaceRoot, '.agent_recovery'));
+      expect(recovery.some((file) => fs.readFileSync(file).equals(original))).toBe(true);
+      const undo = await runtime.undoTurn(result.result.turnId);
+      expect(undo.outcome.errors).toEqual([]);
+      expect(fs.readFileSync(target)).toEqual(original);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-37 allows read-only Shell with example text while projections stay redacted', async () => {
+    const env = makeEnv();
+    const sample = 'Authorization: Bearer YOUR_API_KEY https://demo:demo@example.invalid/api';
+    fs.writeFileSync(path.join(env.workspaceRoot, 'example.txt'), sample, 'utf8');
+    const fixture = await startQuickFixture({
+      name: 'shell', arguments: JSON.stringify({ command: 'printf CHECKPOINT_READ_ONLY_OK' }),
+    });
+    const runtime = makeCheckpointRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn(`run read-only Shell; example: ${sample}`);
+      expect(result.ok).toBe(true);
+      expect(fs.readFileSync(path.join(env.workspaceRoot, 'example.txt'), 'utf8')).toBe(sample);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('CHECKPOINT_READ_ONLY_OK');
+      expect(snapshot).not.toContain('YOUR_API_KEY');
+      expect(snapshot).not.toContain('demo:demo@');
+      expect(snapshot).toContain('***redacted***');
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each(['plain', 'base64', 'base64url-padded', 'base64url-unpadded', 'base64-unpadded', 'percent', 'utf16le', 'path', 'previous-provider', 'custom-header', 'proxy-password'])(
+    'A9-37 still blocks the known secret in %s form', async (form) => {
+      const env = makeEnv();
+      const secret = 'A9-37-known-~~~???x';
+      const base64 = Buffer.from(secret).toString('base64');
+      const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+      expect(base64).toContain('+');
+      expect(base64).toContain('/');
+      expect(base64).toMatch(/=+$/);
+      expect(base64url).toContain('-');
+      expect(base64url).toContain('_');
+      const bytes = form === 'utf16le' ? Buffer.from(secret, 'utf16le')
+        : Buffer.from(form === 'base64' ? base64
+          : form === 'base64url-padded' ? base64url
+            : form === 'base64url-unpadded' ? base64url.replace(/=+$/g, '')
+            : form === 'base64-unpadded' ? base64.replace(/=+$/g, '')
+            : form === 'percent' ? encodeURIComponent(secret) : secret);
+      const fileName = form === 'path' ? encodeURIComponent(secret) + '.txt' : 'secret.txt';
+      fs.writeFileSync(path.join(env.workspaceRoot, fileName), form === 'path' ? Buffer.from('safe') : bytes);
+      const fixture = await startQuickFixture({ name: 'shell', arguments: JSON.stringify({ command: 'printf SHOULD_NOT_RUN' }) });
+      let shellCalls = 0;
+      const runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; });
+      try {
+        runtime.setMode('full_access');
+        await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture',
+          apiKey: ['custom-header', 'proxy-password'].includes(form) ? 'different-current-key' : secret,
+          ...(form === 'custom-header' ? { customHeaders: { 'X-Fixture-Secret': secret } } : {}),
+          ...(form === 'proxy-password' ? { proxy: { host: '127.0.0.1', port: 9, username: 'fixture', password: secret } } : {}),
+          skipProbe: true });
+        if (form === 'proxy-password') {
+          await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', proxy: null, skipProbe: true });
+        }
+        if (form === 'previous-provider') {
+          await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: 'different-current-key', skipProbe: true });
+        }
+        const result = await runtime.submitTurn('try read-only Shell');
+        expect(result.ok).toBe(false);
+        expect(result.error.message).toContain('A9_CHECKPOINT_SECRET_BLOCKED');
+        expect(shellCalls).toBe(0);
+        expect(runtime.getSnapshot().managedProcesses).toHaveLength(0);
+        expect(JSON.stringify(result)).not.toContain(secret);
+        const recoveryRoot = path.join(env.workspaceRoot, '.agent_recovery');
+        for (const file of fs.existsSync(recoveryRoot) ? listDataFiles(recoveryRoot) : []) {
+          const persisted = fs.readFileSync(file);
+          expect(persisted.includes(Buffer.from(secret))).toBe(false);
+          if (form !== 'path') expect(persisted.includes(bytes)).toBe(false);
+        }
+      } finally {
+        await runtime.shutdown();
+        await fixture.close();
+        fs.rmSync(env.root, { recursive: true, force: true });
+      }
+    }, 30_000,
+  );
 
   it('blocks UTF-16LE known secrets before copying a Shell baseline into recovery', async () => {
     const env = makeEnv();

@@ -405,7 +405,7 @@ function createA9AgentRuntime(options) {
       ...knownSecrets]));
   }
 
-  function redactSecrets(text) {
+  function redactKnownSecrets(text) {
     let out = String(text);
     const secrets = knownSecretValues();
     for (const secret of secrets) {
@@ -432,12 +432,32 @@ function createA9AgentRuntime(options) {
         try { out = out.replace(percentEquivalentRegex(source), '***redacted***'); } catch (_err) { /* exact variants already applied */ }
       }
     }
+    return out;
+  }
+
+  function redactSecrets(text) {
+    let out = redactKnownSecrets(text);
     out = redactUrlUserinfo(out);
     out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, '$1***redacted***');
     return out;
   }
 
+  // Checkpoints preserve original bytes. Projection heuristics also redact code
+  // variables and documentation examples, so only known credential values can
+  // prove a secret here. Keep the conservative heuristics on logs/projections.
   function containsSensitiveCheckpointData(value) {
+    if (!Buffer.isBuffer(value)) {
+      const text = String(value);
+      return redactKnownSecrets(text) !== text;
+    }
+    const decoded = [value.toString('utf8'), value.toString('utf16le')];
+    try { decoded.push(new TextDecoder('gbk', { fatal: true }).decode(value)); } catch (_err) { /* binary/unsupported */ }
+    return decoded.some((text) => redactKnownSecrets(text) !== text);
+  }
+
+  // Project instructions are sent to the Provider, so retain the conservative
+  // pre-A9-37 gate, including decoding and unregistered credential heuristics.
+  function containsSensitiveProjectInstructionData(value) {
     if (!Buffer.isBuffer(value)) {
       const text = String(value);
       return redactSecrets(text) !== text;
@@ -1240,7 +1260,7 @@ function createA9AgentRuntime(options) {
         contextBudgetChars: providerConfig?.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS,
         redactText: redactSecrets,
         loadProjectInstructions: () => modules.core.loadProjectInstructions(workspaceRoot, {
-          containsSensitiveData: containsSensitiveCheckpointData,
+          containsSensitiveData: containsSensitiveProjectInstructionData,
         }),
         shellOptions: {
           kind: configuredShell.kind || shellSelection.kind,

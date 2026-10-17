@@ -2791,3 +2791,58 @@ Registration/readback succeeded; actual scheduled launch inherited a Host Job an
 - 残余限制：与 ADR-0236 相同，任何已核验目录的 `list` 仍可解除 opaque 门，包括无关目录。
 - 编号：0237 紧接 ADR-0236。整合前须再次核号，规则同 ADR-0236。
 - 证据（开发机，macOS，Node 20.17.0，基线 `62a73f78…` 加本轮未提交差异）：State 88、Core 221、Shell 134 项 PASS，`verify:quick`、`docs:check`、`git diff --check` 均通过。新增用例：State 4（`it.each` 覆盖 shell/edit 带残留保持未知、无残留与只读带残留不计）、Core 3（R-03）、Shell 1（端到端：残留 Shell 之后写入被拦，`read` 不解除，`list` 后放行）。4 个反例均断言失败并恢复同一 SHA：回退本决定时 State 2 项与 Shell 1 项变红；审核者留下的 3 个存活反例（悬空软链接保护移除、`stat` 检查反转、`search` 解除 opaque 门）各使 1 项 Core 用例变红。见 `.acceptance/a9-32-developer/mutation-results-r6.json`。真实 Electron、打包、Win10、Win7 均 NOT_PERFORMED。
+
+
+## ADR-0246 A9-37将checkpoint已知秘密判定与日志启发式脱敏分离
+
+- 状态：Accepted（2026-10-15，负责人明确要求定位并修复本次误报；本地实施范围见A9-37）
+- 范围：checkpoint秘密判定；不改变权限、持久化格式或已知秘密保护
+- 编号：编号于 2026-10-16 经负责人批准由 0238 改为 0246，整合到主线前须再核号。
+
+日志脱敏是保守投影，可以改变源码中的`authorization: token`及演示URL文本。它的文本变化不能证明内容是实际秘密。
+checkpoint需要保存原字节用于恢复，不能把上述启发式变更当作已知秘密。拆出共享的已知秘密替换函数；日志继续叠加URL userinfo和Authorization启发式，checkpoint只检测已知值替换是否变化。
+已知集合仍包含Provider API key、代理密码、自定义头及当前进程保留的旧值，原文、Base64/URL-safe/去padding/percent等变体和UTF-8/UTF-16LE/GBK解码保持。
+真实已知秘密仍fail-closed；不跳过文件、不保存脱敏替代原文、不伪造完整撤销。恢复缓存和Provider新增已知值的重校验继续使用相同已知秘密检查。
+未登记的真实Authorization/URL凭据也不再凭字段形态阻断checkpoint；这是明确的行为变化。通用脱敏本来不覆盖未登记数据库口令、JSON头或任意秘密，不能作为通用秘密识别保证。工作区应按既有方式将真实凭据移出源码或纳入忽略规则，本修复不自动改用户文件。
+该取舍只修复误报，并保留可证实的已知秘密不入快照保护；不声称所有未登记秘密均安全，也不改变日志投影的保守处理。
+本次不创建新候选、不覆盖WIN7-45、不开远端验收。开发机与目标实机证据分开记录。
+
+2026-10-16 范围澄清：项目说明外发门不在本 ADR 放宽范围内，仍用保守判据：`redactSecrets` 变化即视为敏感，保留原有 UTF-8/UTF-16LE/GBK 解码逻辑。含未登记 Authorization 或 URL userinfo 凭据的项目说明继续 `secret_blocked`，不得将原文发送给 Provider。这是对原 ADR 范围的澄清，不是新放宽；checkpoint 与 A9WorkspaceService 继续按已知秘密判定。
+
+## ADR-0247 A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制）
+
+- 状态：Accepted（2026-10-16；负责人在聊天中批准，原话如下）。
+
+> 批准 A9-37 签 A9_37_DEVELOPER_VERIFIED（开发机，603323e2…）。请登记 ADR 并准备整合方案，整合后重跑 A9-32 §5。
+
+- 编号：当前分支在 ADR-0246 后追加本号。2026-10-16 本地核对 a9-36 分支工作树最大编号为 ADR-0245。整合前须再核号，不能以本次核对代替整合时核对。
+- 依据：开发机、Node 20.17.0，绑定分支 `codex/a9-37-checkpoint-secrets`、基线 `013cf796…` 及下列未提交文件字节。三套 Jest 共 118 PASS/0 FAIL，分别为 lifecycle 46、redaction 46、Provider persistence 26。`verify:quick`、`docs:check`、`git -c core.fsmonitor=false diff --check` 均通过。执行证据见[报告第二轮修复](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#第二轮修复2026-10-16)。
+
+| 绑定文件 | 完整 SHA-256 |
+|---|---|
+| `src/shell/product/a9-agent-runtime.js` | `603323e25273eaf0a20a9987f0568d720a20d898d1fd8ef0dc40d9ace580b390` |
+| `src/shell/tests/product/a9-lifecycle.test.ts` | `1912076361d13f36f8cd53a6a5adf9326f6cd583340f216b83827aa2cd70b842` |
+
+独立审核报告均位于候选外 `outputs/a9-37-checkpoint-secrets/`。报告原文与首轮结论保留，文件哈希经本次复算。
+
+| 独立审核 | 报告文件 | 报告 SHA-256 前 8 位 | 审核产品 | 原结论 |
+|---|---|---|---|---|
+| codex 第一轮 | `independent-review-codex-2026-10-16.md` | `d09d4adb…` | `426bb327…` | 0P0/1P1/2P2 |
+| codex 第二轮 | `independent-review-round2-codex-2026-10-16.md` | `72021ebf…` | `603323e2…` | 0P0/0P1/0P2 |
+| Claude | `independent-review-2026-10-16.md` | `271f4ae8…` | `426bb327…` | 0P0/1P1/3P2 |
+
+Claude R-01 与 codex 首轮 P1 是同一项目说明外发门问题。第二轮产品已修复，codex 第二轮确认关闭。第二轮零发现只指该轮差异，不关闭下列已知限制。
+
+- 决定：A9-37 阶段门登记为 `A9_37_DEVELOPER_VERIFIED`，随下列 L1–L6 已知限制签发。L1、L2 由后续单独任务处理，本 ADR 不授权该任务。
+
+| 编号 | 已知限制 |
+|---|---|
+| L1 | Claude 审核 R-02：已登记代理密码以 HTTP Basic 组合 `base64(用户名:密码)` 形式出现时，不匹配任何已知变体，checkpoint 不再阻断。修复前仅靠 Authorization 启发式附带阻断。已知秘密保护结论不覆盖此组合形式。 |
+| L2 | 既有缺陷，非 A9-37 引入：日志启发式对 `Authorization: Basic <凭据>` 只替换 `Basic` 一词，凭据留在日志与投影中。 |
+| L3 | GBK 解码分支无新增直接检查，代码未改。 |
+| L4 | 复验必须使用 Node 20.17.0。Node 22 下 better-sqlite3 ABI 不匹配，会进入诊断模式。 |
+| L5 | KL-12 仍为 P1/NOT_PERFORMED，本 ADR 不关闭。 |
+| L6 | POSIX 进程夹具为 SURROGATE，不提供 Windows 原生身份或进程树清理证明。 |
+
+- 边界：不签 Win7，`Win7-Validation` 保持 `NOT_PERFORMED`；不签 Electron/Win10、新候选、Alpha2/RC、推送/合并/发布。A9-37 产品改动不在 WIN7-45（第二批正式验收候选）中，未在 Win7 实机验证。当前文件未提交。
+- 后续：整合方案见[本地报告](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#整合方案与复验边界)。整合后重跑 A9-32 §5；本次只准备方案，不执行整合或该轮复验，也不签 A9-32 状态。

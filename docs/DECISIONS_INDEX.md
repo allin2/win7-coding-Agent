@@ -194,3 +194,5 @@
 | ADR-0189 | A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充） | Accepted |
 | ADR-0236 | A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189补充） | Accepted |
 | ADR-0237 | A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236补充） | Accepted |
+| ADR-0246 | A9-37将checkpoint已知秘密判定与日志启发式脱敏分离 | Accepted |
+| ADR-0247 | A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制） | Accepted |

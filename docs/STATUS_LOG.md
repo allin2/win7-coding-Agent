@@ -2470,3 +2470,10 @@ WIN7-45/source ba042757…/ZIP ae1d4bb1…/run5773470e…的实机执行、回�
 负责人要求同步工作状态和本地/远程Git。本轮授权相关文档提交及同名分支推送，不签验收或发布。当前隔离分支起点1a9a952e…且干净；主工作区a53c9b9…的47项条目、展开64件路径先保存保护清单，3件状态文档留原字节备份。主工作区仅提交本轮新增同步指引，旧dirty/untracked继续保留。无stash、reset、强推、清理或候选修改。
 
 fetch已完成；main本地/远端同c14a968…，origin/codex/a9-alpha2为f3b59150…。本轮将A9-30/31/32/33/35和alpha2推至origin同名分支，并在推送后逐ref核对。完整Alpha2剩余项已同步至[缺口表§6](plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。门B保持NOT_PERFORMED，KL-12延期且P1/NOT_PERFORMED不改。准确授权与保护/回执位置见[A9-33 §6.77](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#677-工作状态与同名分支-git-同步授权2026-10-15-utc)。
+
+
+- 2026-10-15，A9-37：负责人要求定位并修复截图的checkpoint秘密门阻断。基于013cf796…在隔离分支登记授权，拆分已知秘密匹配与日志启发式；未修改主alpha2工作区。开发机有效旧反例5 FAIL，修复新增15 PASS；三套件113 PASS/2 FAIL，其中两项后台清理失败在未修复基线同样FAIL。verify:quick通过。原失败、逐字节恢复、编译身份及边界见[本地报告](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md)。当前实现为本地修复，不更新旧包或候选结论，Electron/Win10/Win7/发布NOT_PERFORMED，未提交/推送。
+
+- 2026-10-16，A9-37第二轮：按负责人和项目经理裁决，将ADR改为0246（整合前再核号），恢复项目说明保守外发门，补强padded/unpadded URL-safe用例，仅给schemaVersion 3后台夹具请求补齐profileId。产品603323e2…、测试19120763…；新增Read Only/无Shell外发两项先在旧代码上FAIL，修复后通过。Node20.17下verify:quick退出0（7模块）、三套件118 PASS/0 FAIL（46/46/26）；原113 PASS/2 FAIL及基线对照不改判，2 FAIL根因更正为夹具身份字段缺失，原断言本轮通过。KL-12仍为P1/NOT_PERFORMED，本修复不关闭KL-12；Electron/Win10/Win7、新包和正式Gate均NOT_PERFORMED，未提交/推送/远端/安装依赖。完整身份、文档检查与范围核对见[报告第二轮修复](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#第二轮修复2026-10-16)。
+
+- 2026-10-16，A9-37 开发收口：负责人原话“批准 A9-37 签 A9_37_DEVELOPER_VERIFIED（开发机，603323e2…）。请登记 ADR 并准备整合方案，整合后重跑 A9-32 §5。”执行代理以 ADR-0247 登记 `A9_37_DEVELOPER_VERIFIED`，绑定基线 `013cf796…`、产品 `603323e2…`、测试 `19120763…`。Node 20.17.0 三套件 118 PASS/0 FAIL；codex 两轮独审分别为 0P0/1P1/2P2、0P0/0P1/0P2，Claude 为 0P0/1P1/3P2，其 R-01 与 codex P1 同一问题已修复。结论带 L1–L6，L1/L2 留给未授权的后续单独任务；KL-12 仍为 P1/NOT_PERFORMED。Win7 为 NOT_PERFORMED，A9-37 不在 WIN7-45 候选中，未在 Win7 实机验证。只改指定 7 件文档，ADR-0246/0247 整合前再核号；[整合方案](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#整合方案与复验边界)已准备，整合与整合后的 A9-32 §5 复验均 NOT_PERFORMED。未提交、推送或连接远端，不签 Electron/Win10、新候选、Alpha2/RC 或发布。

@@ -1,5 +1,13 @@
 # 当前项目状态
 
+## A9-37 开发收口已登记，带已知限制（2026-10-16，开发机）
+
+负责人已批准 `A9_37_DEVELOPER_VERIFIED`，执行代理以 [ADR-0247](DECISIONS.md#adr-0247-a9-37-登记-a9_37_developer_verified带已知限制) 登记。结论限开发机，绑定隔离分支 `codex/a9-37-checkpoint-secrets`、基线 `013cf796…`、产品 `603323e2…` 与测试 `19120763…`。Node 20.17.0 三套 Jest 共 118 PASS/0 FAIL，`verify:quick`、`docs:check` 和差异检查通过。codex 第二轮独立审核为 0P0/0P1/0P2；Claude R-01 与 codex 首轮 P1 的同一项目说明外发门问题已修复。首轮 113 PASS/2 FAIL 与原失败证据保留。
+
+普通示例可执行 Shell 并按原字节撤销，项目说明恢复保守外发门。本结论带 ADR-0247 的 L1–L6 已知限制。L1 是已登记代理密码的 HTTP Basic 组合编码不匹配。L2 是既有 Basic 凭据日志/投影脱敏缺陷。L1/L2 由后续单独任务处理，本登记不授权该任务。L3–L6 的完整边界见 ADR-0247；KL-12 仍为 P1/NOT_PERFORMED。
+
+`Win7-Validation` 保持 `NOT_PERFORMED`。A9-37 产品改动不在 WIN7-45（第二批正式验收候选）中，未在 Win7 实机验证。Electron/Win10、新候选、Alpha2/RC 与推送/合并/发布均未签发。ADR-0246/0247 整合前再核号；[整合方案](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#整合方案与复验边界)已准备，整合后重跑 A9-32 §5。整合与该轮复验均 NOT_PERFORMED，当前未提交、推送或连接远端。
+
 ## WIN7-45 实机执行与复核已结束，KL-12 延期，门 B 待签（2026-10-15 UTC）
 
 独立复核已完成：0P0/1P1/0P2，不建议按当前未缩小合同进入门B签发PASS。唯一既有P1剩余项为KL-12：真实helper启动后ready失败清理仍NOT_PERFORMED；无效cwd预启动拒绝不能替代，release部分已取得直接证据。新产品运行缺陷发现0，不改正式43条PASS原值，也不签原合同完整满足。独立报告SHA-256 65cbe27f…，见[交接书§10](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)及[A9-33 §6.75](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)。
