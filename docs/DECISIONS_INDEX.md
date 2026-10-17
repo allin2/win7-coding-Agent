@@ -194,9 +194,18 @@
 | ADR-0189 | A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充） | Accepted |
 | ADR-0236 | A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189补充） | Accepted |
 | ADR-0237 | A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236补充） | Accepted |
+| ADR-0238 | A9-33 WIN7-45 门 B：限定已直接证明范围签发，KL-12 作为排除项（A9-33 补充） | Accepted |
+| ADR-0239 | Alpha 2 登记已知限制 F-01：Full Access 下 13 种启动器包装命令不再要求确认（ADR-0171 补充） | Accepted |
+| ADR-0240 | Alpha 2 登记六项已知限制并延期到 RC，G16、G17 先做只读对照（ADR-0131、ADR-0238、ADR-0239 补充） | Accepted |
+| ADR-0241 | Alpha 2 登记 G16 为 N/A，G17 升级回退补 M6，四项延期到 RC（ADR-0240 补充） | Accepted |
+| ADR-0242 | Alpha 2 补证 M2 缩减：不重做 Provider 拒绝与预算检查，保留续跑后的再次主动尝试（ADR-0240 补充） | Accepted |
+| ADR-0243 | Alpha 2 补证 M3-04 通过口径：晚写后撤销保持晚写字节并列入 drifted（ADR-0240、ADR-0242 补充） | Accepted |
+| ADR-0244 | Alpha 2 补证 A9-36 以隔离分支任务书为唯一生效版本，并入必跑集合、隔离范围与 M6（ADR-0241、ADR-0242、ADR-0243 补充） | Accepted |
+| ADR-0245 | Alpha 2 补证 A9-36 追加实现批准：按 §9 缺口补齐并实现 M6，保留 M2-05 已实现断言，M1-02 加本地裸 origin（ADR-0242、ADR-0244 补充） | Accepted |
 | ADR-0246 | A9-37将checkpoint已知秘密判定与日志启发式脱敏分离 | Accepted |
 | ADR-0247 | A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0248 | A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏（ADR-0246补充） | Accepted |
 | ADR-0249 | A9-38 登记 `A9_38_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0250 | Alpha 2 范围纳入 A9-37、A9-38；WIN7-45 不再是 Alpha 2 最终候选 | Accepted |
 | ADR-0251 | Alpha 2 补证采用方案 R2：A9-36 改在 WIN7-46 执行，WIN7-45 的 A9-36 r7 门 A 不签发 | Accepted |
+| ADR-0252 | A9-36 候选身份改由负责人签发的门 A 授权提供，代码不钉最终候选 | Accepted |

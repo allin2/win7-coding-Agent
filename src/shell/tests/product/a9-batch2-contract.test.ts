@@ -19,6 +19,1393 @@ const smoke = require(path.join(releaseDir, 'a9-batch2-smoke.cjs')) as any;
 const driver = require(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs')) as any;
 const { createA9AgentRuntime } = require('../../product/a9-agent-runtime') as any;
 
+describe('A9-36 independent supplemental request and inputs', () => {
+  const req = require(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'));
+  const supplement = require(path.join(releaseDir, 'a9-alpha2-supplement.cjs'));
+  const now = Date.parse('2026-10-15T16:00:00Z');
+  const H = (label: string) => crypto.createHash('sha256').update(label).digest('hex');
+  const PIN = H('owner-signed authority bytes');
+  const RUN = 'C:\\A9-W43\\run\\0daf288c';
+  const baseM6 = () => ({ w42_source: req.W42_SOURCE, w42_zip_path: `${RUN}\\inputs\\WIN7-42.zip`, w42_zip_sha256: req.W42_PACKAGE_SHA, w42_manifest_sha256: req.W42_MANIFEST_SHA,
+    w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
+    w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
+  const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
+    candidate: 'WIN7-46', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-46', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-46.zip',
+    target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
+    inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
+    expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
+    credential_source: 'C:\\Users\\agent\\AppData\\Local\\Win7CodingAgent\\a9',
+    tools: { python: { path: 'C:\\Python38\\python.exe', sha256: H('python') }, git: { path: 'C:\\Git\\cmd\\git.exe', sha256: H('git') } }, m6: baseM6() });
+  const root = () => fs.mkdtempSync(path.join(os.tmpdir(), 'a9-36-contract-'));
+  const changedAuthority = (key: string, value: any) => {
+    const a: any = baseAuthority(); const parts = key.split('.'); let parent = a;
+    for (const part of parts.slice(0, -1)) parent = parent[part];
+    if (value === undefined) delete parent[parts[parts.length - 1]]; else parent[parts[parts.length - 1]] = value;
+    return a;
+  };
+  test('candidate identities and M6 forward/native hashes are supplied by the owner, with no final-candidate code pins', () => {
+    for (const label of ['first signed candidate', 'a later signed candidate']) {
+      const a = { ...baseAuthority(), source: crypto.createHash('sha1').update(label).digest('hex'), package_sha256: H(label + ' ZIP'), manifest_sha256: H(label + ' manifest'),
+        m6: { ...baseM6(), cand_persistence_sha256: H(label + ' persistence'), native_sha256: H(label + ' native') } };
+      expect(req.validateAuthority(a, now)).toBe(a);
+    }
+    for (const name of ['SOURCE', 'PACKAGE_SHA', 'MANIFEST_SHA']) expect(req).not.toHaveProperty(name);
+  });
+  test.each([
+    ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
+    ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
+    ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-46 label', (key, value) => {
+    expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
+  });
+  test.each(['WIN7-42', 'WIN7-45', 'WIN7-47', 'win7-46', '', null, undefined])('candidate label %s is refused', (value) => {
+    expect(() => req.validateAuthority(changedAuthority('candidate', value), now)).toThrow();
+  });
+  test.each([
+    ['source', '0'.repeat(39) + '1'],
+    ['package_sha256', '0' + 'ab'.repeat(32).slice(0, 63)],
+    ['package_sha256', '1' + 'f'.repeat(63)],
+  ])('P2-01: %s refuses prefix-perturbed placeholder %s', (key, value) => {
+    expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_CANDIDATE_HASH');
+  });
+  test('P2-01: random candidate hashes with six leading zeroes remain valid', () => {
+    const a = { ...baseAuthority(), source: '000000' + crypto.randomBytes(20).toString('hex').slice(6),
+      package_sha256: '000000' + crypto.randomBytes(32).toString('hex').slice(6) };
+    expect(req.validateAuthority(a, now)).toBe(a);
+  });
+  test.each(['source', 'package_sha256', 'manifest_sha256', 'runtime_sha256', 'inputs.a9-alpha2-supplement.cjs',
+    'tools.python.sha256', 'tools.git.sha256', 'm6.cand_persistence_sha256', 'm6.native_sha256', 'm6.fixture_files.F42.sqlite'])('identity field %s refuses placeholders, wrong lengths and uppercase', (key) => {
+    // Dictionary keys containing dots are handled separately from nested authority keys.
+    const set = (value: any) => {
+      if (key.startsWith('inputs.')) return { ...baseAuthority(), inputs: { ...baseAuthority().inputs, 'a9-alpha2-supplement.cjs': value } };
+      if (key.startsWith('m6.fixture_files.')) return { ...baseAuthority(), m6: { ...baseM6(), fixture_files: { ...baseM6().fixture_files, 'F42.sqlite': value } } };
+      return changedAuthority(key, value);
+    };
+    const length = key === 'source' ? 40 : 64; const good = H(key).slice(0, length);
+    expect(() => req.validateAuthority(set(good), now)).not.toThrow();
+    for (const value of [undefined, null, 123, '', 'TBD', 'PLACEHOLDER', '0'.repeat(length), 'f'.repeat(length), 'ab'.repeat(length / 2),
+      'abc'.repeat(Math.ceil(length / 3)).slice(0, length), '0123456789abcdef'.repeat(4).slice(0, length), good.slice(1), good + 'a', good.toUpperCase(), 'g' + good.slice(1), good.slice(1) + '\n', good.slice(1) + '\r']) {
+      expect([key, value, (() => { try { req.validateAuthority(set(value), now); return 'accepted'; } catch (_) { return 'refused'; } })()]).toEqual([key, value, 'refused']);
+    }
+  });
+  test.each(['w42_source', 'w42_zip_sha256', 'w42_manifest_sha256', 'w42_persistence_sha256'])('M6 rollback pin %s must equal the full frozen WIN7-42 pin', (key) => {
+    for (const value of [undefined, H('different rollback pin').slice(0, key === 'w42_source' ? 40 : 64), 'TBD']) {
+      expect(() => req.validateAuthority(changedAuthority('m6.' + key, value), now)).toThrow();
+    }
+  });
+  test('request issuance and consumption bind the exact authority SHA, including prior-phase receipts', () => {
+    const a: any = { ...baseAuthority(), run_root: root() }; const ledger = path.join(a.run_root, 'ledger');
+    const first = req.createRequest(a, 'm4', PIN, now); const otherPin = H('different authority bytes');
+    expect(first.authority_sha256).toBe(PIN);
+    expect(() => req.validateRequest(first, a, otherPin, now)).toThrow('A9_36_REQUEST_AUTHORITY');
+    const missing = { ...first }; delete missing.authority_sha256;
+    expect(() => req.validateRequest(missing, a, PIN, now)).toThrow();
+    expect(() => req.consume(first, a, ledger, otherPin, now)).toThrow('A9_36_REQUEST_AUTHORITY');
+    expect(fs.existsSync(ledger)).toBe(false);
+    expect(() => req.createRequest(a, 'm4', 'a'.repeat(64), now)).toThrow('A9_36_PIN');
+    req.consume(first, a, ledger, PIN, now);
+    expect(req.readJson(path.join(ledger, '1.json')).authority_sha256).toBe(PIN);
+    fs.mkdirSync(path.join(a.run_root, 'evidence', 'm4'), { recursive: true });
+    req.complete(first, a, { task: 'A9-36', run_id: a.run_id, phase: 'm4', package_sha256: a.package_sha256, status: 'PASS' });
+    expect(() => req.assertNext(req.createRequest(a, 'm1', otherPin, now), a, ledger, otherPin, now)).toThrow('A9_36_PREREQUISITE');
+    expect(() => req.assertNext(req.createRequest(a, 'm1', PIN, now), a, ledger, PIN, now)).not.toThrow();
+  });
+  test('loadBound authenticates the original authority file bytes before issuing a SHA-bound request (Windows path simulation)', () => {
+    const dir = root(); const a = baseAuthority();
+    for (const name of req.INPUTS) fs.writeFileSync(path.join(dir, name), name, 'utf8');
+    const authorityFile = `${RUN}\\inputs\\authority.json`; const diskFile = path.join(dir, 'authority.json');
+    fs.writeFileSync(diskFile, JSON.stringify(a), 'utf8');
+    // Only path mapping is simulated; hashing and JSON/input reads use the actual temporary files.
+    const mapped = (file: any) => path.join(dir, path.win32.basename(String(file)));
+    const disk = { ...fs, openSync: (file: any, flags: any) => fs.openSync(mapped(file), flags), lstatSync: (file: any) => fs.lstatSync(mapped(file)), readFileSync: (file: any, encoding: any) => fs.readFileSync(mapped(file), encoding) };
+    const exports: any = {}; const context = { module: { exports }, require: (name: string) => name === 'fs' ? disk : name === 'path' ? path.win32 : require(name), Buffer };
+    vm.runInNewContext(fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8'), context);
+    const boundReq = context.module.exports; const pin = req.fileHash(diskFile);
+    const loaded = boundReq.loadBound(authorityFile, pin, a.target, now);
+    expect(boundReq.createRequest(loaded, 'm4', pin, now).authority_sha256).toBe(pin);
+    fs.appendFileSync(diskFile, '\n');
+    expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
+    expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-46');
+  });
+  test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
+    const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
+    for (const patch of [{ source_commit: req.W42_SOURCE }, { candidate: 'WIN7-42' }]) {
+      const a = { ...baseAuthority(), candidate_root: dir, zip_path: zip, package_sha256: req.fileHash(zip) };
+      fs.writeFileSync(manifestFile, JSON.stringify({ candidate: a.candidate, source_commit: a.source, ...patch }), 'utf8');
+      a.manifest_sha256 = req.fileHash(manifestFile);
+      expect(() => supplement.inspectCandidate(a)).toThrow('A9_36_PACKAGE_IDENTITY');
+    }
+  });
+  test('authority binds owner-provided candidate hashes, exact phase closure, the M6 rollback pins and budgets', () => {
+    expect(req.validateAuthority(baseAuthority(), now)).toMatchObject({ task: 'A9-36', max_requests: 6, max_wall_seconds: 7200 });
+    expect(req.PHASES).toEqual(['m4', 'm1', 'm2', 'm3', 'm6', 'm5']);
+    for (const patch of [{ status: 'DRAFT' }, { source: 'f'.repeat(40) }, { package_sha256: 'e'.repeat(64) }, { max_requests: 5 }, { max_requests: 7 }, { max_wall_seconds: 5400 }, { max_wall_seconds: 7201 },
+      { phases: ['m4', 'm1', 'm2', 'm3', 'm5'] }, { phases: ['m4', 'm1', 'm2', 'm3', 'm5', 'm6'] }, { expires_at: '2026-10-15T15:59:59Z' }, { expires_at: '2026-10-16T16:00:00Z' }, { unexpected: true }]) {
+      expect(() => req.validateAuthority({ ...baseAuthority(), ...patch }, now)).toThrow();
+    }
+    const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
+    for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
+      { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-46\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
+      expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
+    }
+    const missing: any = baseAuthority(); delete missing.m6; expect(() => req.validateAuthority(missing, now)).toThrow();
+    expect(req.M6_FIXTURE_FILES).toEqual(['F42.sqlite', 'FCandC.sqlite', 'FCandN.sqlite', 'C42.sqlite', 'CCand.sqlite', 'baseline.json']);
+  });
+  test('unknown identity, elevated/job/session0 and command-bearing inputs fail closed', () => {
+    for (const patch of [{ elevated: true }, { in_job: null }, { in_job: true }, { session_id: 0 }, { integrity: 'High' }, { sid: 'other' }, { machine: 'other' }]) {
+      expect(() => req.validateAuthority({ ...baseAuthority(), target: { ...baseAuthority().target, ...patch } }, now)).toThrow();
+    }
+    for (const run_root of ['C:\\A9-W43\\..\\0daf288c', 'relative', '\\\\host\\share', 'C:\\A9%USER%\\0daf288c']) expect(() => req.validateAuthority({ ...baseAuthority(), run_root }, now)).toThrow();
+    const a = baseAuthority(); const request = req.createRequest(a, 'm4', PIN, now);
+    for (const index of ['1', true, false, 1.5, null]) expect(() => req.validateRequest({ ...request, index }, a, PIN, now)).toThrow();
+    expect(() => req.validateRequest({ ...request, command: 'arbitrary' }, a, PIN, now)).toThrow();
+    expect(() => req.validateRequest({ ...request, phase: 'p01-env' }, a, PIN, now)).toThrow();
+    expect(() => req.validateRequest({ ...request, run_id: 'old' }, a, PIN, now)).toThrow();
+    expect(() => req.validateRequest({ ...request, expires_at: '2026-10-15T15:00:00Z' }, a, PIN, now)).toThrow();
+  });
+  test('exclusive consumption preserves first request and refuses reuse/concurrent lock', () => {
+    const a = baseAuthority(); const request = req.createRequest(a, 'm4', PIN, now); const dir = root();
+    req.consume(request, a, dir, PIN, now); const first = fs.readFileSync(path.join(dir, '1.json'));
+    expect(() => req.consume(request, a, dir, PIN, now)).toThrow();
+    expect(fs.readFileSync(path.join(dir, '1.json'))).toEqual(first);
+    const other = root(); fs.mkdirSync(path.join(other, 'dispatch.lock'));
+    expect(() => req.consume(request, a, other, PIN, now)).toThrow();
+    expect(fs.existsSync(path.join(other, 'dispatch.lock'))).toBe(true);
+  });
+  test('next group needs hash-bound prior PASS and any failure HALTs the new ledger', () => {
+    const a: any = { ...baseAuthority(), run_root: root() }; const ledger = path.join(a.run_root, 'ledger');
+    const first = req.createRequest(a, 'm4', PIN, now); const next = req.createRequest(a, 'm1', PIN, now);
+    expect(() => req.consume(next, a, ledger, PIN, now)).toThrow();
+    fs.mkdirSync(path.join(a.run_root, 'evidence', 'm4'), { recursive: true });
+    req.consume(first, a, ledger, PIN, now); req.complete(first, a, { task: 'A9-36', run_id: a.run_id, phase: 'm4', package_sha256: a.package_sha256, status: 'PASS' });
+    fs.writeFileSync(path.join(a.run_root, 'evidence', 'm4', 'phase-result.json'), '{"status":"FAIL"}');
+    expect(() => req.consume(next, a, ledger, PIN, now)).toThrow('PREREQUISITE_RESULT');
+    const b: any = { ...baseAuthority(), run_root: root() }; const bLedger = path.join(b.run_root, 'ledger');
+    fs.mkdirSync(path.join(b.run_root, 'evidence', 'm4'), { recursive: true });
+    req.consume(first, b, bLedger, PIN, now); req.complete(first, b, { task: 'A9-36', run_id: b.run_id, phase: 'm4', package_sha256: b.package_sha256, status: 'FAIL' });
+    expect(fs.existsSync(path.join(bLedger, 'HALTED.json'))).toBe(true);
+    expect(() => req.consume(next, b, bLedger, PIN, now)).toThrow();
+  });
+  test('M6 is the fifth request, needs the M3 PASS, and the paid real-service group needs the M6 PASS', () => {
+    const a: any = { ...baseAuthority(), run_root: root() }; const ledger = path.join(a.run_root, 'ledger');
+    const passPhase = (phase: string, index: number) => {
+      const request = req.createRequest(a, phase, PIN, now); expect(request.index).toBe(index);
+      fs.mkdirSync(path.join(a.run_root, 'evidence', phase), { recursive: true });
+      req.consume(request, a, ledger, PIN, now);
+      req.complete(request, a, { task: 'A9-36', run_id: a.run_id, phase, package_sha256: a.package_sha256, status: 'PASS' });
+    };
+    expect(() => req.assertNext(req.createRequest(a, 'm6', PIN, now), a, ledger, PIN, now)).toThrow();
+    passPhase('m4', 1); passPhase('m1', 2); passPhase('m2', 3);
+    expect(() => req.assertNext(req.createRequest(a, 'm6', PIN, now), a, ledger, PIN, now)).toThrow();
+    passPhase('m3', 4);
+    expect(() => req.assertNext(req.createRequest(a, 'm5', PIN, now), a, ledger, PIN, now)).toThrow();
+    expect(() => req.assertNext(req.createRequest(a, 'm6', PIN, now), a, ledger, PIN, now)).not.toThrow();
+    passPhase('m6', 5);
+    expect(() => req.assertNext(req.createRequest(a, 'm5', PIN, now), a, ledger, PIN, now)).not.toThrow();
+    passPhase('m5', 6);
+    expect(() => req.createRequest(a, 'm7', PIN, now)).toThrow();
+  });
+  test('actual original nineteen commands are byte identical, including oversize and positional forms', () => {
+    expect(supplement.GIT_FORMS).toHaveLength(19);
+    // Repository-portable assertion pins the original command-list digest; no dependency on an external report file at test time.
+    const commandHash = crypto.createHash('sha256').update(JSON.stringify(supplement.GIT_FORMS)).digest('hex');
+    expect(commandHash).toBe('b00af1e9e71ad8c9d6230ecfff73023bb8fca05b85af0a4fcc26f9a937fe2584');
+    expect(supplement.GIT_FORMS[16].length).toBe(270030);
+    expect(supplement.toolsFor('a2-git:1', 'cmd')[0].name).toBe('start_process');
+    expect(() => supplement.toolsFor('a2-git:19', 'cmd')).toThrow();
+    expect(supplement.toolsFor('unapproved external script', 'cmd')).toBeNull();
+  });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const expectedCounts: Record<string, number> = { m4: 3, m1: 11, m2: 13, m3: 11, m5: 6, m6: 5 };
+  test('closed Stage plan: frozen, contiguous assertion ids, unique modes that match the driver mode table', () => {
+    expect(Object.keys(supplement.STAGE_PLAN)).toEqual(['m4', 'm1', 'm2', 'm3', 'm5']);
+    expect(Object.isFrozen(supplement.STAGE_PLAN)).toBe(true);
+    for (const stages of Object.values(supplement.STAGE_PLAN) as any[]) { expect(Object.isFrozen(stages)).toBe(true); for (const stage of stages) { expect(Object.isFrozen(stage)).toBe(true); expect(Object.isFrozen(stage.ids)).toBe(true); } }
+    for (const [phase, count] of Object.entries(expectedCounts)) expect(supplement.requiredAssertions(phase)).toHaveLength(count);
+    expect(Object.values(expectedCounts).reduce((sum, n) => sum + n, 0)).toBe(49);
+    expect(() => supplement.requiredAssertions('p01-env')).toThrow();
+    const names = new Set<string>(); const modes: string[] = [];
+    for (const [phase, stages] of Object.entries(supplement.STAGE_PLAN) as any[]) {
+      const seen: string[] = [];
+      for (const stage of stages) {
+        expect(names.has(phase + '/' + stage.name)).toBe(false); names.add(phase + '/' + stage.name);
+        expect(modes).not.toContain(stage.mode); modes.push(stage.mode);
+        expect(supplement.stageOf(phase, stage.name)).toBe(stage);
+        expect(stage.ids.length).toBeGreaterThan(0); expect(new Set(stage.ids).size).toBe(stage.ids.length);
+        if (stage.reuse) { expect(seen).toContain(stage.reuse); const target = stages.find((s: any) => s.name === stage.reuse); expect(target.reuse).toBeUndefined(); }
+        seen.push(stage.name);
+      }
+      const ids = stages.flatMap((s: any) => s.ids).sort((a: number, b: number) => a - b);
+      expect(ids).toEqual(Array.from({ length: ids.length }, (_, n) => n + 1));
+      expect(new Set(stages.map((s: any) => s.group)).size).toBe(1);
+    }
+    expect(() => supplement.stageOf('m2', 'nope')).toThrow();
+    expect([...modes].sort()).toEqual([...driver.SUPPLEMENT_MODES].sort());
+    expect(driver.SUPPLEMENT_MODES).toContain('supplement_continue_schema');
+    expect(supplement.requiredAssertions('m6')).toEqual(Array.from({ length: 5 }, (_, n) => `A2-M6-PERSISTENCE-A${pad(n + 1)}`));
+    expect(supplement.M6_ASSERTIONS).toEqual(supplement.requiredAssertions('m6'));
+    const m2 = supplement.STAGE_PLAN.m2; expect(m2.map((s: any) => s.name)).toEqual(['main', 'audit_output', 'audit_managed', 'audit_ownership', 'continue', 'budget']);
+    expect(m2[5]).toMatchObject({ reuse: 'continue', budgetChars: 16000 });
+    expect(supplement.STAGE_PLAN.m5.map((s: any) => [s.name, s.credentials === true])).toEqual([['rehearsal', false], ['main', true]]);
+    expect(supplement.STAGE_PLAN.m1[0].git).toBe(true);
+  });
+  test('the driver mode table is the Stage plan and every planned assertion id is written exactly once in the driver source', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const table = source.slice(source.indexOf('const SUPPLEMENT_MODE_TABLE = {'), source.indexOf('// Pre-ready seams'));
+    const keys = [...table.matchAll(/(supplement_[a-z_]+):/g)].map((m) => m[1]);
+    expect(keys).toEqual(driver.SUPPLEMENT_MODES);
+    expect(source).toContain("JSON.stringify(Object.keys(SUPPLEMENT_MODE_TABLE)) !== JSON.stringify(SUPPLEMENT_MODES)");
+    const written: string[] = [];
+    for (const m of source.matchAll(/supplementAssert\('([a-z0-9-]+)', (\d+),/g)) written.push(`A2-${m[1].toUpperCase()}-A${pad(Number(m[2]))}`);
+    for (const m of source.matchAll(/auditStage\(\{ id: (\d+),/g)) written.push(`A2-M2-VERIFICATION-A${pad(Number(m[1]))}`);
+    for (const m of source.matchAll(/record\('(A2-M4-CONTINUE-SCHEMA)', (\d+),/g)) written.push(`${m[1]}-A${pad(Number(m[2]))}`);
+    const planned = ['m4', 'm1', 'm2', 'm3', 'm5'].flatMap((phase) => supplement.requiredAssertions(phase));
+    expect([...written].sort()).toEqual([...planned].sort());
+    // Each Stage mode function is the one the table names, and the audit helper is the only place that writes a variable id.
+    expect([...source.matchAll(/supplementAssert\('[a-z0-9-]+', spec\.id,/g)]).toHaveLength(1);
+  });
+  test('Stage verdicts accept only the exact DONE, exit-0, own-assertion result; the phase needs every Stage in order', () => {
+    const stage = supplement.stageOf('m2', 'continue'); const ids = supplement.stageAssertionIds(stage);
+    expect(ids).toEqual(['A2-M2-VERIFICATION-A10', 'A2-M2-VERIFICATION-A11']);
+    const rows = ids.map((assertion_id: string) => ({ assertion_id, status: 'PASS' })); const good = { mode: stage.mode, status: 'DONE', assertions: rows };
+    expect(supplement.evaluateStageResult(stage, good, { code: 0 })).toBe(true);
+    for (const changed of [[], rows.slice(1), rows.concat(rows[0]), rows.map((v: any, n: number) => n ? v : { ...v, status: 'UNKNOWN' }), rows.map((v: any, n: number) => n ? v : { ...v, status: 'FAIL' }),
+      rows.map((v: any) => ({ ...v, assertion_id: 'other' })), [rows[0], { assertion_id: 'A2-M2-VERIFICATION-A12', status: 'PASS' }], [rows[0], rows[0]]]) {
+      expect(supplement.evaluateStageResult(stage, { ...good, assertions: changed }, { code: 0 })).toBe(false);
+    }
+    expect(supplement.evaluateStageResult(stage, { ...good, status: 'ERROR' }, { code: 0 })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, { ...good, mode: 'supplement_budget' }, { code: 0 })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, good, { code: 1 })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, good, { code: 0, killed_by: 'timeout' })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, good, { code: 0, spawn_error: 'x' })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, null, { code: 0 })).toBe(false);
+    expect(supplement.evaluateStageResult(stage, good, null)).toBe(false);
+    // The single-Stage shortcut still judges the first Stage of a one-Stage phase.
+    const m4 = supplement.requiredAssertions('m4').map((assertion_id: string) => ({ assertion_id, status: 'PASS' }));
+    expect(supplement.evaluateDriverResult('m4', { mode: 'supplement_continue_schema', status: 'DONE', assertions: m4 }, { code: 0 })).toBe(true);
+    expect(supplement.evaluateDriverResult('m4', { mode: 'continue_restart', status: 'DONE', assertions: m4 }, { code: 0 })).toBe(false);
+    const plan = supplement.STAGE_PLAN.m2; const pass = plan.map((s: any) => ({ name: s.name, status: 'PASS' }));
+    expect(supplement.evaluatePhaseStages('m2', pass)).toBe('PASS');
+    expect(supplement.evaluatePhaseStages('m2', pass.slice(0, 5))).toBe('FAIL');
+    expect(supplement.evaluatePhaseStages('m2', pass.concat(pass[0]))).toBe('FAIL');
+    expect(supplement.evaluatePhaseStages('m2', [pass[1], pass[0], ...pass.slice(2)])).toBe('FAIL');
+    expect(supplement.evaluatePhaseStages('m2', pass.map((v: any, n: number) => n === 3 ? { ...v, status: 'FAIL' } : v))).toBe('FAIL');
+    expect(supplement.evaluatePhaseStages('m2', pass.map((v: any, n: number) => n === 3 ? { ...v, status: 'UNKNOWN' } : v))).toBe('FAIL');
+    expect(supplement.evaluatePhaseStages('m2', null)).toBe('FAIL');
+    expect(() => supplement.evaluatePhaseStages('m6', pass)).toThrow();
+    expect(supplement.postflightClean({ failed: false, related: [] })).toBe(true);
+    for (const value of [null, { failed: true, related: [] }, { failed: false, related: [{ pid: 1 }] }, { failed: false }]) expect(supplement.postflightClean(value)).toBe(false);
+  });
+  test('Stage layout: a reuse Stage continues on the earlier Stage roots, others get their own isolated profile', () => {
+    const phaseRoot = path.join(root(), 'work', 'm2');
+    const layouts = Object.fromEntries(supplement.STAGE_PLAN.m2.map((s: any) => [s.name, supplement.stageLayout(phaseRoot, s)]));
+    expect(layouts.budget.home).toBe(layouts.continue.home); expect(layouts.budget.data).toBe(layouts.continue.data); expect(layouts.budget.workspace).toBe(layouts.continue.workspace);
+    expect(layouts.main.home).not.toBe(layouts.continue.home);
+    expect(new Set(['main', 'audit_output', 'audit_managed', 'audit_ownership', 'continue'].map((n) => layouts[n].data)).size).toBe(5);
+    for (const layout of Object.values(layouts) as any[]) {
+      expect(layout.workspace.endsWith('中文 workspace')).toBe(true);
+      for (const key of ['LOCALAPPDATA', 'APPDATA', 'TEMP']) expect(layout.env[key].startsWith(layout.home)).toBe(true);
+      expect(layout.env.WIN7AGENT_PORTABLE).toBe('0');
+    }
+  });
+  test('isolated seeds are real Python sources, differ by kind and never overwrite an existing workspace', () => {
+    const parent = root(); const workspace = path.join(parent, '中文 workspace');
+    supplement.seedWorkspace(workspace, 'journey');
+    expect(fs.readFileSync(path.join(workspace, 'calc.py'), 'utf8')).toContain('return a - b');
+    expect(() => supplement.seedWorkspace(workspace, 'journey')).toThrow();
+    expect(() => supplement.seedWorkspace(path.join(parent, 'other'), 'unknown-kind')).toThrow('A9_36_SEED_KIND');
+    const initial = childProcess.spawnSync('python3', ['test_calc.py'], { cwd: workspace, encoding: 'utf8' });
+    expect(initial.status).toBe(1); expect(initial.stderr).toContain('AssertionError');
+    fs.writeFileSync(path.join(workspace, 'calc.py'), 'def add(a,b):\n    return a+b\n', 'utf8');
+    const fixed = childProcess.spawnSync('python3', ['test_calc.py'], { cwd: workspace, encoding: 'utf8' });
+    expect(fixed.status).toBe(0); expect(fixed.stderr).toContain('OK');
+    const absentFeature = childProcess.spawnSync('python3', ['acceptance_check.py'], { cwd: workspace, encoding: 'utf8' });
+    expect(absentFeature.status).not.toBe(0);
+    fs.appendFileSync(path.join(workspace, 'calc.py'), '\ndef multiply(a,b):\n    return a*b\n', 'utf8');
+    fs.appendFileSync(path.join(workspace, 'display.py'), '\nfrom calc import multiply\ndef format_product(a,b):\n    return str(multiply(a,b))\n', 'utf8');
+    fs.writeFileSync(path.join(workspace, 'test_calc.py'), 'import unittest\nfrom calc import add,multiply\nfrom display import format_sum,format_product\nclass Tests(unittest.TestCase):\n def test_add(self): self.assertEqual(add(2,3),5)\n def test_sum(self): self.assertEqual(format_sum(2,3),"5")\n def test_positive(self): self.assertEqual(multiply(2,3),6)\n def test_negative(self): self.assertEqual(format_product(-2,3),"-6")\nif __name__=="__main__": unittest.main()\n', 'utf8');
+    const contractCheck = childProcess.spawnSync('python3', ['acceptance_check.py'], { cwd: workspace, encoding: 'utf8' });
+    expect(contractCheck.status).toBe(0); expect(contractCheck.stdout).toContain('A2-FUNCTIONAL-CONTRACT-PASS');
+    // The fixture workspace carries every file the scripted prompts read, rewrite or run.
+    const fixtureWorkspace = path.join(parent, 'fixture'); supplement.seedWorkspace(fixtureWorkspace, 'fixture');
+    for (const name of ['AGENTS.md', 'probe.txt', 'check.py', 'a.txt', 'b.txt', ...Object.keys(supplement.SCRIPT_FILES), ...Object.keys(supplement.DATA_FILES)]) expect(fs.existsSync(path.join(fixtureWorkspace, name))).toBe(true);
+    expect(fs.readFileSync(path.join(fixtureWorkspace, 'AGENTS.md'), 'utf8')).toContain('A2-RULE-MARKER');
+    expect(fs.readFileSync(path.join(fixtureWorkspace, 'AGENTS.md'), 'utf8').length).toBeLessThan(200);
+    const check = childProcess.spawnSync('python3', ['check.py'], { cwd: fixtureWorkspace, encoding: 'utf8' });
+    expect(check.status).toBe(0); expect(check.stdout).toContain('A2-CHECK');
+    const large = childProcess.spawnSync('python3', ['check.py', '--large-fail'], { cwd: fixtureWorkspace, encoding: 'utf8' });
+    expect(large.status).toBe(1); expect(large.stdout.length).toBeGreaterThanOrEqual(20000);
+    const modify = childProcess.spawnSync('python3', ['ext_modify.py', 'ext_shell.txt', 'shell1'], { cwd: fixtureWorkspace, encoding: 'utf8' });
+    expect(modify.status).toBe(0); expect(fs.readFileSync(path.join(fixtureWorkspace, 'ext_shell.txt'), 'utf8')).toBe('shell1\n');
+    expect(fs.readFileSync(path.join(fixtureWorkspace, 'late_target.txt'), 'utf8')).toBe('late0\n');
+    expect(fs.readFileSync(path.join(fixtureWorkspace, 'cont_target.txt'), 'utf8')).toBe('cont0\n');
+  });
+  test('credential copying retains ciphertext only, refuses changed endpoint and does not overwrite data', () => {
+    const source = root(); const target = root(); const a = baseAuthority();
+    fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: a.provider.base_url, model: a.provider.model, keyRemembered: true }));
+    const file = path.join(source, 'a9-vault-apikey', 'credentials', 'credentials.v1.json'); fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, protection: 'electron-safe-storage-windows-dpapi-current-user', ciphertext: Buffer.from('opaque encrypted bytes').toString('base64') }));
+    expect(supplement.copyEncryptedConfig(source, target, a.provider)).toMatchObject({ plaintext_credential_export: false, actual_dpapi_restore: 'NOT_PERFORMED' });
+    expect(fs.readFileSync(path.join(target, 'a9-vault-apikey', 'credentials', 'credentials.v1.json'))).toEqual(fs.readFileSync(file));
+    expect(() => supplement.copyEncryptedConfig(source, target, a.provider)).toThrow();
+    expect(() => supplement.copyEncryptedConfig(source, root(), { ...a.provider, model: 'changed' })).toThrow();
+    const rejected = root(); const sentinel = 'PLAINTEXT_SENTINEL_NEVER_EXPORT';
+    fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: a.provider.base_url, model: a.provider.model, keyRemembered: true, apiKey: sentinel }));
+    expect(() => supplement.copyEncryptedConfig(source, rejected, a.provider)).toThrow('SAVED_CONFIG_FIELDS');
+    expect(fs.readdirSync(rejected)).toEqual([]);
+    fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: a.provider.base_url, model: a.provider.model, keyRemembered: true, probe: { error: sentinel } }));
+    const sanitized = root(); supplement.copyEncryptedConfig(source, sanitized, a.provider);
+    expect(fs.readFileSync(path.join(sanitized, 'a9-provider-config.v1.json'), 'utf8')).not.toContain(sentinel);
+  });
+  test('actual package data-root selector receives isolated LOCALAPPDATA and portable is disabled', () => {
+    const { loadA9PackageRuntime } = require('../../product/a9-package-runtime');
+    const releaseRoot = root(); const appRoot = path.join(releaseRoot, 'resources', 'app'); const productRoot = path.join(appRoot, 'product');
+    const storage = path.join(releaseRoot, 'resources', 'native', 'storage');
+    const binding = path.join(storage, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+    const helper = path.join(releaseRoot, 'resources', 'native', 'runner', 'spike02_helper.exe');
+    for (const dir of [productRoot, path.dirname(binding), path.dirname(helper)]) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(binding, 'sqlite-fixture'); fs.writeFileSync(helper, 'runner-fixture');
+    const digest = (value: string) => crypto.createHash('sha256').update(value).digest('hex');
+    fs.writeFileSync(path.join(appRoot, 'a9-runtime.json'), JSON.stringify({ schema_version: 1, release_id: 'A9-TEST', version: '0.3.0-alpha.1', native_layout: 'EXTERNAL_TO_APP_AND_ASAR',
+      storage_module_root: '../native/storage', storage_native_binding: '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node', runner_helper: '../native/runner/spike02_helper.exe',
+      runner_helper_profile: 'D-013-v25-a9-trusted-shell-current-user', runner_helper_protocol: 2, data_root: '%LOCALAPPDATA%\\Win7CodingAgent\\a9', portable_flag: '--portable' }));
+    fs.writeFileSync(path.join(releaseRoot, 'release-manifest.json'), JSON.stringify({ schema_version: 1, release_id: 'A9-TEST', version: '0.3.0-alpha.1',
+      status: 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS', files: [], gates: { win10: 'NOT_PERFORMED', win7: 'NOT_PERFORMED' }, required_native: { runner_helper: digest('runner-fixture'), runner_helper_profile: 'D-013-v25-a9-trusted-shell-current-user', runner_helper_protocol: 2, better_sqlite3_node: digest('sqlite-fixture'), electron_abi: 110 } }));
+    const env = supplement.isolatedProfileEnvironment('C:\\A9-new-run\\work\\m5');
+    expect(env.WIN7AGENT_PORTABLE).toBe('0'); expect(env.TEMP).toBe(env.TMP); expect(env.NODE_TLS_REJECT_UNAUTHORIZED).toBe('1'); expect(env.NODE_EXTRA_CA_CERTS).toBe('');
+    const selected: any[] = []; const ensured: string[] = [];
+    const runtime = loadA9PackageRuntime({ productRoot, platform: 'win32', argv: [], env, ensureDirectory: (directory: string) => ensured.push(directory), app: { setPath: (name: string, value: string) => selected.push({ name, value }) } });
+    expect(runtime.portable).toBe(false);
+    expect(selected).toEqual([{ name: 'userData', value: path.win32.join(env.LOCALAPPDATA, 'Win7CodingAgent') }]);
+    expect(ensured).toEqual([path.win32.join(env.LOCALAPPDATA, 'Win7CodingAgent')]);
+  });
+  test('real-model shell evidence binds start/end, exact command, workspace and structured cleanup facts', () => {
+    const workspace = 'C:\\new run\\中文 workspace';
+    const build = (command: string, cwd = workspace) => [
+      { eventType: 'tool_start', eventId: 1, payload: { data: { toolName: 'shell', callId: 'call', args: { command, cwd } } } },
+      { eventType: 'tool_end', eventId: 2, payload: { data: { toolName: 'shell', callId: 'call', shell: { exitCode: 0, stdout: 'Ran 4 tests\nOK\nA2-BUILD-PASS', processTreeReaped: true, timedOut: false, truncated: false } } } },
+    ];
+    expect(driver.journeyShellChecks(build('python test_calc.py'), workspace, 'python test_calc.py')).toHaveLength(1);
+    for (const command of ['python fake.py', 'echo OK', 'python test_calc.py; echo OK', 'python build.py']) expect(driver.journeyShellChecks(build(command), workspace, 'python test_calc.py')).toHaveLength(0);
+    expect(driver.journeyShellChecks(build('python test_calc.py', 'C:\\other'), workspace, 'python test_calc.py')).toHaveLength(0);
+    const changed = build('python test_calc.py'); changed[1].payload.data.callId = 'unmatched';
+    expect(driver.journeyShellChecks(changed, workspace, 'python test_calc.py')).toHaveLength(0);
+    const truncated: any = build('python test_calc.py'); truncated[1].payload.data.shell.truncated = true;
+    expect(driver.journeyShellChecks(truncated, workspace, 'python test_calc.py')).toHaveLength(0);
+  });
+  test('J1 accepts actual workspace numbered reads and rejects errors/content/hash/incomplete citations', async () => {
+    const workspace = 'C:\\new\\workspace'; const source = 'def add(a,b):\n    return a-b\n';
+    const sources = { 'AGENTS.md': '# rules\n', 'README.md': '# project\n', 'calc.py': source };
+    const digest = (text: string) => crypto.createHash('sha256').update(text).digest('hex');
+    const directory = root();
+    const { A9WorkspaceService } = require('../../../workspace/dist/a9-workspace-service');
+    const service = new A9WorkspaceService(directory); const reads: any[] = [];
+    for (const [name, content] of Object.entries(sources)) {
+      fs.writeFileSync(path.join(directory, name), content, 'utf8');
+      const result = await service.read(name); const n = reads.length;
+      reads.push({ eventType: 'tool_start', eventId: n + 1, payload: { data: { toolName: 'read', callId: name, args: { path: name } } } },
+        { eventType: 'tool_end', eventId: n + 2, payload: { data: { toolName: 'read', callId: name, result: JSON.stringify(result) } } });
+    }
+    expect(JSON.parse(reads[5].payload.data.result).content).toBe('1: def add(a,b):\n2:     return a-b\n3: ');
+    const judge = (events: any[], modelText: string) => driver.journeyReadCitations(events, workspace, modelText, source, sources).ok;
+    const answer = 'add 应做加法，实际做减法。calc.py:1 `def add(a,b):`，calc.py:2 `return a-b`';
+    expect(judge(reads, answer)).toBe(true);
+    expect(judge(reads, 'add 应做加法，实际做减法。calc.py:1 `return a-b`，calc.py:2 `def add(a,b):`')).toBe(false);
+    expect(judge(reads, answer.replace('，实际', ',实际'))).toBe(false);
+    expect(judge(reads, answer.replace('calc.py:1', 'README.md:1'))).toBe(false);
+    expect(judge(reads, 'calc.py:1 calc.py:2')).toBe(false);
+    expect(judge(reads, 'calc.py:1 def add(a,b): calc.py:2 return a-b')).toBe(false);
+    expect(judge(reads, 'add 应做加法，实际做减法。calc.py:1 calc.py:2')).toBe(false);
+    expect(judge(reads, 'calc.py:2')).toBe(false);
+    expect(judge(reads, 'calc.py:999')).toBe(false);
+    for (const replacement of [JSON.stringify({ error: { code: 'ENOENT', message: 'missing' } }), 'unparseable read result',
+      JSON.stringify({ path: 'calc.py', isText: true, outsideWorkspace: false, truncated: false, startLine: 1, content: 'fake', contentSha256: digest('fake') })]) {
+      const bad = JSON.parse(JSON.stringify(reads)); bad[5].payload.data.result = replacement;
+      expect(judge(bad, answer)).toBe(false);
+    }
+    const raw = JSON.parse(JSON.stringify(reads)); const rawResult = JSON.parse(raw[5].payload.data.result); rawResult.content = source; raw[5].payload.data.result = JSON.stringify(rawResult);
+    expect(judge(raw, answer)).toBe(false);
+    const wrongPaths = JSON.parse(JSON.stringify(reads)); wrongPaths[0].payload.data.args.path = 'unrelated.txt';
+    expect(judge(wrongPaths, answer)).toBe(false);
+  });
+  test('on-demand issuance is fixed in the hashed CLI/desktop path and later requests need fresh TTL', () => {
+    const moduleSource = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8');
+    const desktopSource = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-desktop.ps1'), 'utf8');
+    expect(moduleSource).toContain("argv[0] === '--issue'");
+    expect(desktopSource.indexOf("'--issue'")).toBeLessThan(desktopSource.indexOf("'--run'"));
+    // Second Win7 attempt: EPIPE under "&" capture of the GUI-subsystem electron.exe (cause is a hypothesis). The Process-based path is NOT_PERFORMED on Win7.
+    expect(desktopSource).not.toMatch(/&\s*\$electron/);
+    expect(desktopSource).not.toMatch(/\(\s*&\s*\$/);
+    for (const needle of ['New-Object Diagnostics.ProcessStartInfo', '$info.FileName=$electron', '$info.UseShellExecute=$false', '$info.RedirectStandardOutput=$true', '$info.RedirectStandardError=$true', '$info.StandardOutputEncoding=[Text.Encoding]::UTF8', '$info.StandardErrorEncoding=[Text.Encoding]::UTF8', '[Diagnostics.Process]::Start($info)', '[Console]::OpenStandardOutput()', '[Console]::OpenStandardError()', 'New-Object Text.UTF8Encoding($false)', 'ReadToEndAsync()', 'WaitForExit()']) expect(desktopSource).toContain(needle);
+    expect(desktopSource.indexOf('WaitForExit()')).toBeLessThan(desktopSource.indexOf('.Result'));
+    expect(desktopSource.indexOf('$info.StandardOutputEncoding')).toBeLessThan(desktopSource.indexOf('[Diagnostics.Process]::Start($info)'));
+    expect(desktopSource.indexOf('$info.StandardErrorEncoding')).toBeLessThan(desktopSource.indexOf('[Diagnostics.Process]::Start($info)'));
+    expect(desktopSource).not.toContain('[Console]::Out.Write'); expect(desktopSource).not.toContain('[Console]::Error.Write');
+    expect(desktopSource.match(/Invoke-Electron @\(/g)).toHaveLength(2);
+    expect(desktopSource.indexOf('Invoke-Electron @($orchestrator,\'--issue\'')).toBeLessThan(desktopSource.indexOf('Invoke-Electron @($orchestrator,\'--run\''));
+    expect(desktopSource).toContain("'A9_36_REQUEST_ISSUE_FAILED'");
+    expect(desktopSource).not.toMatch(/Set-ExecutionPolicy/i);
+    expect(desktopSource).toContain(`ValidateSet(${req.PHASES.map((p: string) => `'${p}'`).join(',')})`);
+    expect(moduleSource).toContain("argv[0] === '--m6-probe'"); expect(moduleSource).toContain("argv[0] === '--m6-fixtures'"); expect(moduleSource).toContain("argv[0] === '--m6-baseline'");
+    const a = baseAuthority(); const old = req.createRequest(a, 'm1', PIN, now);
+    expect(() => req.validateRequest(old, a, PIN, now + 900001)).toThrow();
+    expect(() => req.validateRequest(req.createRequest(a, 'm1', PIN, now + 900001), a, PIN, now + 900001)).not.toThrow();
+    expect(() => req.assertNext(req.createRequest(a, 'm1', PIN, now), a, root(), PIN, now)).toThrow();
+    const bound = { ...a, run_root: root() }; const ledger = path.join(bound.run_root, 'ledger');
+    const firstFile = supplement.issueRequest(bound, 'm4', PIN, now); const first = req.readJson(firstFile);
+    expect(first.index).toBe(1); expect(() => supplement.issueRequest(bound, 'm4', PIN, now)).toThrow();
+    expect(() => supplement.issueRequest(bound, 'm1', PIN, now)).toThrow();
+    req.consume(first, bound, ledger, PIN, now); fs.mkdirSync(path.join(bound.run_root, 'evidence', 'm4'), { recursive: true });
+    req.complete(first, bound, { task: 'A9-36', run_id: bound.run_id, phase: 'm4', package_sha256: bound.package_sha256, status: 'PASS' });
+    const secondFile = supplement.issueRequest(bound, 'm1', PIN, now + 900001); const second = req.readJson(secondFile);
+    expect(second.index).toBe(2); expect(Date.parse(second.expires_at)).toBe(now + 900001 + 900000);
+    expect(req.readJson(firstFile)).toEqual(first);
+  });
+  test('fixture rejects malformed streaming finishes and retries only one actual context error', async () => {
+    const fixture = new supplement.SupplementFixture(path.join(root(), 'requests.jsonl')); const port = await fixture.listen();
+    const post = (prompt: string, extra: any[] = []) => new Promise<any>((resolve, reject) => {
+      const body = JSON.stringify({ messages: [{ role: 'user', content: prompt }, ...extra] });
+      const request = http.request({ hostname: '127.0.0.1', port, path: '/v1/chat/completions', method: 'POST' }, (response) => { let raw = ''; response.on('data', (c) => { raw += c; }); response.on('end', () => resolve({ status: response.statusCode, raw })); });
+      request.on('error', reject); request.end(body);
+    });
+    try {
+      const first = await post('a2-context-retry'); const second = await post('a2-context-retry');
+      expect(first.status).toBe(400); expect(first.raw).toContain('context_length_exceeded');
+      expect(second.status).toBe(200); expect(second.raw).toContain('A2 fixture complete');
+      const missing = await post('a2-provider:missing'); expect(missing.raw).not.toContain('finish_reason');
+      const empty = await post('a2-provider:empty'); expect(empty.raw).toBe('data: [DONE]\n\n');
+      const turns = [];
+      for (const name of ['write', 'shell', 'start_process']) {
+        const prompt = 'a2-readonly:' + name; const id = 'a2-' + req.sha(prompt).slice(0, 8) + '-0';
+        await post(prompt);
+        await post(prompt, [{ role: 'assistant', tool_calls: [{ id, function: { name } }] },
+          { role: 'tool', tool_call_id: id, content: `Error: unknown or unavailable tool '${name}' in read_only mode. Available tools: list, read.` }]);
+        turns.push({ events: [] });
+      }
+      const rows = fs.readFileSync(fixture.logFile, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+      expect(driver.supplementalReadOnlyFacts(turns, rows, true).ok).toBe(true);
+      expect(driver.supplementalReadOnlyFacts(turns, [], true).ok).toBe(false);
+      expect(driver.supplementalReadOnlyFacts(turns, rows.filter((row: any) => !row.rejections.length), true).ok).toBe(false);
+      expect(driver.supplementalReadOnlyFacts(turns, rows, false).ok).toBe(false);
+      expect(driver.supplementalReadOnlyFacts([{ events: [{ eventType: 'tool_start' }] }, ...turns.slice(1)], rows, true).ok).toBe(false);
+    } finally { await fixture.close(); }
+  });
+  test('saved budget is the only config field the Stage setup changes, within the product bounds, and copied configs keep it', () => {
+    const dataRoot = root(); const file = path.join(dataRoot, 'a9-provider-config.v1.json');
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, baseUrl: 'http://127.0.0.1:1/v1', model: 'm', customHeaderNames: [] }));
+    expect(supplement.setContextBudget(dataRoot, 16000)).toEqual({ file: 'a9-provider-config.v1.json', before: null, after: 16000 });
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ schemaVersion: 1, baseUrl: 'http://127.0.0.1:1/v1', model: 'm', customHeaderNames: [], contextBudgetChars: 16000 });
+    expect(supplement.setContextBudget(dataRoot, 20000)).toMatchObject({ before: 16000, after: 20000 });
+    for (const bad of [15999, 1000001, 16000.5, '16000', null]) expect(() => supplement.setContextBudget(dataRoot, bad)).toThrow('A9_36_BUDGET_CONFIG');
+    expect(() => supplement.setContextBudget(root(), 16000)).toThrow();
+    const source = root(); const target = root(); const a = baseAuthority();
+    fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: a.provider.base_url, model: a.provider.model, keyRemembered: true, contextBudgetChars: 40000 }));
+    const key = path.join(source, 'a9-vault-apikey', 'credentials', 'credentials.v1.json'); fs.mkdirSync(path.dirname(key), { recursive: true });
+    fs.writeFileSync(key, JSON.stringify({ schemaVersion: 1, protection: 'electron-safe-storage-windows-dpapi-current-user', ciphertext: Buffer.from('opaque').toString('base64') }));
+    supplement.copyEncryptedConfig(source, target, a.provider);
+    expect(JSON.parse(fs.readFileSync(path.join(target, 'a9-provider-config.v1.json'), 'utf8')).contextBudgetChars).toBe(40000);
+    fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: a.provider.base_url, model: a.provider.model, keyRemembered: true, contextBudgetChars: 10 }));
+    expect(() => supplement.copyEncryptedConfig(source, root(), a.provider)).toThrow('SAVED_CONFIG_BUDGET');
+  });
+  test('fixture follows the original goal of a continuation prompt and logs the facts the judgements need, never the request body', async () => {
+    const workspace = root(); fs.writeFileSync(path.join(workspace, 'AGENTS.md'), '# A2-RULE-MARKER-CHANGED\nrules\n');
+    const logFile = path.join(root(), 'requests.jsonl'); const fixture = new supplement.SupplementFixture(logFile); const port = await fixture.listen();
+    const call = (route: string, body: any, method = 'POST') => new Promise<any>((resolve, reject) => {
+      const request = http.request({ hostname: '127.0.0.1', port, path: route, method }, (response) => { let raw = ''; response.on('data', (c) => { raw += c; }); response.on('end', () => resolve({ status: response.statusCode, raw })); });
+      request.on('error', reject); request.end(body === undefined ? undefined : JSON.stringify(body));
+    });
+    const chat = (prompt: string, extra: any[] = [], system = 'SYSTEM BODY A2') => call('/v1/chat/completions', { messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }, ...extra] });
+    try {
+      expect(supplement.continuationGoal('a2-rules')).toBeNull();
+      const wrapper = `用户主动请求继续原任务\n${JSON.stringify({ originalGoal: 'a2-cont-edit:1', other: 1 })}\n不得重放已完成的工具调用`;
+      expect(supplement.continuationGoal(wrapper)).toBe('a2-cont-edit:1');
+      expect(supplement.continuationGoal('用户主动请求继续原任务\n{bad json')).toBeNull();
+      expect((await call('/state', { workspace: workspace })).status).toBe(200);
+      for (const bad of [{ unknown: 1 }, { providerFail: 'yes' }, { shellKind: 'bash' }, { workspace: '' }, { contextRetried: 1 }]) expect((await call('/state', bad)).status).toBe(400);
+      const first = await chat(wrapper);
+      expect(first.raw).toContain('"read"');
+      const lines = () => fs.readFileSync(logFile, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+      const row = lines()[0];
+      expect(row).toMatchObject({ request: 1, continuation: true, prompt: 'a2-cont-edit:1', rules: 0, environment: 0, agents_in_request: false, tool_messages: 0 });
+      expect(row.rule_markers).toEqual([]); expect(row.system_sha256).toBe(crypto.createHash('sha256').update('SYSTEM BODY A2').digest('hex'));
+      expect(row.agents_sha256).toBe(crypto.createHash('sha256').update('# A2-RULE-MARKER-CHANGED\nrules\n').digest('hex'));
+      expect(JSON.stringify(row)).not.toContain('SYSTEM BODY A2');
+      const withAgents = await chat('a2-rules', [], 'SYS <environment_facts>x</environment_facts>\n# A2-RULE-MARKER-CHANGED\nrules\n');
+      expect(withAgents.status).toBe(200);
+      expect(lines()[1]).toMatchObject({ request: 2, continuation: false, prompt: 'a2-rules', rules: 1, environment: 1, rule_markers: ['A2-RULE-MARKER-CHANGED'], agents_in_request: true });
+      await call('/state', { providerFail: true });
+      expect((await chat('a2-rules')).status).toBe(401);
+      await call('/state', { providerFail: false });
+      expect((await chat('a2-rules')).status).toBe(200);
+      const counters = JSON.parse((await call('/counters', undefined, 'GET')).raw); expect(counters.requests).toBe(4); expect(counters.state.providerFail).toBe(false);
+      fixture.beginStage(path.join(root(), 'next.jsonl'));
+      expect(JSON.parse((await call('/counters', undefined, 'GET')).raw)).toMatchObject({ requests: 0, state: { shellKind: 'cmd' } });
+      expect(supplement.finalDelayMs('a2-ext:bg')).toBe(0); expect(supplement.finalDelayMs('a2-audit-managed')).toBe(2500); expect(supplement.finalDelayMs('a2-rules')).toBe(0);
+    } finally { await fixture.close(); }
+  });
+  test('every scripted prompt of the driver resolves to tools, and each Stage prompt keeps its designed tool sequence', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const prompts = new Set<string>();
+    for (const m of source.matchAll(/(?:supplementTurn|submit|submitRaw|runPrompt|localCommitTurn|deniedGit)\(\s*[`'"](a2-[^`'"$]*)/g)) prompts.add(m[1]);
+    for (const m of source.matchAll(/submitTurn\("(a2-[^"]*)"\)/g)) prompts.add(m[1]);
+    for (const m of source.matchAll(/prompt: '(a2-[^']*)'/g)) prompts.add(m[1]);
+    expect(prompts.size).toBeGreaterThan(20);
+    const concrete = (prompt: string) => prompt === 'a2-readonly:' ? 'a2-readonly:write' : prompt.endsWith(':') ? prompt + '1' : prompt;
+    for (const prompt of prompts) {
+      const kind = concrete(prompt);
+      expect([kind, supplement.toolsFor(kind, 'cmd', { workspace: 'C:\\w' })]).not.toEqual([kind, null]);
+    }
+    const names = (prompt: string) => supplement.toolsFor(prompt, 'cmd', {}).map((t: any) => t.name);
+    expect(names('a2-audit-output')).toEqual(['shell', 'write']);
+    expect(names('a2-audit-managed')).toEqual(['start_process', 'shell']);
+    expect(names('a2-audit-ownership')).toEqual(['start_process', 'write']);
+    expect(names('a2-git-branch:1')).toEqual(['shell', 'shell', 'shell', 'shell']);
+    expect(names('a2-bg-hold')).toEqual(['start_process']);
+    expect(names('a2-late:1')).toEqual(['read', 'edit', 'start_process']);
+    expect(names('a2-ext:shell')).toEqual(['read', 'edit', 'shell']);
+    expect(names('a2-ext:bg')).toEqual(['start_process', 'shell']);
+    expect(names('a2-review:3')).toEqual(['shell', 'start_process', 'shell']);
+    expect(names('a2-cont-edit:1')).toEqual(['read', 'edit']);
+    expect(supplement.toolsFor('a2-long-card:x', 'cmd', { workspace: 'C:\\w' })[0].args).toEqual({ command: supplement.LONG_CARD_COMMAND, cwd: 'C:\\w' });
+    expect(supplement.LONG_CARD_COMMAND.length).toBeGreaterThan(400);
+    expect(supplement.toolsFor('a2-git-branch:1', 'cmd', {})[1].args.command).toBe('git switch -c a2-topic');
+    expect(supplement.toolsFor('a2-git-branch:1', 'cmd', {})[3].args.command).toBe('git -c user.name=A2 -c user.email=a2@example.invalid commit -m A2-topic');
+    expect(supplement.toolsFor('a2-cmd-build:x', 'cmd', {})[0].args.command).toBe('python slow_build.py');
+    expect(supplement.toolsFor('a2-cmd-test:x', 'cmd', {})[0].args.command).toBe('python check.py');
+  });
+  test('the local bare origin is real, holds exactly one ref, and the ref check notices any push or deletion', () => {
+    const parent = root(); const workspace = path.join(parent, 'ws'); const origin = path.join(parent, 'origin.git'); fs.mkdirSync(workspace);
+    fs.writeFileSync(path.join(workspace, 'probe.txt'), 'value 0\n');
+    const git = childProcess.spawnSync('git', ['--version'], { encoding: 'utf8' });
+    expect(git.status).toBe(0);
+    const extra = supplement.setupGitWorkspace('git', workspace, origin);
+    expect(extra.A9_ALPHA2_ORIGIN).toBe(origin); expect(extra.A9_ALPHA2_ORIGIN_MAIN).toMatch(/^[0-9a-f]{40}$/);
+    const refs = () => childProcess.spawnSync('git', ['--git-dir', origin, 'for-each-ref', '--format=%(refname) %(objectname)'], { encoding: 'utf8' }).stdout.trim();
+    expect(driver.evaluateOriginRefs(extra.A9_ALPHA2_ORIGIN_MAIN, refs())).toBe(true);
+    expect(childProcess.spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: workspace, encoding: 'utf8' }).stdout.trim()).toBe(origin);
+    expect(() => supplement.setupGitWorkspace('git', workspace, origin)).toThrow();
+    childProcess.spawnSync('git', ['-c', 'user.name=A', '-c', 'user.email=a@example.invalid', 'commit', '--allow-empty', '-m', 'next'], { cwd: workspace });
+    childProcess.spawnSync('git', ['push', 'origin', 'main'], { cwd: workspace });
+    expect(driver.evaluateOriginRefs(extra.A9_ALPHA2_ORIGIN_MAIN, refs())).toBe(false);
+    childProcess.spawnSync('git', ['push', 'origin', 'main:side'], { cwd: workspace });
+    expect(driver.evaluateOriginRefs(extra.A9_ALPHA2_ORIGIN_MAIN, refs())).toBe(false);
+    for (const [initial, text] of [['', ''], [null, null], ['a'.repeat(40), ''], ['a'.repeat(40), `refs/heads/main ${'b'.repeat(40)}`], ['a'.repeat(40), `refs/heads/main ${'a'.repeat(40)}\nrefs/heads/x ${'a'.repeat(40)}`], ['short', 'refs/heads/main short']]) {
+      expect(driver.evaluateOriginRefs(initial as any, text as any)).toBe(false);
+    }
+    expect(driver.evaluateOriginRefs('a'.repeat(40), `refs/heads/main ${'a'.repeat(40)}\n`)).toBe(true);
+  });
+  test('F-01 corpus: the repository Policy engine allows the 17 characterised forms and still asks for the controls', () => {
+    const types = require('../../../core/dist/types'); const { PolicyEngine } = require('../../../core/dist/policy');
+    const engine = new PolicyEngine();
+    const evaluate = (command: string, toolName = 'shell') => engine.evaluate({ id: 'c', toolName, args: { command }, approvalLevel: types.ApprovalLevel.FULL_ACCESS });
+    expect(supplement.F01_WRAPPED).toHaveLength(13); expect(supplement.F01_DATA).toHaveLength(4); expect(supplement.F01_CONTROLS).toHaveLength(2);
+    expect(new Set([...supplement.F01_WRAPPED, ...supplement.F01_DATA, ...supplement.F01_CONTROLS]).size).toBe(19);
+    for (const command of [...supplement.F01_WRAPPED, ...supplement.F01_DATA]) expect([command, evaluate(command).verdict, evaluate(command).ruleId]).toEqual([command, 'allow', 'POLICY_FULL_ACCESS_ALLOWED']);
+    for (const command of supplement.F01_CONTROLS) expect([command, evaluate(command).verdict]).toEqual([command, 'ask']);
+    const rows = [['wrapped', supplement.F01_WRAPPED], ['data', supplement.F01_DATA], ['control', supplement.F01_CONTROLS]].flatMap(([group, list]: any) => list.map((command: string) => ({ group, command, verdict: evaluate(command).verdict, rule_id: evaluate(command).ruleId })));
+    const expected = { wrapped: supplement.F01_WRAPPED, data: supplement.F01_DATA, controls: supplement.F01_CONTROLS, tool_starts_before: 3, tool_starts_after: 3 };
+    expect(driver.evaluateF01(rows, expected).ok).toBe(true);
+    expect(driver.evaluateF01(rows.map((r: any) => r.command === 'nohup npm publish' ? { ...r, verdict: 'ask' } : r), expected).ok).toBe(false);
+    expect(driver.evaluateF01(rows.map((r: any) => r.command === 'npm publish' ? { ...r, verdict: 'allow' } : r), expected).ok).toBe(false);
+    expect(driver.evaluateF01(rows.map((r: any) => r.command === 'echo npm publish' ? { ...r, rule_id: 'OTHER' } : r), expected).ok).toBe(false);
+    expect(driver.evaluateF01(rows.slice(1), expected).ok).toBe(false);
+    expect(driver.evaluateF01(rows, { ...expected, tool_starts_after: 4 }).ok).toBe(false);
+    expect(driver.evaluateF01(rows, { ...expected, wrapped: supplement.F01_WRAPPED.slice(1) }).ok).toBe(false);
+    expect(driver.evaluateF01([], expected).ok).toBe(false);
+    // The scripted Git flows rely on exactly these classifications: only the commit and the long push command wait for an approval.
+    for (const command of ['git branch --show-current', 'git switch -c a2-topic', 'git add -- probe.txt', 'git status --porcelain', 'git diff -- probe.txt', 'python check.py', 'python slow_build.py', 'python bg_out.py', 'python bg_hold.py', 'python late_write.py', 'python ext_modify.py ext_bg.txt bg1'])
+      expect([command, evaluate(command).verdict]).toEqual([command, 'allow']);
+    for (const command of ['git -c user.name=A2 -c user.email=a2@example.invalid commit -m A2-topic', 'git -c user.name=A2 -c user.email=a2@example.invalid commit -m A2-local', supplement.LONG_CARD_COMMAND]) expect([command.slice(0, 40), evaluate(command).verdict]).toEqual([command.slice(0, 40), 'ask']);
+    for (const form of supplement.GIT_FORMS) expect(evaluate(form).verdict).not.toBe('allow');
+  });
+  test('M6 mechanics on the developer machine: fixtures, deterministic baseline, ten probes and the verdict with counterexamples', () => {
+    const base = root(); const sqliteDir = path.dirname(require.resolve('better-sqlite3/package.json'));
+    const packageRoot = path.join(base, 'pkg'); fs.mkdirSync(path.join(packageRoot, 'resources', 'app'), { recursive: true });
+    fs.symlinkSync(path.resolve(__dirname, '../../../state'), path.join(packageRoot, 'resources', 'app', 'state'), 'dir');
+    expect(fs.existsSync(path.join(packageRoot, ...supplement.M6_PINS.persistence_path.split('/')))).toBe(true);
+    const fixturesDir = path.join(base, 'fixtures');
+    const files = supplement.m6Fixtures(fixturesDir, packageRoot, packageRoot, sqliteDir).files;
+    expect(Object.keys(files)).toEqual(['F42.sqlite', 'FCandC.sqlite', 'FCandN.sqlite', 'C42.sqlite', 'CCand.sqlite']);
+    expect(files['C42.sqlite'].size).toBe(Math.floor(files['F42.sqlite'].size / 2)); expect(files['CCand.sqlite'].size).toBe(Math.floor(files['FCandN.sqlite'].size / 2));
+    expect(() => supplement.m6Fixtures(fixturesDir, packageRoot, packageRoot, sqliteDir)).toThrow();
+    const pinned = supplement.m6Baseline(fixturesDir, packageRoot, packageRoot, sqliteDir);
+    expect(Object.keys(pinned)).toEqual(req.M6_FIXTURE_FILES); expect(() => supplement.m6Baseline(fixturesDir, packageRoot, packageRoot, sqliteDir)).toThrow();
+    const baseline = JSON.parse(fs.readFileSync(path.join(fixturesDir, 'baseline.json'), 'utf8'));
+    expect(baseline).toMatchObject({ schema_version: 1, now: req.M6_NOW }); expect(Object.keys(baseline.scenarios)).toEqual(supplement.M6_SCENARIOS.map((s: any) => s.name));
+    expect(supplement.M6_SCENARIOS.filter((s: any) => s.kind === 'normal')).toHaveLength(6); expect(supplement.M6_SCENARIOS.filter((s: any) => s.kind === 'corrupt')).toHaveLength(4);
+    expect(supplement.M6_CALL_LABELS).toHaveLength(13);
+    const results: any = {};
+    for (const scenario of supplement.M6_SCENARIOS) {
+      const work = fs.mkdtempSync(path.join(base, 'probe-')); const copy = path.join(work, 'a9.sqlite'); fs.copyFileSync(path.join(fixturesDir, scenario.fixture + '.sqlite'), copy);
+      results[scenario.name] = supplement.m6Probe(scenario.name, packageRoot, sqliteDir, copy);
+    }
+    for (const name of ['S1', 'S2', 'S3', 'S4', 'S5', 'S6']) { expect(results[name].business.open_status).toBe('ready'); expect(results[name].business.calls).toHaveLength(13); }
+    for (const name of ['X1', 'X2', 'X3', 'X4']) expect(results[name].business).toMatchObject({ open_status: 'diagnostics', has_manager: false, main_unchanged: true });
+    const env = results.S1.env; const expectedEnv = { node: env.node, electron: env.electron, abi: env.abi, platform: env.platform, arch: env.arch };
+    const pins = { fixtures_unchanged: true, packages_verified: true, persistence: true, native: true };
+    const verdict = (changed: any, options: any = {}) => supplement.evaluateM6(changed, baseline, { expectedEnv, pins, ...options });
+    const clone = () => JSON.parse(JSON.stringify(results));
+    const good = verdict(results); expect(good.ok).toBe(true); expect(good.rows.map((r: any) => r.assertion_id)).toEqual(supplement.M6_ASSERTIONS);
+    const status = (value: any) => value.rows.map((r: any) => r.status).join(',');
+    expect(status(good)).toBe('PASS,PASS,PASS,PASS,PASS');
+    let changed = clone(); changed.S3.business.calls[2].value = [{ extra: true }];
+    expect(verdict(changed).rows[1].status).toBe('FAIL'); expect(verdict(changed).ok).toBe(false);
+    changed = clone(); changed.S2.business.calls[4].ok = false; expect(verdict(changed).rows[0].status).toBe('FAIL');
+    changed = clone(); changed.S1.business.calls.reverse(); expect(verdict(changed).rows[0].status).toBe('FAIL');
+    changed = clone(); changed.S6.business.open_status = 'diagnostics'; expect(verdict(changed).rows[0].status).toBe('FAIL');
+    changed = clone(); changed.X2.business.open_status = 'ready'; changed.X2.business.has_manager = true; expect(verdict(changed).rows[2].status).toBe('FAIL');
+    changed = clone(); changed.X4.business.main_sha256_after = 'f'.repeat(64); changed.X4.business.main_unchanged = false; expect(verdict(changed).rows[2].status).toBe('FAIL');
+    changed = clone(); delete changed.X1; expect(verdict(changed).rows[2].status).toBe('FAIL');
+    changed = clone(); changed.S4.env.node = '99.0.0'; expect(verdict(changed).rows[3].status).toBe('FAIL');
+    for (const key of ['fixtures_unchanged', 'packages_verified', 'persistence', 'native']) expect(verdict(results, { pins: { ...pins, [key]: false } }).rows[3].status).toBe('FAIL');
+    expect(verdict(results, { pins: {} }).rows[3].status).toBe('FAIL');
+    expect(verdict(results, { expectedEnv: { ...expectedEnv, electron: '22.3.27' } }).rows[3].status).toBe('FAIL');
+    changed = clone(); const handles = changed.S5.business.calls.find((c: any) => c.label === 'listManagedProcesses').value; handles.find((p: any) => p.handleId === 'h2').cleanupRequired = !handles.find((p: any) => p.handleId === 'h2').cleanupRequired;
+    expect(verdict(changed).rows[4].status).toBe('FAIL');
+    changed = clone(); changed.S5.business.calls.find((c: any) => c.label === 'listConversationFacts').value.find((f: any) => f.taskId === 'task2').requestPrompt = 'other'; expect(verdict(changed).rows[4].status).toBe('FAIL');
+    expect(verdict({}).ok).toBe(false); expect(verdict(null).ok).toBe(false);
+    expect(supplement.canon({ b: 1, a: [{ d: 1, c: 2 }] })).toBe(supplement.canon({ a: [{ c: 2, d: 1 }], b: 1 }));
+    expect(supplement.m6Observations(results.S5.business)).toEqual({ r1_cleanup_required: expect.any(Boolean), r2_request_prompt: expect.any(String) });
+    expect(supplement.m6Observations(null)).toEqual({ r1_cleanup_required: undefined, r2_request_prompt: undefined });
+    expect(() => supplement.m6Probe('S9', packageRoot, sqliteDir, path.join(base, 'x'))).toThrow('A9_36_M6_SCENARIO');
+    expect(() => supplement.m6Probe('S1', 'relative', sqliteDir, path.join(base, 'x'))).toThrow('A9_36_M6_PATH');
+    expect(supplement.M6_PINS).toMatchObject({ w42_persistence_sha256: req.W42_PERSISTENCE_SHA });
+    expect(supplement.M6_PINS).not.toHaveProperty('cand_persistence_sha256'); expect(supplement.M6_PINS).not.toHaveProperty('native_sha256');
+  }, 180000);
+  test('manifest tree check refuses a changed, linked, escaping or duplicated entry', () => {
+    const base = root(); fs.mkdirSync(path.join(base, 'sub')); fs.writeFileSync(path.join(base, 'sub', 'a.txt'), 'alpha');
+    const sha = crypto.createHash('sha256').update('alpha').digest('hex'); const entry = { path: 'sub/a.txt', sha256: sha, size: 5 };
+    expect(supplement.verifyManifestTree(base, { files: [entry] })).toBe(1);
+    for (const files of [[{ ...entry, sha256: 'a'.repeat(64) }], [{ ...entry, size: 6 }], [entry, entry], [{ ...entry, path: '../x' }], [{ ...entry, path: 'sub\\a.txt' }], [{ ...entry, path: 'missing.txt' }], []]) {
+      expect(() => supplement.verifyManifestTree(base, { files })).toThrow();
+    }
+    fs.symlinkSync(path.join(base, 'sub', 'a.txt'), path.join(base, 'link.txt'));
+    expect(() => supplement.verifyManifestTree(base, { files: [{ ...entry, path: 'link.txt' }] })).toThrow('A9_36_CANDIDATE_LINK');
+  });
+  test('manifest tree check reads an archive-named file as a plain file (simulation: the Electron fs is modelled; the entry of the first Win7 failure was not recorded, resources/default_app.asar is the inferred cause)', () => {
+    const base = root(); fs.mkdirSync(path.join(base, 'resources')); fs.writeFileSync(path.join(base, 'resources', 'default_app.asar'), 'archive-bytes');
+    const entry = { path: 'resources/default_app.asar', sha256: crypto.createHash('sha256').update('archive-bytes').digest('hex'), size: 13 };
+    const isArchive = (p: any) => /\.asar$/i.test(String(p));
+    const electronLike: any = { lstatSync: (p: any) => fs.lstatSync(p), statSync: (p: any) => (isArchive(p) ? { isFile: () => false, isDirectory: () => true, size: 0 } : fs.statSync(p)),
+      openSync: (p: any, flags: any) => { if (isArchive(p)) throw new Error('ENOTDIR'); return fs.openSync(p, flags); }, readSync: fs.readSync, closeSync: fs.closeSync };
+    expect(() => supplement.verifyManifestTree(base, { files: [entry] }, electronLike)).toThrow('A9_36_CANDIDATE_CHANGED');
+    expect(supplement.verifyManifestTree(base, { files: [entry] }, fs)).toBe(1);
+    const nodeFs = require('fs');
+    expect(supplement.rawFileSystem({}, () => { throw new Error('must not load original-fs outside Electron'); })).toBe(nodeFs);
+    expect(supplement.rawFileSystem(undefined as any, () => { throw new Error('must not load'); })).toBe(nodeFs);
+    expect(supplement.rawFileSystem({ electron: '22.3.27' }, () => nodeFs)).toBe(nodeFs);
+    for (const method of ['lstatSync', 'statSync', 'openSync', 'readSync', 'closeSync']) expect(() => supplement.rawFileSystem({ electron: '22.3.27' }, () => ({ ...fs, [method]: undefined }))).toThrow('A9_36_PHYSICAL_FILESYSTEM_UNAVAILABLE');
+    expect(() => supplement.rawFileSystem({ electron: '22.3.27' }, () => null)).toThrow('A9_36_PHYSICAL_FILESYSTEM_UNAVAILABLE');
+    expect(() => supplement.rawFileSystem({ electron: '22.3.27' }, () => { throw new Error("Cannot find module 'original-fs'"); })).toThrow('A9_36_PHYSICAL_FILESYSTEM_UNAVAILABLE');
+    const source = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8');
+    expect(source).toContain('function verifyManifestTree(root, manifest, io = rawFileSystem()) {');
+    expect(source).toContain("loadOriginalFs = () => require('original-fs')");
+    const body = source.slice(source.indexOf('function verifyManifestTree('), source.indexOf('function inspectCandidate('));
+    expect(body.length).toBeGreaterThan(200); expect(body).not.toMatch(/\bfs\./); expect(body).not.toContain('contract.fileHash');
+  });
+  test('executor session id is compared as a whole number: 5 is not 50 or 51 and malformed WMIC output is refused', () => {
+    expect(supplement.sessionIdOf('\r\r\nSessionId=5\r\r\n\r\r\n')).toBe(5);
+    expect(supplement.sessionIdOf('SessionId=5')).toBe(5);
+    expect(supplement.sessionIdOf('SessionId=50\r\n')).toBe(50);
+    expect(supplement.sessionIdOf('SessionId=51\r\n')).toBe(51);
+    for (const bad of ['', 'SessionId=', 'SessionId=five', 'SessionId=-5', 'SessionId=5.0', 'SessionId=5\r\nSessionId=5\r\n', 'SessionId=5\r\nSessionId=50\r\n', 'XSessionId=5', 'SessionId=5 extra', 'SessionId=1234567890', undefined, null]) {
+      expect(supplement.sessionIdOf(bad as any)).toBeNull();
+    }
+    const source = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8');
+    const body = source.slice(source.indexOf('function assertActualRuntime('), source.indexOf('// Closed Stage plan.'));
+    expect(body).toContain('sessionIdOf(self) !== a.target.session_id'); expect(body).not.toContain("self.includes('SessionId='");
+  });
+  test('actual real-model network seam retains TLS verification, enforces limits and keeps only hashes of the system message', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    const start = source.indexOf('  function installRealProviderBudget() {'); const end = source.indexOf('  async function supplementRealModel()', start);
+    expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+    const callbacks: Array<(response: any) => void> = [];
+    const makeTransport = () => ({ request: (_options: any, callback: any) => {
+      callbacks.push(callback); const request: any = new EventEmitter(); request.destroy = jest.fn();
+      request.write = jest.fn(() => true); request.end = jest.fn();
+      return request;
+    } });
+    const transport = makeTransport();
+    const network: any = { requests: 0, response_bytes: 0, tls: [], limit_rejected: false, bodies: [], body_errors: 0 };
+    vm.runInNewContext(source.slice(start, end) + '\ninstallRealProviderBudget();', { env: { A9_ALPHA2_PROVIDER: JSON.stringify(baseAuthority().provider) }, realNetwork: network, require: () => transport, Buffer, JSON, sha256: (value: string) => crypto.createHash('sha256').update(value).digest('hex') });
+    const options = { hostname: 'api.deepseek.com', protocol: 'https:', rejectUnauthorized: true };
+    for (const changed of [{ ...options, rejectUnauthorized: false }, { ...options, hostname: 'other' }, { ...options, agent: {} }, { ...options, ca: 'custom' }]) expect(() => transport.request(changed, () => {})).toThrow('A9_36_PROVIDER_TLS_OPTIONS');
+    expect(network.requests).toBe(0);
+    const first = transport.request(options, () => {}); const response = new EventEmitter(); callbacks[0](response);
+    response.emit('data', Buffer.alloc(1048577)); expect(first.destroy).toHaveBeenCalled(); expect(network.limit_rejected).toBe(true);
+    for (let n = 1; n < 40; n++) transport.request(options, () => {});
+    expect(network.requests).toBe(40); expect(() => transport.request(options, () => {})).toThrow('A9_36_PROVIDER_REQUEST_LIMIT');
+    // Body capture: two write chunks and an end chunk are joined, only the system message is hashed, and a probe request is marked.
+    const fresh: any = { requests: 0, response_bytes: 0, tls: [], limit_rejected: false, bodies: [], body_errors: 0 };
+    const bodyTransport = makeTransport();
+    vm.runInNewContext(source.slice(start, end) + '\ninstallRealProviderBudget();', { env: { A9_ALPHA2_PROVIDER: JSON.stringify(baseAuthority().provider) }, realNetwork: fresh, require: () => bodyTransport, Buffer, JSON, sha256: (value: string) => crypto.createHash('sha256').update(value).digest('hex') });
+    const secretText = 'SYSTEM-PROMPT-SECRET-TEXT'; const body = JSON.stringify({ model: 'deepseek-v4-flash', messages: [{ role: 'system', content: secretText }, { role: 'user', content: 'USER-TEXT' }], tools: [{ function: { name: 'probe_test_echo' } }] });
+    const req = bodyTransport.request(options, () => {}); req.write(body.slice(0, 20)); req.write(body.slice(20, 50)); req.end(body.slice(50));
+    expect(fresh.bodies).toEqual([{ model: 'deepseek-v4-flash', probe: true, system_sha256: crypto.createHash('sha256').update(secretText).digest('hex'), system_chars: secretText.length, messages: 2 }]);
+    expect(JSON.stringify(fresh)).not.toContain(secretText); expect(JSON.stringify(fresh)).not.toContain('USER-TEXT');
+    const bad = bodyTransport.request(options, () => {}); bad.end('{not json'); expect(fresh.body_errors).toBe(1); expect(fresh.bodies).toHaveLength(1);
+    const noSystem = bodyTransport.request(options, () => {}); noSystem.end(JSON.stringify({ model: 'm', messages: [{ role: 'user', content: 'x' }] }));
+    expect(fresh.bodies[1]).toMatchObject({ system_sha256: null, system_chars: 0, probe: false });
+  });
+  test('interrupted-task writer carries the goal and the user-data check refuses a shared or A8-bearing profile', () => {
+    const calls: any[] = []; const db = { prepare: (sql: string) => ({ run: (...args: any[]) => calls.push({ sql, args }) }) };
+    driver.insertInterruptedTask(db, 'conv', 'task', 'old-turn'); driver.insertInterruptedTask(db, 'conv', 'task', 'old-turn', 'a2-rules');
+    expect(calls).toHaveLength(6);
+    expect(JSON.parse(calls[2].args[1]).requestPrompt).toBe('b2 guard continue'); expect(JSON.parse(calls[5].args[1])).toEqual({ taskId: 'task', requestPrompt: 'a2-rules' });
+    const good = { user_data: 'C:\\run\\0daf288c\\work\\m1\\main\\profile-local\\Win7CodingAgent', run_root: 'C:\\run\\0daf288c\\', expected: 'C:\\run\\0daf288c\\work\\m1\\main\\profile-local\\Win7CodingAgent', a8_database_exists: false,
+      real: { run_root: 'C:\\run\\0daf288c\\', user_data: 'C:\\run\\0daf288c\\work\\m1\\main\\profile-local\\Win7CodingAgent', data_root: 'C:\\run\\0daf288c\\work\\m1\\main\\data', workspace: 'C:\\run\\0daf288c\\work\\m1\\main\\中文 workspace' } };
+    expect(driver.evaluateUserDataIsolation(good).ok).toBe(true);
+    // The resolved (physical) locations must lie in the resolved run root too: a junction that leads out of the run is refused, and a location that could not be resolved is refused.
+    for (const patch of [{ user_data: 'C:\\Users\\agent\\AppData\\Local\\Win7CodingAgent' }, { expected: 'C:\\elsewhere\\Win7CodingAgent' }, { a8_database_exists: true }, { a8_database_exists: undefined }, { run_root: undefined },
+      { real: { ...good.real, user_data: 'D:\\junction-target\\Win7CodingAgent' } }, { real: { ...good.real, data_root: 'D:\\junction-target\\data' } }, { real: { ...good.real, workspace: 'D:\\junction-target\\ws' } },
+      { real: { ...good.real, workspace: undefined } }, { real: { ...good.real, run_root: null } }, { real: undefined }])
+      expect(driver.evaluateUserDataIsolation({ ...good, ...patch }).ok).toBe(false);
+    expect(driver.evaluateUserDataIsolation(undefined).ok).toBe(false);
+    const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+    expect(source).toContain("throw new Error('A9_36_USERDATA_NOT_ISOLATED')");
+    expect(source).toContain("path.join(app.getPath('userData'), 'state', 'agent-events-v2.db')");
+  });
+});
+
+// Judgement functions of the supplement Stages. Each takes one good fact set and must fail for every single missing or wrong fact; unobserved facts never pass.
+describe('A9-36 supplement judgement functions', () => {
+  const H = (n: string) => n.repeat(64).slice(0, 64); const G = 'a'.repeat(40);
+  const clone = (value: any) => JSON.parse(JSON.stringify(value));
+  const setPath = (value: any, pathText: string, replacement: any) => { const copy = clone(value); const keys = pathText.split('.'); let node = copy; for (const key of keys.slice(0, -1)) node = node[key]; if (replacement === undefined) delete node[keys[keys.length - 1]]; else node[keys[keys.length - 1]] = replacement; return copy; };
+  // Every named mutation must turn the verdict off; the unmutated facts must pass.
+  const judge = (fn: (facts: any) => any, good: any, mutations: Array<[string, any]>) => {
+    expect(fn(good).ok).toBe(true);
+    for (const [pathText, replacement] of mutations) expect([pathText, fn(setPath(good, pathText, replacement)).ok]).toEqual([pathText, false]);
+    expect(fn(undefined).ok).toBe(false); expect(fn({}).ok).toBe(false);
+  };
+  test('M1 local branch, test stream, build cancel and long card', () => {
+    judge(driver.evaluateLocalBranch, { shell_ends: [{ exit_code: 0, stdout: 'main\n' }, { exit_code: 0, stdout: '' }, { exit_code: 0, stdout: '' }, { exit_code: 0, stdout: '' }], branch_before: 'main', branch_after: 'a2-topic',
+      head_subject: 'A2-topic', main_before: G, main_after: G, origin_main: G, origin_refs_after: `refs/heads/main ${G}`, status_before: ' M probe.txt', status_after: '', index_before: '100644 aaa 0\tprobe.txt',
+      index_after: '100644 bbb 0\tprobe.txt', head_files: ['probe.txt'], head_blob: G, worktree_blob: G, approval: { accepted: true }, new_processes: [] },
+    [['shell_ends.3.exit_code', 1], ['shell_ends.0.stdout', 'other\n'], ['shell_ends', []], ['branch_before', 'other'], ['branch_after', 'main'], ['head_subject', 'A2-local'], ['main_after', 'b'.repeat(40)], ['main_before', 'short'],
+      ['origin_refs_after', `refs/heads/main ${G}\nrefs/heads/a2-topic ${G}`], ['status_before', ''], ['status_after', ' M probe.txt'], ['index_after', '100644 aaa 0\tprobe.txt'], ['head_files', []],
+      ['worktree_blob', 'b'.repeat(40)], ['head_blob', undefined], ['approval.accepted', false], ['approval', undefined], ['new_processes', [{ pid: 1 }]], ['new_processes', undefined]]);
+    judge(driver.evaluateTestStream, { frames: [{ turnId: 'T', text: 'A2-CHECK value 0' }], order: { ok: true }, ends: [{ exit_code: 0, stdout: 'A2-CHECK value 0\n' }], turn_id: 'T', shell_kind: 'cmd', outcome: 'completed' },
+      [['order.ok', false], ['order', undefined], ['frames', []], ['frames.0.turnId', 'other'], ['frames.0.text', 'nothing'], ['ends', []], ['ends.0.exit_code', 1], ['ends.0.stdout', 'x'], ['shell_kind', 'powershell'], ['outcome', 'failed']]);
+    judge(driver.evaluateBuildCancel, { start_seen: true, ticks_before_cancel: 2, order: { ok: true }, terminal_outcome: 'cancelled', frames_after_settle: 5, frames_after_wait: 5, new_processes: [], process_probe_failures: 0 },
+      [['start_seen', false], ['ticks_before_cancel', 1], ['ticks_before_cancel', undefined], ['order.ok', false], ['terminal_outcome', 'completed'], ['frames_after_wait', 6], ['frames_after_settle', undefined],
+        ['new_processes', [{ pid: 9 }]], ['process_probe_failures', 1], ['process_probe_failures', undefined]]);
+    const command = 'cmd /c "echo ' + 'segment '.repeat(40) + '& git push origin main"'; const rect = { left: 100, top: 100, right: 700, bottom: 400, width: 600, height: 300 }; const button = { left: 120, top: 350, right: 220, bottom: 390, width: 100, height: 40 };
+    judge(driver.evaluateLongCard, { command, summary: `shell cwd=C:\\w: ${command}`, dom_summary: `shell cwd=C:\\w: ${command}`, cwd_shown_resolves: true, viewport: { width: 1366, height: 768 }, card_rect: rect,
+      buttons: [button, { ...button, left: 240, right: 340 }], clipped: false, font_px: 14, bound: true, denied_ok: true, tool_starts_after: 0 },
+    [['command', 'short'], ['summary', 'shell cwd=C:\\w: other'], ['dom_summary', 'other'], ['cwd_shown_resolves', false], ['viewport.width', 1280], ['viewport.height', 700], ['card_rect.right', 1400], ['card_rect.bottom', 800], ['card_rect.left', -1],
+      ['buttons', [button]], ['buttons.0.bottom', 800], ['clipped', true], ['clipped', undefined], ['font_px', 9], ['bound', false], ['denied_ok', false], ['tool_starts_after', 1]]);
+  });
+  test('M2 input binding, audit stages, continuation reload and Provider failure', () => {
+    const request = { agents_sha256: H('a'), agents_in_request: true, system_sha256: H('b'), rules: 1, environment: 1 };
+    judge(driver.evaluateInputShas, { agents_sha256: H('a'), requests: [request, { ...request }] }, [['requests', [request]], ['requests.1.agents_sha256', H('c')], ['requests.0.agents_in_request', false], ['requests.1.system_sha256', H('d')],
+      ['requests.0.system_sha256', 'x'], ['requests.0.rules', 2], ['requests.1.environment', 0], ['agents_sha256', 'x']]);
+    const attempt = (revision: string) => ({ ok: false, code: 'A9_AUDIT_PERSISTENCE_FAILED', revision, requests_before: 2, requests_after: 2, continue_events_before: 0, continue_events_after: 0, turns_before: 1, turns_after: 1, tool_starts_before: 1, tool_starts_after: 1 });
+    const audit = { trigger_installed: true, failing_event_rows: 0, turn_completed: false, never_exists: false, tool_result_requests: 0, max_tool_result_requests: 0, second_submit_ok: false, second_submit_code: 'A9_AUDIT_PERSISTENCE_FAILED',
+      requests: { before: 0, after_turn: 1, after_submit: 1 }, require_continue: true, continue_attempts: [attempt('r1'), attempt('r2')] };
+    judge(driver.evaluateAuditStage, audit, [['trigger_installed', false], ['failing_event_rows', 1], ['turn_completed', true], ['never_exists', true], ['tool_result_requests', 1], ['second_submit_ok', true], ['second_submit_code', 'OTHER'],
+      ['requests.after_submit', 2], ['requests.after_turn', 0], ['requests.before', undefined], ['continue_attempts', undefined], ['continue_attempts.0.ok', true], ['continue_attempts.1.code', 'OTHER'], ['continue_attempts.0.requests_after', 3],
+      ['continue_attempts.1.continue_events_after', 1], ['continue_attempts.0.turns_after', 2], ['continue_attempts.1.tool_starts_after', 2], ['continue_attempts.1.revision', 'r1']]);
+    expect(driver.evaluateAuditStage({ ...audit, tool_result_requests: 1, max_tool_result_requests: 1 }).ok).toBe(true);
+    expect(driver.evaluateAuditStage({ ...audit, tool_result_requests: 2, max_tool_result_requests: 1 }).ok).toBe(false);
+    expect(driver.evaluateAuditStage({ ...audit, require_continue: false, continue_attempts: undefined }).ok).toBe(true);
+    const line = { continuation: true, agents_sha256: H('2'), agents_in_request: true, rule_markers: ['A2-RULE-MARKER-CHANGED'], rules: 1, environment: 1, system_sha256: H('5'), prompt: 'a2-rules' };
+    judge(driver.evaluateContinueReload, { baseline: { agents_sha256: H('1'), system_sha256: H('5') }, continuation_lines: [line], agents_old_sha256: H('1'), agents_new_sha256: H('2'), new_marker: 'A2-RULE-MARKER-CHANGED', goal: 'a2-rules' },
+      [['baseline.agents_sha256', H('9')], ['baseline.system_sha256', undefined], ['continuation_lines', []], ['continuation_lines.0.continuation', false], ['agents_new_sha256', H('1')], ['continuation_lines.0.agents_sha256', H('1')],
+        ['continuation_lines.0.agents_in_request', false], ['continuation_lines.0.rule_markers', ['A2-RULE-MARKER', 'A2-RULE-MARKER-CHANGED']], ['continuation_lines.0.rule_markers', ['A2-RULE-MARKER']], ['continuation_lines.0.rules', 2],
+        ['continuation_lines.0.environment', 0], ['continuation_lines.0.system_sha256', H('6')], ['continuation_lines.0.prompt', 'other']]);
+    const before = { interruptedTurnId: 'OLD', recoveryRevision: H('1'), canContinue: true }; const afterFailure = { interruptedTurnId: 'T1', recoveryRevision: H('2'), canContinue: true };
+    const failure = { first: { requests_delta: 1, continue_events: 1, turn_id: 'T1' }, requests_after_failure: 2, requests_after_wait: 2, recovery_before: before, recovery_after_failure: afterFailure,
+      second: { requests_before: 2, requests_after: 3, continue_events: 2, interrupted_turn_id: 'T1', turn_status: 'completed' }, duplicate: { ok: true, duplicate: true, turn_id: 'T1', requests_before: 3, requests_after: 3, continue_events_before: 2, continue_events_after: 2 } };
+    judge(driver.evaluateProviderFailureContinue, failure, [['first.requests_delta', 0], ['first.continue_events', 2], ['requests_after_wait', 3], ['recovery_after_failure.canContinue', false], ['recovery_after_failure.interruptedTurnId', 'OLD'],
+      ['recovery_after_failure.recoveryRevision', H('1')], ['recovery_after_failure', undefined], ['second.requests_after', 2], ['second.requests_before', 1], ['second.continue_events', 1], ['second.interrupted_turn_id', 'OTHER'],
+      ['second.turn_status', 'failed'], ['duplicate.duplicate', false], ['duplicate.turn_id', 'T2'], ['duplicate.requests_after', 4], ['duplicate.continue_events_after', 3], ['duplicate.ok', false]]);
+    const budgetAfter = { requests: 4, tool_starts: 1, turns: 3, continue_events: 1 };
+    const budget = { before: { requests: 4, tool_starts: 1, turns: 2, continue_events: 0 }, after: budgetAfter, diagnostic: { code: 'A9_CONTEXT_BUDGET_EXCEEDED', budgetChars: 16000, estimatedChars: 24500 }, configured_budget: 16000,
+      recovery_before: before, recovery_after: afterFailure };
+    judge(driver.evaluateBudgetClick, budget, [['after.requests', 5], ['after.tool_starts', 2], ['after.turns', 2], ['after.turns', 4], ['after.continue_events', 0], ['diagnostic.code', 'OTHER'], ['diagnostic.budgetChars', 20000],
+      ['diagnostic.estimatedChars', 15999], ['diagnostic.estimatedChars', undefined], ['configured_budget', 20000], ['recovery_after.canContinue', false], ['recovery_after', undefined], ['before.requests', undefined]]);
+    judge(driver.evaluateBudgetChanged, { before: { requests: 4, continue_events: 2 }, after: { requests: 5, continue_events: 3 }, chars: 3000, configured_budget: 16000, turn_status: 'completed' },
+      [['after.requests', 4], ['after.continue_events', 2], ['chars', 16001], ['chars', 0], ['chars', undefined], ['turn_status', 'failed'], ['configured_budget', 2000]]);
+  });
+  test('M3 external byte records, continuation checkpoint and late write', () => {
+    const file = { path: 'ext_shell.txt', b0: H('1'), b1: H('2'), b1_text: 'shell1\n', expected_b1_text: 'shell1\n', b2: H('1') };
+    const done = (restored: string[]) => ({ ok: true, driftReasons: [], outcome: { restored, errors: [], drifted: [] } });
+    judge(driver.evaluateExternalBytes, { files: [file], review_paths: ['ext_shell.txt'], undo_results: [done(['ext_shell.txt (已恢复原始版本)']), { ...done(['ext_shell.txt (此前已撤销，未重复执行)']), driftReasons: [{ path: 'x' }] }], drift_results: [done([])] },
+      [['files.0.b1', H('1')], ['files.0.b2', H('2')], ['files.0.b0', 'x'], ['files.0.b1_text', 'other\n'], ['files.0.expected_b1_text', undefined], ['review_paths', []], ['undo_results.0.ok', false], ['drift_results.0.driftReasons', [{ path: 'ext_shell.txt' }]],
+        ['files', []], ['files.0.path', undefined], ['undo_results.0.outcome.errors', ['restore failed']], ['undo_results.0.outcome', undefined]]);
+    // A file that no undo lists as restored is not restored, even when every undo says ok.
+    expect(driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_shell.txt'], undo_results: [done([]), done([])] }).ok).toBe(false);
+    // `ok` with errors in the outcome, or with no outcome at all, is not a restored file.
+    expect(driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_shell.txt'], undo_results: [{ ok: true }] }).ok).toBe(false);
+    expect(driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_shell.txt'], undo_results: [done(['ext_shell.txt (已恢复原始版本)'])] }).ok).toBe(true);
+    expect(driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_shell.txt'], undo_results: [{ ...done(['ext_shell.txt (已恢复原始版本)']), driftReasons: [{ path: 'ext_shell.txt' }] }] }).ok).toBe(false);
+    // Per-file step before a whole-Turn undo: the bytes right after the per-file undo are the proof.
+    const second = { path: 'ext_edit.txt', b0: H('3'), b1: H('4'), b1_text: 'edit1\n', expected_b1_text: 'edit1\n', b2: H('3') };
+    const perFile = { files: [second, file], review_paths: ['ext_edit.txt', 'ext_shell.txt'], undo_results: [done(['ext_shell.txt (已恢复原始版本)']), done(['ext_edit.txt (已恢复原始版本)', 'ext_shell.txt (此前已撤销，未重复执行)'])],
+      drift_results: [done([])], require_per_file: true, per_file: { path: 'ext_shell.txt', result: done(['ext_shell.txt (已恢复原始版本)']), after: { 'ext_shell.txt': H('1'), 'ext_edit.txt': H('4') } } };
+    judge(driver.evaluateExternalBytes, perFile, [['per_file.result.outcome.errors', ['x']], ['per_file.result.outcome.restored', []],
+      ['per_file.result.ok', false], ['per_file.path', 'other.txt'], ['per_file.after', undefined], ['per_file', undefined]]);
+    expect(driver.evaluateExternalBytes({ ...perFile, require_per_file: undefined, per_file: undefined }).ok).toBe(true);
+    const withAfter = (patch: any) => ({ ...perFile, per_file: { ...perFile.per_file, after: { ...perFile.per_file.after, ...patch } } });
+    expect(driver.evaluateExternalBytes(withAfter({ 'ext_shell.txt': H('2') })).ok).toBe(false); // the file is not back at its original bytes right after the per-file undo
+    expect(driver.evaluateExternalBytes(withAfter({ 'ext_edit.txt': H('3') })).ok).toBe(false); // the other file was restored by the per-file undo
+    expect(driver.evaluateExternalBytes(withAfter({ 'ext_edit.txt': undefined })).ok).toBe(false);
+    judge(driver.evaluateContinuationCheckpoint, { continuation_turn_id: 'T', continue_events: 1, turn_status: 'completed', b0_text: 'cont0\n', b1_text: 'cont1\n', b2_text: 'cont0\n', checkpoint: { turn_id: 'T', session_id: 'c' },
+      conversation_id: 'c', old_turn_checkpoints: 0, review_paths: ['cont_target.txt'], undo_ok: true },
+    [['continue_events', 2], ['continuation_turn_id', undefined], ['turn_status', 'failed'], ['b1_text', 'cont0\n'], ['b0_text', 'x'], ['checkpoint.turn_id', 'OLD'], ['checkpoint.session_id', 'other'], ['checkpoint', undefined],
+      ['old_turn_checkpoints', 1], ['review_paths', []], ['undo_ok', false], ['b2_text', 'cont1\n']]);
+    const tree = [{ path: 'late_target.txt', sha256: H('3') }, { path: 'probe.txt', sha256: H('4') }];
+    judge(driver.evaluateLateWrite, { review_ok: true, review_paths: ['late_target.txt'], b1: H('2'), b1_text: 'late1\n', late: H('3'), late_text: 'late2\n', after_undo: H('3'), drifted_paths: ['late_target.txt'], undo_ok: true, tree_before: tree, tree_after: tree },
+      [['review_ok', false], ['review_paths', []], ['b1_text', 'late0\n'], ['late', H('2')], ['late_text', 'late1\n'], ['after_undo', H('2')], ['drifted_paths', []], ['drifted_paths', ['probe.txt']], ['undo_ok', false],
+        ['tree_after', [tree[0]]], ['tree_after', [tree[0], { path: 'probe.txt', sha256: H('5') }]], ['tree_before', undefined]]);
+  });
+  test('M5 system prompt hashes and the managed-process Provider guard', () => {
+    const body = { system_sha256: H('7'), system_chars: 2223, model: 'deepseek-v4-flash' };
+    judge(driver.evaluateSystemPromptBody, { bodies: [body, { ...body }], expected_model: 'deepseek-v4-flash', system_prompt_version: 'a9-system-v1' },
+      [['bodies', []], ['bodies.1.system_sha256', H('8')], ['bodies.0.system_sha256', 'x'], ['bodies.0.system_chars', 0], ['bodies.1.model', 'other'], ['system_prompt_version', ''], ['system_prompt_version', null], ['expected_model', 'other']]);
+    judge(driver.evaluateProviderGuard, { running_before: true, attempt_ok: false, attempt_code: 'A9_PROVIDER_MANAGED_ACTIVE', running_after: true, pid_before: 4242, pid_after: 4242, model_before: 'a', model_after: 'a',
+      base_url_before: 'http://127.0.0.1:1/v1', base_url_after: 'http://127.0.0.1:1/v1', requests_before: 5, requests_after: 5 },
+    [['running_before', false], ['attempt_ok', true], ['attempt_code', 'A9_PROVIDER_CONFIG_INVALID'], ['attempt_code', undefined], ['running_after', false], ['pid_after', 4243], ['model_after', 'b'], ['base_url_after', 'x'], ['requests_after', 6], ['requests_before', undefined]]);
+  });
+  test('stopLeavesActionableCard stays the single judge of a still-actionable recovery card', () => {
+    const before = { interruptedTurnId: 'a', recoveryRevision: H('1') };
+    expect(driver.stopLeavesActionableCard(before, { interruptedTurnId: 'b', recoveryRevision: H('2'), canContinue: true })).toBe(true);
+    expect(driver.stopLeavesActionableCard(before, { interruptedTurnId: 'a', recoveryRevision: H('2'), canContinue: true })).toBe(false);
+    expect(driver.stopLeavesActionableCard(before, { canContinue: false })).toBe(false);
+    expect(driver.stopLeavesActionableCard(null, null)).toBeNull();
+  });
+});
+
+// Fixes of the first independent implementation review (codex, read-only): every blocking defect found by reading the source has a counterexample here.
+describe('A9-36 supplement: implementation review round 1', () => {
+  const supplement = require(path.join(releaseDir, 'a9-alpha2-supplement.cjs'));
+  const driverSource = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const orchestratorSource = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8');
+  const H = (n: string) => n.repeat(64).slice(0, 64); const G = 'a'.repeat(40);
+  const temp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'a9-36-review1-'));
+  const clone = (value: any) => JSON.parse(JSON.stringify(value));
+  const setPath = (value: any, pathText: string, replacement: any) => { const copy = clone(value); const keys = pathText.split('.'); let node = copy; for (const key of keys.slice(0, -1)) node = node[key]; if (replacement === undefined) delete node[keys[keys.length - 1]]; else node[keys[keys.length - 1]] = replacement; return copy; };
+  const judge = (fn: (facts: any) => any, good: any, mutations: Array<[string, any]>) => {
+    expect(fn(good).ok).toBe(true);
+    for (const [pathText, replacement] of mutations) expect([pathText, fn(setPath(good, pathText, replacement)).ok]).toEqual([pathText, false]);
+    expect(fn(undefined).ok).toBe(false); expect(fn({}).ok).toBe(false);
+  };
+  // The text of one top-level declaration of the driver's main closure (two-space indent) up to the next one.
+  const segment = (name: string) => {
+    const start = driverSource.search(new RegExp(`^  (async function ${name}\\(|const ${name} = )`, 'm')); expect(start).toBeGreaterThan(0);
+    const rest = driverSource.slice(start + 10); const next = rest.search(/^  (async function|function|const) /m);
+    return driverSource.slice(start, next < 0 ? undefined : start + 10 + next);
+  };
+  const idsIn = (text: string) => {
+    const found: number[] = [];
+    for (const m of text.matchAll(/(?:supplementAssert\('[a-z0-9-]+'|record\('A2-M4-CONTINUE-SCHEMA'), (\d+),/g)) found.push(Number(m[1]));
+    for (const m of text.matchAll(/auditStage\(\{ id: (\d+),/g)) found.push(Number(m[1]));
+    return found.sort((a, b) => a - b);
+  };
+
+  test('each mode names its function and that function writes exactly the planned assertion ids of its Stage', () => {
+    const functions: Record<string, string> = { supplement_continue_schema: 'continueSchema', supplement_policy_git: 'supplementPolicyGit', supplement_verification: 'supplementVerification',
+      supplement_audit_output: 'supplementAuditOutput', supplement_audit_managed: 'supplementAuditManaged', supplement_audit_ownership: 'supplementAuditOwnership', supplement_continue: 'supplementContinue',
+      supplement_budget: 'supplementBudget', supplement_review: 'supplementReview', supplement_review_restart: 'supplementReviewRestart', supplement_provider_guard: 'supplementProviderGuard',
+      supplement_real_model: 'supplementRealModel' };
+    const table = driverSource.slice(driverSource.indexOf('const SUPPLEMENT_MODE_TABLE = {'), driverSource.indexOf('// Pre-ready seams'));
+    expect(Object.fromEntries([...table.matchAll(/(supplement_[a-z_]+): ([A-Za-z]+)/g)].map((m) => [m[1], m[2]]))).toEqual(functions);
+    for (const stages of Object.values(supplement.STAGE_PLAN) as any[]) for (const stage of stages) expect([stage.mode, idsIn(segment(functions[stage.mode]))]).toEqual([stage.mode, stage.ids]);
+  });
+
+  test('P1-1: the open dialog answers by purpose: folder for the workspace, cmd.exe for an explicit CMD, anything else is refused', () => {
+    const workspace = 'C:\\run\\中文 workspace'; const cmd = 'C:\\Windows\\System32\\cmd.exe';
+    expect(driver.openDialogAnswer([{ webContents: {} }, { title: '选择只读代码工作区', properties: ['openDirectory'] }], workspace, cmd)).toEqual({ canceled: false, filePaths: [workspace] });
+    expect(driver.openDialogAnswer([{ webContents: {} }, { title: '选择 cmd Shell 可执行文件', properties: ['openFile'], filters: [] }], workspace, cmd)).toEqual({ canceled: false, filePaths: [cmd] });
+    for (const args of [[{ title: '选择 powershell Shell 可执行文件', properties: ['openFile'] }], [{ title: '选择 bash Shell 可执行文件', properties: ['openFile'] }], [{ properties: ['openFile'] }], [{ properties: [] }], [{}], [], undefined])
+      expect(() => driver.openDialogAnswer(args as any, workspace, cmd)).toThrow('A9_36_UNEXPECTED_OPEN_DIALOG');
+    // The stub is installed through this function, and the CMD configuration is checked before any command runs in it.
+    expect(driverSource).toContain('dialog.showOpenDialog = async (...args) => openDialogAnswer(args, workspaceRoot, cmdExecutable);');
+    const m1 = segment('supplementPolicyGit');
+    expect(m1.indexOf("throw new Error('A9_36_CMD_NOT_CONFIGURED')")).toBeGreaterThan(m1.indexOf("configureShell({kind:\"cmd\""));
+    expect(m1.indexOf("throw new Error('A9_36_CMD_NOT_CONFIGURED')")).toBeLessThan(m1.indexOf("supplementTurn('a2-cmd-test:"));
+  });
+
+  test('P1-2: the M1 test command runs on input that makes check.py exit 0', () => {
+    const dir = temp(); fs.writeFileSync(path.join(dir, 'check.py'), supplement.TEST_SOURCE);
+    const run = (content: string) => { fs.writeFileSync(path.join(dir, 'probe.txt'), content); return childProcess.spawnSync('python3', ['check.py'], { cwd: dir, encoding: 'utf8' }).status; };
+    expect(run('topic branch content\n')).toBe(1); expect(run('local CMD commit content\n')).toBe(1); expect(run('value test\n')).toBe(0);
+    const m1 = segment('supplementPolicyGit');
+    const write = m1.indexOf("'value test\\n'"); const turn = m1.indexOf("supplementTurn('a2-cmd-test:");
+    expect(write).toBeGreaterThan(m1.indexOf("a2-git-branch:")); expect(write).toBeLessThan(turn);
+  });
+
+  test('P1-3: an ordinary undo is not waited on a confirmation button; the button is clicked only when it appears', () => {
+    const queue = segment('queueUndo');
+    // The only wait for the confirm button is inside the combined poll that also accepts the outcome text.
+    expect(queue.match(/确认撤销/g)).toHaveLength(1);
+    expect(queue.indexOf('确认撤销')).toBeGreaterThan(queue.indexOf('undo outcome or confirmation') - 600);
+    expect(queue).toContain("if (reached.text) return reached.text;");
+    expect(queue).toContain('const outcomeText = /已撤销|外部修改|又被修改/;');
+    // The product's own rule: the confirmation exists only after a crash reconciliation.
+    const runtime = fs.readFileSync(path.resolve(__dirname, '../../product/a9-agent-runtime.js'), 'utf8');
+    expect(runtime).toContain('reconcilePendingExternalBaseline');
+    const workbench = fs.readFileSync(path.resolve(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+    expect(workbench).toContain("if (response && response.needsConfirmation === true) {");
+  });
+
+  test('P1-4: fixture scripts write exact bytes (no CRLF conversion) and the Stage conditions compare those bytes', () => {
+    for (const [name, text] of Object.entries(supplement.SCRIPT_FILES) as Array<[string, string]>) expect([name, /write_text\(/.test(text)]).toEqual([name, false]);
+    const dir = temp(); for (const [name, text] of Object.entries(supplement.SCRIPT_FILES) as Array<[string, string]>) fs.writeFileSync(path.join(dir, name), text);
+    expect(childProcess.spawnSync('python3', ['ext_modify.py', 'a.txt', 'bg1'], { cwd: dir, encoding: 'utf8' }).status).toBe(0);
+    expect(fs.readFileSync(path.join(dir, 'a.txt'))).toEqual(Buffer.from('bg1\n', 'utf8'));
+    fs.writeFileSync(path.join(dir, 'late.go'), 'go\n');
+    expect(childProcess.spawnSync('python3', ['late_write.py'], { cwd: dir, encoding: 'utf8', timeout: 20000 }).status).toBe(0);
+    expect(fs.readFileSync(path.join(dir, 'late_target.txt'))).toEqual(Buffer.from('late2\n', 'utf8'));
+    expect(driverSource).toContain("textFile('ext_bg.txt') === 'bg1\\n'");
+  });
+
+  test('P1-5: the configuration the product itself saves (with updatedAt and probe) is accepted and rebuilt without them; foreign fields are refused', () => {
+    const runtime = fs.readFileSync(path.resolve(__dirname, '../../product/a9-agent-runtime.js'), 'utf8');
+    const written = runtime.slice(runtime.indexOf('writePersistedProviderConfig({\n      schemaVersion'), runtime.indexOf('persistence.recordToolEvent(a9SessionId, null, \'provider.configure\''));
+    for (const key of ['schemaVersion', 'baseUrl', 'model', 'customHeaderNames', 'contextBudgetChars', 'keyRemembered', 'probe', 'updatedAt']) expect([key, written.includes(key)]).toEqual([key, true]);
+    const make = (patch: any = {}) => {
+      const source = temp(); const destination = temp(); const cred = path.join(source, 'a9-vault-apikey', 'credentials'); fs.mkdirSync(cred, { recursive: true });
+      fs.writeFileSync(path.join(cred, 'credentials.v1.json'), JSON.stringify({ schemaVersion: 1, protection: 'electron-safe-storage-windows-dpapi-current-user', ciphertext: 'AAAA' }));
+      fs.writeFileSync(path.join(source, 'a9-provider-config.v1.json'), JSON.stringify({ schemaVersion: 1, baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash', customHeaderNames: [], contextBudgetChars: 64000, keyRemembered: true,
+        probe: { classification: 'tool_calling', checkedAt: '2026-10-16T01:00:00.000Z', latencyMs: 812, hasStreaming: true }, updatedAt: '2026-10-16T01:00:00.000Z', ...patch }));
+      return { source, destination };
+    };
+    const expected = { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash' };
+    const ok = make(); const copied = supplement.copyEncryptedConfig(ok.source, ok.destination, expected);
+    expect(copied.copied_names).toEqual(['a9-provider-config.v1.json', path.join('a9-vault-apikey', 'credentials', 'credentials.v1.json')]);
+    const rebuilt = JSON.parse(fs.readFileSync(path.join(ok.destination, 'a9-provider-config.v1.json'), 'utf8'));
+    expect(Object.keys(rebuilt).sort()).toEqual(['baseUrl', 'contextBudgetChars', 'customHeaderNames', 'keyRemembered', 'model', 'schemaVersion']);
+    for (const patch of [{ updatedAt: 5 }, { updatedAt: 'not a date' }, { extra: 1 }, { caBundle: 'x' }, { proxy: { host: 'h' } }, { keyRemembered: false }, { model: 'other' }, { contextBudgetChars: 100 }]) {
+      const bad = make(patch); expect([JSON.stringify(patch), (() => { try { supplement.copyEncryptedConfig(bad.source, bad.destination, expected); return 'accepted'; } catch (_e) { return 'refused'; } })()]).toEqual([JSON.stringify(patch), 'refused']);
+    }
+  });
+
+  test('P1-6: the restored real-Provider configuration carries no probe, so the page probes through its own control before the first Turn', () => {
+    const workbench = fs.readFileSync(path.resolve(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+    expect(workbench).toContain("snapshot.provider.probe.classification === 'tool_calling'");
+    const real = segment('supplementRealModel');
+    expect(real.indexOf('a9-provider-probe')).toBeGreaterThan(0);
+    expect(real.indexOf('a9-provider-probe')).toBeLessThan(real.indexOf('supplementTurn('));
+    expect(real).toContain("probe.classification === 'tool_calling'");
+    expect(real).toContain("assert('m5-journey', 1,".replace('assert', 'supplementAssert'));
+    // The probe's requests go through the counted wrapper and belong to the 40-request budget of the paid group.
+    expect(driverSource).toContain('realNetwork.requests++');
+  });
+
+  test('P1-7: every M6 probe is limited by the authority expiry and the wall-clock limit, and a passed deadline fails the group', () => {
+    const a = { expires_at: '2026-10-16T12:10:00.000Z', max_wall_seconds: 7200 }; const t0 = Date.parse('2026-10-16T12:00:00.000Z');
+    expect(supplement.m6ProbeTimeout(a, t0, t0)).toBe(90000);
+    expect(supplement.m6ProbeTimeout({ ...a, expires_at: '2026-10-16T12:00:30.000Z' }, t0, t0)).toBe(30000);
+    expect(supplement.m6ProbeTimeout({ ...a, max_wall_seconds: 20 }, t0, t0)).toBe(20000);
+    expect(supplement.m6ProbeTimeout(a, t0 - 7200000 + 5000, t0)).toBe(5000);
+    expect(supplement.m6ProbeTimeout(a, t0 - 7200000, t0)).toBeLessThanOrEqual(0);
+    expect(supplement.m6ProbeTimeout({ ...a, expires_at: '2026-10-16T11:59:00.000Z' }, t0, t0)).toBeLessThan(0);
+    const run = orchestratorSource.slice(orchestratorSource.indexOf('async function runM6('), orchestratorSource.indexOf('async function run(a, request)'));
+    expect(run).toContain('runProbe(a, scenario, work, probeDir, roots, timeoutMs)');
+    expect(run).toContain('if (!(timeoutMs >= 1000)) { deadlineExceeded = true; break; }');
+    expect(run).toContain("output.status = verdict.ok && !deadlineExceeded && probes.length === M6_SCENARIOS.length");
+    expect(orchestratorSource).toContain('timeout: timeoutMs, maxBuffer: 1048576 });');
+  });
+
+  test('P1-8: a background effect is on disk before the product collects it: the Turn waits for it with a bounded foreground step', () => {
+    for (const [prompt, names, last] of [['a2-ext:bg', ['start_process', 'shell'], 'python settle.py ext_bg.txt bg1'], ['a2-review:3', ['shell', 'start_process', 'shell'], 'python settle.py start-effect.txt'],
+      ['a2-audit-managed', ['start_process', 'shell'], 'python settle.py bg_out.done - 3']] as any[]) {
+      const tools = supplement.toolsFor(prompt, 'cmd', {}); expect(tools.map((t: any) => t.name)).toEqual(names); expect(tools[tools.length - 1].args.command).toBe(last);
+    }
+    // The product collects external changes only after a shell or start_process call (not at the final answer), which is why a sleep before the answer is not enough.
+    const loop = fs.readFileSync(path.resolve(__dirname, '../../../core/src/a9-agent-loop.ts'), 'utf8');
+    expect(loop).toContain("if (isShellTool || tc.name === 'start_process') {");
+    // settle.py: returns when the file is there, not empty and (optionally) holds exactly the line; the grace argument is honoured.
+    const dir = temp(); fs.writeFileSync(path.join(dir, 'settle.py'), supplement.SCRIPT_FILES['settle.py']);
+    const settle = (...args: string[]) => childProcess.spawnSync('python3', ['settle.py', ...args], { cwd: dir, encoding: 'utf8', timeout: 25000 });
+    fs.writeFileSync(path.join(dir, 'f.txt'), 'bg1\n');
+    const done = settle('f.txt', 'bg1', '0.1'); expect(done.status).toBe(0); expect(done.stdout).toContain('A2-SETTLED f.txt');
+    expect(settle('f.txt', '-', '0.1').status).toBe(0); expect(settle('f.txt').status).toBe(0);
+    expect(supplement.SCRIPT_FILES['bg_out.py']).toContain("Path('bg_out.done')");
+  });
+
+  test('P2-1: two missing values are not "equal": every identity or expected value must be observed', () => {
+    const frame = { turnId: 'T', text: 'A2-CHECK value 0' };
+    expect(driver.evaluateTestStream({ frames: [{ text: 'A2-CHECK' }], order: { ok: true }, ends: [{ exit_code: 0, stdout: 'A2-CHECK' }], shell_kind: 'cmd', outcome: 'completed' }).ok).toBe(false);
+    expect(driver.evaluateTestStream({ frames: [frame], order: { ok: true }, ends: [{ exit_code: 0, stdout: 'A2-CHECK' }], turn_id: 'T', shell_kind: 'cmd', outcome: 'completed' }).ok).toBe(true);
+    const hole = { ok: false, code: 'A9_AUDIT_PERSISTENCE_FAILED', revision: 'r1' }; const audit = { trigger_installed: true, failing_event_rows: 0, turn_completed: false, never_exists: false, tool_result_requests: 0, max_tool_result_requests: 0,
+      second_submit_ok: false, second_submit_code: 'A9_AUDIT_PERSISTENCE_FAILED', requests: { before: 0, after_turn: 1, after_submit: 1 }, require_continue: true, continue_attempts: [hole, { ...hole, revision: 'r2' }] };
+    expect(driver.evaluateAuditStage(audit).ok).toBe(false);
+    const file = { path: 'ext_bg.txt', b0: H('1'), b1: H('2'), b1_text: undefined, expected_b1_text: undefined, b2: H('1') };
+    expect(driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_bg.txt'], undo_results: [{ ok: true, outcome: { restored: ['ext_bg.txt (已恢复原始版本)'], errors: [], drifted: [] } }] }).ok).toBe(false);
+    expect(driver.evaluateProviderGuard({ running_before: true, attempt_ok: false, attempt_code: 'A9_PROVIDER_MANAGED_ACTIVE', running_after: true, requests_before: 1, requests_after: 1 }).ok).toBe(false);
+    judge(driver.evaluateProviderGuard, { running_before: true, attempt_ok: false, attempt_code: 'A9_PROVIDER_MANAGED_ACTIVE', running_after: true, pid_before: 4242, pid_after: 4242, model_before: 'm', model_after: 'm', base_url_before: 'http://127.0.0.1:1/v1', base_url_after: 'http://127.0.0.1:1/v1', requests_before: 1, requests_after: 1 },
+      [['pid_before', undefined], ['pid_before', 0], ['pid_after', 4243], ['model_before', undefined], ['base_url_before', undefined], ['model_after', 'other'], ['requests_after', 2]]);
+    const checkpoint = { continue_events: 1, turn_status: 'completed', b0_text: 'cont0\n', b1_text: 'cont1\n', b2_text: 'cont0\n', old_turn_checkpoints: 0, review_paths: ['cont_target.txt'], undo_ok: true };
+    expect(driver.evaluateContinuationCheckpoint({ ...checkpoint, continuation_turn_id: 'T', checkpoint: { turn_id: 'T' } }).ok).toBe(false);
+    expect(driver.evaluateContinuationCheckpoint({ ...checkpoint, checkpoint: {} }).ok).toBe(false);
+  });
+
+  test('P2-2: M1-A01 needs origin/main in every binding but the whole-command form, an unmoved origin, and a local main that stays one commit ahead', () => {
+    const form = (n: number) => ({ bound: true, visible_bound_card: true, row_bound: true, no_execution: true, approval_decision: 'denied', remote: n === 16 ? null : 'origin', branch: n === 16 ? null : 'main' });
+    const good = { forms: Array.from({ length: 19 }, (_, n) => form(n)), origin_main: G, refs_before: `refs/heads/main ${G}`, refs_after: `refs/heads/main ${G}`, local_main_before: 'b'.repeat(40), local_main_after: 'b'.repeat(40), unpushed_before: '1', unpushed_after: '1' };
+    judge(driver.evaluateGitDenials, good, [['forms.3.remote', 'upstream'], ['forms.3.branch', 'dev'], ['forms.5.remote', null], ['forms.16.remote', 'origin'], ['forms.16.branch', 'main'], ['forms.2.no_execution', false], ['forms.4.approval_decision', 'approved'],
+      ['forms.7.bound', false], ['forms.9.visible_bound_card', false], ['forms.11.row_bound', false], ['forms', good.forms.slice(0, 18)], ['refs_after', `refs/heads/main ${'c'.repeat(40)}`], ['refs_after', `refs/heads/main ${G}\nrefs/heads/side ${G}`],
+      ['refs_before', `refs/heads/main ${'c'.repeat(40)}`], ['local_main_after', 'c'.repeat(40)], ['local_main_before', G], ['unpushed_before', '0'], ['unpushed_after', '0'], ['unpushed_after', undefined], ['origin_main', undefined]]);
+    expect(driverSource).toContain('const WHOLE_COMMAND_FORM_INDEX = 16;');
+    // The workspace seeded by the orchestrator really has main one commit ahead of origin/main, and no GIT_* variable of the operator's session reaches the setup.
+    const parent = temp(); const workspace = path.join(parent, 'ws'); const origin = path.join(parent, 'origin.git'); fs.mkdirSync(workspace); fs.writeFileSync(path.join(workspace, 'probe.txt'), 'value 0\n');
+    const saved = { GIT_DIR: process.env.GIT_DIR, GIT_WORK_TREE: process.env.GIT_WORK_TREE, GIT_CONFIG_COUNT: process.env.GIT_CONFIG_COUNT };
+    process.env.GIT_DIR = path.join(parent, 'elsewhere'); process.env.GIT_WORK_TREE = path.join(parent, 'elsewhere'); process.env.GIT_CONFIG_COUNT = '1';
+    let extra: any;
+    try { extra = supplement.setupGitWorkspace('git', workspace, origin, path.join(parent, 'home')); }
+    finally { for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } }
+    const git = (args: string[]) => childProcess.spawnSync('git', args, { cwd: workspace, encoding: 'utf8' }).stdout.trim();
+    expect(git(['rev-list', '--count', 'refs/remotes/origin/main..refs/heads/main'])).toBe('1');
+    expect(git(['rev-parse', 'refs/heads/main'])).not.toBe(extra.A9_ALPHA2_ORIGIN_MAIN);
+    expect(git(['--git-dir', origin, 'rev-parse', 'refs/heads/main'])).toBe(extra.A9_ALPHA2_ORIGIN_MAIN);
+    expect(fs.existsSync(path.join(parent, 'elsewhere'))).toBe(false);
+    // A push that really ran would move origin's ref and now be seen.
+    childProcess.spawnSync('git', ['push', 'origin', 'main'], { cwd: workspace });
+    expect(driver.evaluateOriginRefs(extra.A9_ALPHA2_ORIGIN_MAIN, git(['--git-dir', origin, 'for-each-ref', '--format=%(refname) %(objectname)']))).toBe(false);
+    const env = supplement.gitEnvironment({ GIT_DIR: 'x', git_work_tree: 'y', PATH: 'p', GIT_CONFIG_NOSYSTEM: '0' });
+    expect(env).toEqual({ GIT_DIR: undefined, git_work_tree: undefined, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0' });
+    const homed = supplement.gitEnvironment({ GIT_DIR: 'x', XDG_CONFIG_HOME: '/operator/xdg' }, '/run/home');
+    expect(homed).toMatchObject({ GIT_DIR: undefined, HOME: '/run/home', XDG_CONFIG_HOME: path.join('/run/home', 'xdg-config'), GIT_CONFIG_GLOBAL: path.join('/run/home', 'gitconfig-empty'), GIT_CONFIG_NOSYSTEM: '1' });
+    expect(supplement.isolatedProfileEnvironment('C:\\run\\work\\m1\\main').HOME).toBe(path.join('C:\\run\\work\\m1\\main', 'profile-home'));
+    expect(orchestratorSource).toContain("{ ...layout.env, ...gitEnvironment(process.env, layout.env.HOME), ...extra,");
+  });
+
+  test('P2-3: the per-file undo of the Shell Turn is proven by its own response and by the bytes right after it', () => {
+    const shell = segment('supplementReview');
+    expect(shell).toContain('require_per_file: true, per_file: { path: \'ext_shell.txt\', result: extFileUndo, after: shellAfterFile }');
+    expect(shell.indexOf('const shellAfterFile')).toBeGreaterThan(shell.indexOf("undoFile(${JSON.stringify(ext.turnId)}, 'ext_shell.txt')"));
+    expect(shell.indexOf('const shellAfterFile')).toBeLessThan(shell.indexOf("undoTurn(${JSON.stringify(ext.turnId)})"));
+  });
+
+  test('P2-4: M4 compares the approval rows before and after as well', () => {
+    const schema = segment('continueSchema');
+    expect(schema).toContain("approvals: supplementalRowsFacts(dbAll('SELECT * FROM a9_approvals ORDER BY rowid LIMIT 1001'))");
+  });
+
+  test('P2-5: the physical location of the run, data root, workspace and userData is resolved through links before it is judged', () => {
+    expect(driverSource).toContain('fs.realpathSync.native(current)');
+    expect(driverSource).toContain("real: { run_root: realRun ? realRun + path.sep : null, user_data: realOf(app.getPath('userData')), data_root: realOf(env.A9_BATCH2_DATAROOT), workspace: realOf(env.A9_BATCH2_WORKSPACE) }");
+  });
+
+  test('P2-6: the M6 baseline names what it was made from, and a baseline made from other inputs is refused before any probe runs', () => {
+    const files = Object.fromEntries(['F42', 'FCandC', 'FCandN', 'C42', 'CCand'].map((n, i) => [n + '.sqlite', H(String(i + 1))]));
+    const scenarios = Object.fromEntries(supplement.M6_SCENARIOS.map((s: any) => [s.name, { calls: [] }]));
+    const baseline = { schema_version: 1, generator: 'm6-baseline', now: '2026-10-16T12:00:00.000Z', dev_node: 'v20.17.0', fixtures: Object.fromEntries(['F42', 'FCandC', 'FCandN', 'C42', 'CCand'].map((n, i) => [n, H(String(i + 1))])),
+      persistence: { w42: supplement.M6_PINS.w42_persistence_sha256, cand: crypto.createHash('sha256').update('baseline candidate module').digest('hex') }, scenarios };
+    const m6 = { w42_persistence_sha256: baseline.persistence.w42, cand_persistence_sha256: baseline.persistence.cand };
+    const check = (value: any) => supplement.validateM6Baseline(value, files, m6).ok;
+    expect(check(baseline)).toBe(true);
+    expect(supplement.validateM6Baseline(baseline, files).ok).toBe(false);
+    for (const patch of [{ cand_persistence_sha256: H('different') }, { w42_persistence_sha256: H('different') }]) expect(supplement.validateM6Baseline(baseline, files, { ...m6, ...patch }).ok).toBe(false);
+    for (const [pathText, replacement] of [['now', '2026-10-16T12:00:01.000Z'], ['schema_version', 2], ['generator', 'other'], ['fixtures.F42', H('9')], ['fixtures.CCand', undefined], ['persistence.w42', H('9')], ['persistence.cand', undefined],
+      ['persistence', undefined], ['scenarios.S5', undefined], ['scenarios', {}], ['fixtures', undefined]] as any[]) expect([pathText, check(setPath(baseline, pathText, replacement))]).toEqual([pathText, false]);
+    expect(check({ ...baseline, fixtures: { ...baseline.fixtures, EXTRA: H('7') } })).toBe(false);
+    expect(check(undefined)).toBe(false); expect(supplement.validateM6Baseline(baseline, { ...files, 'F42.sqlite': H('9') }, m6).ok).toBe(false); expect(supplement.validateM6Baseline(baseline, undefined, m6).ok).toBe(false);
+    expect(orchestratorSource).toContain("if (!baselineBinding.ok) throw new Error('A9_36_M6_BASELINE_BINDING');");
+  });
+
+  test('P2-7: an M3 restart Stage reuses the review Stage and judges the zero replay; the facts it needs are those the review Stage wrote', () => {
+    const m3 = supplement.STAGE_PLAN.m3; expect(m3.map((s: any) => [s.name, s.mode, s.ids, s.reuse])).toEqual([['main', 'supplement_review', Array.from({ length: 10 }, (_, n) => n + 1), undefined], ['restart', 'supplement_review_restart', [11], 'main']]);
+    expect(orchestratorSource).toContain("...(stage.reuse ? { A9_ALPHA2_PRIOR_STAGE_DIR: path.join(attempt, stage.reuse) } : {}),");
+    expect(segment('supplementReview')).toContain("out('a2-m3-end-state.json', { conversation_id: conv, first_turn_id: first.turnId, first_review_paths: paths, counts: reviewCounts(conv), tree: workspaceTree() });");
+    expect(segment('supplementReviewRestart')).toContain("path.join(priorDir, 'a2-m3-end-state.json')");
+    const tree = [{ path: 'a.txt', sha256: H('1') }, { path: 'probe.txt', sha256: H('2') }]; const counts = { turns: 9, tool_starts: 22, approvals: 3, checkpoints: 8, managed: 2 };
+    const good = { prior: { conversation_id: 'c', first_turn_id: 'T1', first_review_paths: ['probe.txt', 'notes.md'], counts, tree }, conversation_id: 'c', requests_at_start: 0, requests_after_wait: 0, counts, tree,
+      review_ok: true, review_paths: ['notes.md', 'probe.txt'], reundo: { ok: true, outcome: { restored: ['probe.txt (此前已撤销，未重复执行)', 'notes.md (此前已撤销，未重复执行)'], errors: [], drifted: [] } }, tree_after_undo: tree,
+      next_outcome: 'completed', next_turn_id: 'T10', next_requests: 1 };
+    judge(driver.evaluateReviewRestart, good, [['conversation_id', 'other'], ['prior.conversation_id', undefined], ['requests_at_start', 1], ['requests_after_wait', 1], ['requests_after_wait', undefined], ['counts.turns', 10], ['counts.tool_starts', 23], ['counts.approvals', 4],
+      ['counts.checkpoints', 9], ['counts.managed', undefined], ['tree', [tree[0]]], ['prior.tree', undefined], ['review_ok', false], ['review_paths', ['probe.txt']], ['prior.first_review_paths', []],
+      ['reundo.ok', false], ['reundo.outcome.errors', ['x']], ['reundo.outcome.drifted', ['probe.txt']], ['reundo.outcome.restored', ['probe.txt (已恢复原始版本)']], ['reundo.outcome.restored', []], ['reundo.outcome', undefined],
+      ['tree_after_undo', [tree[0]]], ['next_outcome', 'failed'], ['next_turn_id', 'T1'], ['next_turn_id', undefined], ['next_requests', 0], ['next_requests', undefined]]);
+  });
+
+  test('P2-8: residue is queried right after the launch, before the result file is read', () => {
+    const stage = orchestratorSource.slice(orchestratorSource.indexOf('async function runStage('), orchestratorSource.indexOf('async function runStages('));
+    expect(stage.indexOf('result.postflight = postflight(')).toBeGreaterThan(stage.indexOf('exit = await smoke.launchDriver('));
+    expect(stage.indexOf('result.postflight = postflight(')).toBeLessThan(stage.indexOf('contract.readJson(resultFile'));
+    expect(stage.indexOf('if (launchError) throw launchError;')).toBeGreaterThan(stage.indexOf('result.postflight = postflight('));
+  });
+
+  // ---- round 2 -------------------------------------------------------------------------------------------------------------------------------------
+  // runStage with in-memory stand-ins for the launch and the process list: it is the real orchestrator code, with no Electron.
+  const stageRig = (over: any = {}, stageOver: any = null) => {
+    const runRoot = fs.realpathSync(temp()); fs.mkdirSync(path.join(runRoot, 'ledger')); fs.writeFileSync(path.join(runRoot, 'ledger', '1.json'), JSON.stringify({ started_ms: Date.now() }));
+    const stage = stageOver || supplement.STAGE_PLAN.m4[0]; const phaseRoot = path.join(runRoot, 'work', 'm4'); const attempt = path.join(runRoot, 'evidence', 'm4');
+    fs.mkdirSync(path.join(runRoot, 'work'), { recursive: true }); fs.mkdirSync(attempt, { recursive: true });
+    const a = { run_root: runRoot, expires_at: new Date(Date.now() + 600000).toISOString(), max_wall_seconds: 7200, tools: { git: { path: 'git' }, python: { path: 'python3' } }, candidate_root: path.join(runRoot, 'candidate'), provider: {}, credential_source: null, ...over };
+    const calls = { launch: 0, list: 0 };
+    const rows = (envForResult: any) => ({ mode: stage.mode, status: 'DONE', assertions: supplement.stageAssertionIds(stage).map((id: string) => ({ assertion_id: id, status: 'PASS' })), evidence: {}, envForResult });
+    const smokeStub: any = { launchDriver: async (_rt: any, env: any, opts: any) => { calls.launch++; smokeStub.lastOpts = opts; if (smokeStub.reject) throw new Error('A9_TEST_LAUNCH_REJECTED'); fs.writeFileSync(env.A9_BATCH2_DRIVER_RESULT, JSON.stringify(rows(null))); return { pid: 4242, code: 0 }; },
+      listProcesses: () => { calls.list++; if (smokeStub.onList) smokeStub.onList(); return { failed: false, rows: [] }; }, realExec: null, reject: false, onList: null, lastOpts: null };
+    const rig: any = { runRoot, a, calls, smokeStub, phaseRoot, attempt, stage, onBegin: null };
+    rig.run = () => supplement.runStage(a, {}, smokeStub, { phaseRoot, attempt, runtime: {}, fixture: { beginStage() { if (rig.onBegin) rig.onBegin(); } }, port: 1, envPath: '' }, stage);
+    return rig;
+  };
+
+  test('R2 P1-1: a Stage that ends after the authority expired or the wall-clock limit is not a PASS; a used-up window starts nothing', async () => {
+    const ok = stageRig(); const passed = await ok.run();
+    expect([passed.status, passed.error, ok.calls.launch, ok.calls.list]).toEqual(['PASS', undefined, 1, 1]);
+    // The residue query pushes the clock past the expiry: everything else is clean, the Stage still fails.
+    const realNow = Date.now; let skew = 0; const spy = jest.spyOn(Date, 'now').mockImplementation(() => realNow() + skew);
+    try {
+      const late = stageRig(); late.smokeStub.onList = () => { skew = 10 * 60 * 1000 + 1000; };
+      const lateResult = await late.run();
+      expect([lateResult.status, lateResult.window_left_ms <= 0]).toEqual(['FAIL', true]);
+      skew = 0;
+      const wall = stageRig({ max_wall_seconds: 30 }); wall.smokeStub.onList = () => { skew = 31 * 1000; };
+      expect((await wall.run()).status).toBe('FAIL');
+      skew = 0;
+    } finally { spy.mockRestore(); }
+    // An expired authority starts nothing: no directory, no launch.
+    const gone = stageRig({ expires_at: new Date(Date.now() - 1000).toISOString() }); const goneResult = await gone.run();
+    expect([goneResult.status, goneResult.error, gone.calls.launch, fs.existsSync(path.join(gone.attempt, gone.stage.name))]).toEqual(['FAIL', 'A9_36_WINDOW_EXHAUSTED', 0, false]);
+    expect(() => supplement.stageTimeout({ expires_at: '2026-10-16T12:00:00.500Z', max_wall_seconds: 7200 }, { timeoutMs: 600000 }, Date.parse('2026-10-16T12:00:00.000Z'), Date.parse('2026-10-16T12:00:00.000Z'))).toThrow('A9_36_WINDOW_EXHAUSTED');
+    expect(supplement.stageTimeout({ expires_at: '2026-10-16T12:00:30.000Z', max_wall_seconds: 7200 }, { timeoutMs: 600000 }, Date.parse('2026-10-16T12:00:00.000Z'), Date.parse('2026-10-16T12:00:00.000Z'))).toBe(30000);
+    expect(supplement.stageTimeout({ expires_at: '2026-10-16T14:00:00.000Z', max_wall_seconds: 7200 }, { timeoutMs: 120000 }, Date.parse('2026-10-16T12:00:00.000Z'), Date.parse('2026-10-16T12:00:00.000Z'))).toBe(120000);
+    // Same ordering in the M6 group: the deadline is judged after the residue query and before the verdict.
+    const m6 = orchestratorSource.slice(orchestratorSource.indexOf('async function runM6('), orchestratorSource.indexOf('async function run(a, request)'));
+    expect(m6.indexOf('if (windowLeft(a, startedMs) <= 0) deadlineExceeded = true;')).toBeGreaterThan(m6.indexOf('output.postflight = postflight('));
+    expect(m6.indexOf('output.m6.deadline_exceeded = deadlineExceeded;')).toBeLessThan(m6.indexOf('output.status = verdict.ok'));
+  });
+
+  test('R2 P2-4: a rejected launch still gets its residue query; the original error is kept', async () => {
+    const rig = stageRig(); rig.smokeStub.reject = true; const result = await rig.run();
+    expect([result.status, result.error, rig.calls.launch, rig.calls.list, result.postflight && result.postflight.failed, result.postflight && result.postflight.related]).toEqual(['FAIL', 'A9_TEST_LAUNCH_REJECTED', 1, 1, false, []]);
+    // A residue query that fails is recorded as unknown, and an unknown residue is not clean.
+    const broken = stageRig(); broken.smokeStub.reject = true; broken.smokeStub.onList = () => { throw new Error('A9_TEST_LIST_FAILED'); };
+    const brokenResult = await broken.run();
+    expect([brokenResult.status, brokenResult.error, brokenResult.postflight.failed, supplement.postflightClean(brokenResult.postflight)]).toEqual(['FAIL', 'A9_TEST_LAUNCH_REJECTED', true, false]);
+  });
+
+  test('R2 P2-2: a link below the run root is refused before the first write', async () => {
+    const root = fs.realpathSync(temp()); const outside = fs.realpathSync(temp()); fs.mkdirSync(path.join(root, 'real'));
+    fs.symlinkSync(outside, path.join(root, 'work'), 'dir');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'work', 'm1', 'main'))).toThrow('A9_36_PATH_LINK');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'real', 'a', 'b'))).not.toThrow();
+    expect(() => supplement.assertPhysicallyInside(root, root)).toThrow('A9_36_PATH_OUTSIDE_RUN_ROOT');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, '..', 'elsewhere'))).toThrow('A9_36_PATH_OUTSIDE_RUN_ROOT');
+    // A link in the middle of an existing chain, and a link that points back inside, are both refused: only real directories are allowed.
+    fs.symlinkSync(path.join(root, 'real'), path.join(root, 'alias'), 'dir');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'alias', 'x'))).toThrow('A9_36_PATH_LINK');
+    // runStage with `work` as a link: nothing is created in the outside directory, nothing is launched.
+    const rig = stageRig(); fs.rmSync(path.join(rig.runRoot, 'work'), { recursive: true }); const away = fs.realpathSync(temp()); fs.symlinkSync(away, path.join(rig.runRoot, 'work'), 'dir');
+    const result = await rig.run();
+    expect([result.status, result.error, rig.calls.launch, fs.readdirSync(away)]).toEqual(['FAIL', 'A9_36_PATH_LINK', 0, []]);
+    expect(orchestratorSource).toContain("assertPhysicallyInside(a.run_root, attempt); fs.mkdirSync(attempt, { recursive: true });");
+    expect(orchestratorSource).toContain('assertPhysicallyInside(a.run_root, attempt); assertPhysicallyInside(a.run_root, phaseRoot); fs.mkdirSync(phaseRoot, { recursive: true });');
+    expect(orchestratorSource).toContain('for (const p of [work, probeDir]) assertPhysicallyInside(a.run_root, p);');
+  });
+
+  test('R2 P2-1: the Git global configuration comes from an empty file, not from an inherited XDG_CONFIG_HOME or HOME', () => {
+    const base = temp(); const leak = path.join(base, 'operator-xdg'); fs.mkdirSync(path.join(leak, 'git'), { recursive: true });
+    fs.writeFileSync(path.join(leak, 'git', 'config'), '[user]\n\tname = leaked\n');
+    const home = path.join(base, 'home'); fs.mkdirSync(home); fs.writeFileSync(path.join(home, 'gitconfig-empty'), '');
+    const read = (extra: any) => childProcess.spawnSync('git', ['config', '--global', '--get', 'user.name'], { encoding: 'utf8', env: { ...process.env, ...extra } }).stdout.trim();
+    // Control: with only HOME replaced, the inherited XDG configuration is still read.
+    expect(read({ HOME: home, XDG_CONFIG_HOME: leak })).toBe('leaked');
+    const isolated = supplement.gitEnvironment({ ...process.env, XDG_CONFIG_HOME: leak }, home);
+    expect(read({ XDG_CONFIG_HOME: leak, ...isolated })).toBe('');
+  });
+
+  test('R2 P2-3: an undone path must be the expected file, and a no-drift response must carry its drift fields', () => {
+    const file = { path: 'ext_shell.txt', b0: H('1'), b1: H('2'), b1_text: 'shell1\n', expected_b1_text: 'shell1\n', b2: H('1') };
+    const done = (restored: string[]) => ({ ok: true, driftReasons: [], outcome: { restored, errors: [], drifted: [] } });
+    const facts = (results: any[]) => ({ files: [file], review_paths: ['ext_shell.txt'], undo_results: results });
+    expect(driver.evaluateExternalBytes(facts([done(['ext_shell.txt'])])).ok).toBe(true);
+    expect(driver.evaluateExternalBytes(facts([done(['ext_shell.txt (已恢复原始版本)'])])).ok).toBe(true);
+    for (const wrong of ['ext_shell.txt.evil (已恢复原始版本)', 'ext_shell.txtx', 'dir/ext_shell.txt (已恢复原始版本)', ' ext_shell.txt', 'EXT_SHELL.TXT (已恢复原始版本)'])
+      expect([wrong, driver.evaluateExternalBytes(facts([done([wrong])])).ok]).toEqual([wrong, false]);
+    const noReasons = done(['ext_shell.txt (已恢复原始版本)']); delete (noReasons as any).driftReasons;
+    expect(driver.evaluateExternalBytes(facts([noReasons])).ok).toBe(false);
+    const noDrifted: any = done(['ext_shell.txt (已恢复原始版本)']); delete noDrifted.outcome.drifted;
+    expect(driver.evaluateExternalBytes(facts([noDrifted])).ok).toBe(false);
+    const drifted: any = done(['ext_shell.txt (已恢复原始版本)']); drifted.outcome.drifted = ['ext_shell.txt'];
+    expect(driver.evaluateExternalBytes(facts([drifted])).ok).toBe(false);
+    // The per-file step names the file the same way.
+    const perFile = (restored: string[]) => ({ ...facts([done(['ext_shell.txt (已恢复原始版本)'])]), require_per_file: true, per_file: { path: 'ext_shell.txt', result: done(restored), after: { 'ext_shell.txt': H('1') } } });
+    expect(driver.evaluateExternalBytes(perFile(['ext_shell.txt (已恢复原始版本)'])).ok).toBe(true);
+    expect(driver.evaluateExternalBytes(perFile(['ext_shell.txt.evil (已恢复原始版本)'])).ok).toBe(false);
+  });
+
+  test('R2 P2-5: a Stage function has no unconditional return or throw at its top level, so its assertions cannot be skipped by a stray early exit', () => {
+    const names = ['continueSchema', 'supplementPolicyGit', 'supplementVerification', 'supplementAuditOutput', 'supplementAuditManaged', 'supplementAuditOwnership', 'supplementContinue', 'supplementBudget',
+      'supplementReview', 'supplementReviewRestart', 'supplementProviderGuard', 'supplementRealModel'];
+    for (const name of names) expect([name, segment(name).split('\n').filter((line) => /^    (return|throw)\b/.test(line))]).toEqual([name, []]);
+    // The check has teeth: the mutation of the review round (a `return;` as the first statement) is seen.
+    const text = segment('supplementReviewRestart'); const bodyStart = text.indexOf('{\n') + 2;
+    const mutated = text.slice(0, bodyStart) + '    return;\n' + text.slice(bodyStart);
+    expect(mutated.split('\n').filter((line) => /^    (return|throw)\b/.test(line)).length).toBe(1);
+    // The assertion ids of each Stage appear in the function's text in ascending order, each once.
+    for (const stages of Object.values(supplement.STAGE_PLAN) as any[]) for (const stage of stages) {
+      const fn = { supplement_continue_schema: 'continueSchema', supplement_policy_git: 'supplementPolicyGit', supplement_verification: 'supplementVerification', supplement_audit_output: 'supplementAuditOutput',
+        supplement_audit_managed: 'supplementAuditManaged', supplement_audit_ownership: 'supplementAuditOwnership', supplement_continue: 'supplementContinue', supplement_budget: 'supplementBudget',
+        supplement_review: 'supplementReview', supplement_review_restart: 'supplementReviewRestart', supplement_provider_guard: 'supplementProviderGuard', supplement_real_model: 'supplementRealModel' }[stage.mode as string] as string;
+      const found = idsIn(segment(fn)); expect([stage.mode, found.length, new Set(found).size]).toEqual([stage.mode, stage.ids.length, stage.ids.length]);
+    }
+  });
+
+  // ---- round 3 -------------------------------------------------------------------------------------------------------------------------------------
+  test('R3 P1-1: the launch gets the window that is left after the setup, and a window used up by the setup launches nothing', async () => {
+    const realNow = Date.now; let skew = 0; const spy = jest.spyOn(Date, 'now').mockImplementation(() => realNow() + skew);
+    try {
+      const shrink = stageRig({ expires_at: new Date(realNow() + 30000).toISOString() }); shrink.onBegin = () => { skew = 25000; };
+      const shrunk = await shrink.run();
+      expect([shrunk.status, shrink.calls.launch]).toEqual(['PASS', 1]);
+      expect(shrink.smokeStub.lastOpts.timeoutMs).toBeGreaterThan(0); expect(shrink.smokeStub.lastOpts.timeoutMs).toBeLessThanOrEqual(5000);
+      skew = 0;
+      const gone = stageRig({ expires_at: new Date(realNow() + 30000).toISOString() }); gone.onBegin = () => { skew = 40000; };
+      const goneResult = await gone.run();
+      expect([goneResult.status, goneResult.error, gone.calls.launch, goneResult.postflight]).toEqual(['FAIL', 'A9_36_WINDOW_EXHAUSTED', 0, { not_launched: true }]);
+      skew = 0;
+    } finally { spy.mockRestore(); }
+    expect(() => supplement.stageTimeout({ expires_at: 'not a date', max_wall_seconds: 7200 }, { timeoutMs: 600000 }, 0, 0)).toThrow('A9_36_WINDOW_EXHAUSTED');
+  });
+
+  test('R3 P2-1: the profile directories, a reused HOME and the empty Git configuration are checked before the first write', async () => {
+    const restart = supplement.STAGE_PLAN.m3.find((s: any) => s.name === 'restart');
+    const reuseRig = (mutate: (rig: any, home: string, outside: string) => void) => {
+      const rig = stageRig({}, restart); const home = path.join(rig.phaseRoot, 'main'); const outside = fs.realpathSync(temp());
+      for (const dir of [home, path.join(home, '中文 workspace'), path.join(home, 'data'), path.join(home, 'profile-home')]) fs.mkdirSync(dir, { recursive: true });
+      mutate(rig, home, outside); return { rig, home, outside };
+    };
+    // The reused profile-home is a link: nothing is written through it.
+    const linked = reuseRig((_rig, home, outside) => { fs.rmSync(path.join(home, 'profile-home'), { recursive: true }); fs.symlinkSync(outside, path.join(home, 'profile-home'), 'dir'); });
+    const linkedResult = await linked.rig.run();
+    expect([linkedResult.status, linkedResult.error, linked.rig.calls.launch, fs.readdirSync(linked.outside)]).toEqual(['FAIL', 'A9_36_PATH_LINK', 0, []]);
+    // Each profile directory is checked on its own, not only through the configuration file below HOME.
+    for (const [name, key] of [['profile-local', 'LOCALAPPDATA'], ['profile-roaming', 'APPDATA'], ['temp', 'TEMP']]) {
+      const profile = reuseRig((_rig, home, outside) => { fs.symlinkSync(outside, path.join(home, name), 'dir'); });
+      const profileResult = await profile.rig.run();
+      expect([key, profileResult.error, profile.rig.calls.launch, fs.readdirSync(profile.outside)]).toEqual([key, 'A9_36_PATH_LINK', 0, []]);
+    }
+    // The empty configuration file is a link, a directory or not empty.
+    const fileLink = reuseRig((_rig, home, outside) => { fs.writeFileSync(path.join(outside, 'target'), ''); fs.symlinkSync(path.join(outside, 'target'), path.join(home, 'profile-home', 'gitconfig-empty')); });
+    const fileLinkResult = await fileLink.rig.run();
+    expect([fileLinkResult.error, fileLink.rig.calls.launch]).toEqual(['A9_36_PATH_LINK', 0]);
+    const dirLeaf = reuseRig((_rig, home) => { fs.mkdirSync(path.join(home, 'profile-home', 'gitconfig-empty')); });
+    expect([(await dirLeaf.rig.run()).error, dirLeaf.rig.calls.launch]).toEqual(['A9_36_PATH_NOT_DIRECTORY', 0]);
+    const filled = reuseRig((_rig, home) => { fs.writeFileSync(path.join(home, 'profile-home', 'gitconfig-empty'), '[user]\n\tname = x\n'); });
+    expect([(await filled.rig.run()).error, filled.rig.calls.launch]).toEqual(['A9_36_GIT_CONFIG_NOT_EMPTY', 0]);
+    // A regular file where a directory is expected, in the middle of a chain, is refused; a regular file is the right leaf only when asked for.
+    const root = fs.realpathSync(temp()); fs.mkdirSync(path.join(root, 'd')); fs.writeFileSync(path.join(root, 'd', 'f'), '');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'd', 'f', 'x'))).toThrow('A9_36_PATH_NOT_DIRECTORY');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'd', 'f'))).toThrow('A9_36_PATH_NOT_DIRECTORY');
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'd', 'f'), 'file')).not.toThrow();
+    expect(() => supplement.assertPhysicallyInside(root, path.join(root, 'd'), 'file')).toThrow('A9_36_PATH_NOT_DIRECTORY');
+    // A reused HOME that is clean passes the same checks and the Stage goes on to the launch.
+    const clean = reuseRig(() => undefined); fs.writeFileSync(path.join(clean.home, 'profile-home', 'gitconfig-empty'), '');
+    for (const name of ['profile-local', 'profile-roaming', 'temp']) fs.mkdirSync(path.join(clean.home, name));
+    expect((await clean.rig.run()).error).toBeUndefined(); expect(clean.rig.calls.launch).toBe(1);
+  });
+
+  test('R3 P2-2: a restored entry is the path alone or the path with one of the five notes of the checkpoint manager, by equality', () => {
+    const file = { path: 'ext_shell.txt', b0: H('1'), b1: H('2'), b1_text: 'shell1\n', expected_b1_text: 'shell1\n', b2: H('1') };
+    const done = (restored: string[]) => ({ ok: true, driftReasons: [], outcome: { restored, errors: [], drifted: [] } });
+    const judged = (entry: string) => driver.evaluateExternalBytes({ files: [file], review_paths: ['ext_shell.txt'], undo_results: [done([entry])], require_per_file: true, per_file: { path: 'ext_shell.txt', result: done([entry]), after: { 'ext_shell.txt': H('1') } } }).ok;
+    for (const note of driver.SUP_RESTORED_NOTES) expect([note, judged(`ext_shell.txt (${note})`)]).toEqual([note, true]);
+    expect(judged('ext_shell.txt')).toBe(true);
+    for (const bad of ['ext_shell.txt (other).txt (已恢复原始版本)', 'ext_shell.txt (not-closed', 'ext_shell.txt (已恢复原始版本', 'ext_shell.txt (已恢复其他版本)', 'ext_shell.txt (已恢复原始版本) ', 'ext_shell.txt (已恢复原始版本)(已恢复原始版本)'])
+      expect([bad, judged(bad)]).toEqual([bad, false]);
+    // The five notes are the ones the checkpoint manager writes, so the list cannot drift away from the product.
+    const manager = fs.readFileSync(path.resolve(__dirname, '../../../workspace/src/checkpoint-manager.ts'), 'utf8');
+    const written = [...manager.matchAll(/outcome\.restored\.push\(`\$\{relPath\} \(([^)]+)\)`\)/g)].map((m) => m[1]).sort();
+    expect(written).toEqual([...driver.SUP_RESTORED_NOTES].sort());
+  });
+});
+
+describe('Alpha2 supplemental public continuation schema', () => {
+  function publicApi(runtime: any, preloadSource = fs.readFileSync(path.resolve(__dirname, '../../product/preload.js'), 'utf8')) {
+    const { createA9ProductRequestHandler } = require('../../product/a9-product-ipc');
+    const handle = createA9ProductRequestHandler({ isValidRendererSender: () => true, getA9Runtime: () => runtime });
+    let exposed: any;
+    const requests: any[] = [];
+    vm.runInNewContext(preloadSource, {
+      process: { env: {}, argv: [] },
+      require: (name: string) => {
+        if (name !== 'electron') throw new Error(`Unexpected preload import: ${name}`);
+        return {
+          contextBridge: { exposeInMainWorld: (key: string, value: any) => { if (key === 'win7Agent') exposed = value; } },
+          ipcRenderer: { invoke: (channel: string, request: any) => { requests.push({ channel, request }); return handle({}, request); } },
+        };
+      },
+    });
+    return { api: exposed.a9, requests };
+  }
+
+  for (const item of driver.continuationSchemaCases()) {
+    test(`${item.id} is refused before runtime dispatch`, async () => {
+      const runtime = { continueTask: jest.fn(() => ({ ok: true })) };
+      const { api, requests } = publicApi(runtime);
+      const result = await api.continueTask(...item.args);
+      expect(result).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
+      expect(runtime.continueTask).not.toHaveBeenCalled();
+      expect(requests).toHaveLength(1);
+      expect(requests[0]).toMatchObject({ channel: 'product:a9-request', request: { schemaVersion: 7, action: 'a9.task.continue' } });
+    });
+  }
+
+  test('valid maximum-length identities reach the actual handler through the frozen public API', async () => {
+    const runtime = { continueTask: jest.fn(() => ({ ok: true, sentinel: 'dispatched' })) };
+    const { api } = publicApi(runtime);
+    const args = ['c'.repeat(256), 't'.repeat(256), 'i'.repeat(256), 'a'.repeat(64)];
+    expect(await api.continueTask(...args)).toEqual({ ok: true, sentinel: 'dispatched' });
+    expect(runtime.continueTask).toHaveBeenCalledTimes(1);
+    expect(runtime.continueTask).toHaveBeenCalledWith({ conversationId: args[0], taskId: args[1], interruptedTurnId: args[2], recoveryRevision: args[3] });
+    for (const name of ['invoke', 'send', 'ipcRenderer', 'execute', 'exec', 'spawn', 'rawIpc']) expect(Object.keys(api)).not.toContain(name);
+  });
+
+  test('workspace comparison detects changed bytes and retains an empty-directory change', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a2-schema-facts-'));
+    fs.writeFileSync(path.join(root, 'file.txt'), 'before');
+    const before = driver.supplementalWorkspaceFacts(root);
+    fs.writeFileSync(path.join(root, 'file.txt'), 'after!');
+    expect(driver.supplementalWorkspaceFacts(root)).not.toEqual(before);
+    fs.mkdirSync(path.join(root, 'empty'));
+    expect(driver.supplementalWorkspaceFacts(root)).toEqual(expect.arrayContaining([{ path: 'empty', kind: 'directory' }]));
+  });
+
+  test('actual rejected IPC with the wrong preload values cannot produce supplemental PASS', async () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../product/preload.js'), 'utf8');
+    const signature = 'conversationId, taskId, interruptedTurnId, recoveryRevision,\n    }),';
+    expect(source).toContain(signature);
+    const observe = async (preloadSource: string) => {
+      const runtime = { continueTask: jest.fn(() => ({ ok: true })) };
+      const { api, requests } = publicApi(runtime, preloadSource);
+      const observations = [];
+      for (const item of driver.continuationSchemaCases()) {
+        const result = await api.continueTask(...item.args);
+        observations.push({ id: item.id, ok: result.ok, code: result.error.code });
+      }
+      expect(runtime.continueTask).not.toHaveBeenCalled();
+      return { observations, requests: requests.map(({ request }: any) => ({ action: request.action, ...driver.continuationRequestFacts(request),
+        payload_keys: Object.keys(request.payload).sort(), ok: false, error: 'A9_PAYLOAD_INVALID' })) };
+    };
+    const valid = await observe(source);
+    expect(driver.evaluateContinuationSchema(valid.observations, valid.requests)).toBe(true);
+    const wrong = await observe(source.replace(signature, 'conversationId: "", taskId: "", interruptedTurnId: "", recoveryRevision: "",\n    }),'));
+    expect(wrong.observations.every((item) => item.ok === false && item.code === 'A9_PAYLOAD_INVALID')).toBe(true);
+    expect(driver.evaluateContinuationSchema(wrong.observations, wrong.requests)).toBe(false);
+    const changedSchema = valid.requests.map((item, index) => index === 0 ? { ...item, schema_version: 6 } : item);
+    expect(driver.evaluateContinuationSchema(valid.observations, changedSchema)).toBe(false);
+    const changedKeys = valid.requests.map((item, index) => index === 0 ? { ...item, payload_keys: item.payload_keys.concat('extra') } : item);
+    expect(driver.evaluateContinuationSchema(valid.observations, changedKeys)).toBe(false);
+  });
+
+  test('database fingerprints reject an in-place update or equal-count row replacement', () => {
+    const before = driver.supplementalRowsFacts([{ id: 1, status: 'interrupted' }]);
+    expect(driver.supplementalRowsFacts([{ id: 1, status: 'running' }])).not.toEqual(before);
+    expect(driver.supplementalRowsFacts([{ id: 2, status: 'interrupted' }])).not.toEqual(before);
+    expect(() => driver.supplementalRowsFacts(Array(1001).fill({}))).toThrow('A2_M4_DATABASE_ROW_LIMIT');
+  });
+});
+
 const RUN_ID = '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44';
 const TARGET = { machine_name: 'TEST-ONLY-HOST', account_name: 'TEST-ONLY\\runner', account_sid: 'S-1-5-21-1-2-3-1001', integrity_level: 'Medium', session_id: 1, elevated: false, in_job: false };
 const sha = (value: string | Buffer) => crypto.createHash('sha256').update(value).digest('hex');

@@ -28,6 +28,130 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function assertionId(caseId, n) { return `${caseId}-A${pad(n)}`; }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 
+// Supplemental inputs only; these do not extend the frozen 25-case formal contract.
+function continuationSchemaCases() {
+  const valid = ['schema-conversation', 'schema-task', 'schema-turn', 'a'.repeat(64)];
+  const cases = [];
+  for (let index = 0; index < 3; index += 1) {
+    for (const [label, value] of [['empty', ''], ['null', null], ['number', 7], ['overlong', 'x'.repeat(257)]]) {
+      const args = valid.slice(); args[index] = value;
+      cases.push({ id: `identity-${index}-${label}`, args });
+    }
+  }
+  for (const [label, value] of [['empty', ''], ['null', null], ['number', 7], ['short', 'a'.repeat(63)], ['nonhex', 'G'.repeat(64)]]) {
+    const args = valid.slice(); args[3] = value;
+    cases.push({ id: `revision-${label}`, args });
+  }
+  return cases;
+}
+
+function continuationRequestFacts(request) {
+  return { schema_version: request.schemaVersion, payload_sha256: sha256(JSON.stringify(request.payload) || '<undefined>') };
+}
+
+function evaluateContinuationSchema(observations, requests) {
+  const cases = continuationSchemaCases();
+  return observations.length === cases.length && requests.length === cases.length && cases.every((item, index) => {
+    const response = observations[index]; const request = requests[index];
+    const [conversationId, taskId, interruptedTurnId, recoveryRevision] = item.args;
+    const expected = continuationRequestFacts({ schemaVersion: 7, payload: { conversationId, taskId, interruptedTurnId, recoveryRevision } });
+    return response.id === item.id && response.ok === false && response.code === 'A9_PAYLOAD_INVALID'
+      && request.action === 'a9.task.continue' && request.schema_version === 7 && request.ok === false && request.error === 'A9_PAYLOAD_INVALID'
+      && JSON.stringify(request.payload_keys) === JSON.stringify(['conversationId', 'interruptedTurnId', 'recoveryRevision', 'taskId'])
+      && request.payload_sha256 === expected.payload_sha256;
+  });
+}
+
+function supplementalRowsFacts(rows) {
+  if (rows.length > 1000) throw new Error('A2_M4_DATABASE_ROW_LIMIT');
+  const bytes = JSON.stringify(rows);
+  if (Buffer.byteLength(bytes, 'utf8') > 1024 * 1024) throw new Error('A2_M4_DATABASE_BYTE_LIMIT');
+  return { rows: rows.length, sha256: sha256(bytes) };
+}
+
+function journeyToolFacts(events, workspace) {
+  const starts = new Map(); const facts = [];
+  const paths = /^[A-Za-z]:/.test(workspace) ? path.win32 : path;
+  const canonical = (value) => paths.resolve(workspace, value).replace(/\\/g, '/').toLowerCase();
+  for (const event of events) {
+    const data = eventData(event);
+    if (event.eventType === 'tool_start') starts.set(data.callId, { ...data, eventId: event.eventId });
+    if (event.eventType !== 'tool_end') continue;
+    const start = starts.get(data.callId);
+    if (!start || start.toolName !== data.toolName || !start.args) continue;
+    facts.push({ eventId: event.eventId, startId: start.eventId, tool: data.toolName, callId: data.callId,
+      command: typeof start.args.command === 'string' ? start.args.command.trim().replace(/\s+/g, ' ') : null,
+      cwd_matches: canonical(start.args.cwd || workspace) === canonical(workspace),
+      path: typeof start.args.path === 'string' ? paths.relative(workspace, paths.resolve(workspace, start.args.path)).replace(/\\/g, '/') : null,
+      shell: data.shell || null, result: data.result });
+  }
+  return facts;
+}
+function journeyShellChecks(events, workspace, command) {
+  return journeyToolFacts(events, workspace).filter((f) => f.tool === 'shell' && f.command === command && f.cwd_matches && f.shell
+    && f.shell.timedOut !== true && f.shell.truncated !== true && f.shell.processTreeReaped === true && Number.isInteger(f.shell.exitCode));
+}
+function journeyReadCitations(events, workspace, modelText, source, otherSources = {}) {
+  const expected = { ...otherSources, 'calc.py': source };
+  const reads = new Set(journeyToolFacts(events, workspace).filter((f) => {
+    if (f.tool !== 'read' || typeof f.result !== 'string' || typeof expected[f.path] !== 'string') return false;
+    try {
+      const result = JSON.parse(f.result);
+      return !result.error && result.path === f.path && result.isText === true && result.outsideWorkspace === false && result.truncated === false
+        && result.startLine === 1 && result.linesRead === expected[f.path].replace(/\r\n/g, '\n').split('\n').length
+        && result.totalLines === result.linesRead && result.content === expected[f.path].replace(/\r\n/g, '\n').split('\n').map((line, n) => `${n + 1}: ${line}`).join('\n')
+        && result.contentSha256 === sha256(Buffer.from(expected[f.path], 'utf8'));
+    } catch (_error) { return false; }
+  }).map((f) => f.path));
+  const matches = [...String(modelText).matchAll(/\bcalc\.py:(\d+)\b/g)];
+  const lines = source.split(/\r?\n/); const compact = String(modelText).replace(/\s/g, '');
+  const explanation = compact.includes('add应做加法，实际做减法');
+  const references = matches.map((match, n) => {
+    const line = Number(match[1]); const content = lines[line - 1] || null;
+    const section = String(modelText).slice(match.index + match[0].length, matches[n + 1]?.index).replace(/\s/g, '');
+    return { path: 'calc.py', line, content, matched: Boolean(content && section.includes(content.replace(/\s/g, ''))) };
+  });
+  const quotedLines = references.length > 0 && references.every((r) => Number.isSafeInteger(r.line) && r.line >= 1 && r.line <= 2 && r.matched);
+  return { explanation, quoted_lines: quotedLines, reads: [...reads], references,
+    ok: explanation && quotedLines && ['AGENTS.md', 'README.md', 'calc.py'].every((name) => reads.has(name))
+      && references.some((r) => r.line === 1) && references.some((r) => r.line === 2) };
+
+}
+
+function supplementalReadOnlyFacts(turns, rows, absent) {
+  const tools = ['write', 'shell', 'start_process'];
+  const attempts = tools.map((name, n) => {
+    const prompt = 'a2-readonly:' + name; const observed = rows.filter((r) => !r.probe && r.prompt === prompt && r.prompt_sha256 === sha256(prompt));
+    const issued = observed.some((r) => r.tool_messages === 0 && r.issued_tool === name);
+    const rejected = observed.some((r) => r.tool_messages === 1 && r.rejections?.some((v) => v.tool === name
+      && v.call_id === 'a2-' + sha256(prompt).slice(0, 8) + '-0' && v.kind === 'unavailable_read_only'));
+    const noExecution = Array.isArray(turns[n]?.events) && !turns[n].events.some((e) => ['tool_start', 'tool_end'].includes(e.eventType));
+    return { tool: name, issued, rejected, no_execution: noExecution };
+  });
+  return { absent, attempts, ok: absent === true && turns.length === 3 && attempts.every((a) => a.issued && a.rejected && a.no_execution) };
+}
+
+function supplementalWorkspaceFacts(root) {
+  const files = [];
+  const visit = (directory, depth) => {
+    if (depth > 8) throw new Error('A2_M4_WORKSPACE_DEPTH_LIMIT');
+    for (const item of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (files.length >= 128) throw new Error('A2_M4_WORKSPACE_ENTRY_LIMIT');
+      const absolute = path.join(directory, item.name);
+      const relative = path.relative(root, absolute).split(path.sep).join('/');
+      if (item.isSymbolicLink()) throw new Error('A2_M4_WORKSPACE_LINK_REFUSED');
+      if (item.isDirectory()) { files.push({ path: relative, kind: 'directory' }); visit(absolute, depth + 1); }
+      else if (item.isFile()) {
+        const stat = fs.statSync(absolute);
+        if (stat.size > 1024 * 1024) throw new Error('A2_M4_WORKSPACE_FILE_LIMIT');
+        files.push({ path: relative, kind: 'file', mode: stat.mode, bytes: stat.size, sha256: sha256(fs.readFileSync(absolute)) });
+      } else throw new Error('A2_M4_WORKSPACE_ENTRY_REFUSED');
+    }
+  };
+  visit(root, 0);
+  return files;
+}
+
 function eventData(event) {
   const payload = event && event.payload && typeof event.payload === 'object' ? event.payload : {};
   return payload.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -284,11 +408,11 @@ function withGuard(base, refused) { return base === false || refused === false ?
 // lifecycle tests write, into the candidate's own database, and nothing else.
 const GUARD_STAMP = '2026-01-01T00:00:00.000Z';
 const RESIDUE_PID = 2147483000;
-function insertInterruptedTask(db, conversation, taskId, oldTurnId) {
+function insertInterruptedTask(db, conversation, taskId, oldTurnId, goal = 'b2 guard continue') {
   db.prepare("INSERT INTO a9_tasks(task_id,session_id,status,created_at,updated_at) VALUES(?,?,'interrupted',?,?)").run(taskId, conversation, GUARD_STAMP, GUARD_STAMP);
   db.prepare("INSERT INTO a9_turns(turn_id,task_id,session_id,status,outcome_json,created_at,updated_at) VALUES(?,?,?,'interrupted','{}',?,?)").run(oldTurnId, taskId, conversation, GUARD_STAMP, GUARD_STAMP);
   db.prepare("INSERT INTO a9_events(session_id,turn_id,kind,event_type,payload_json,created_at) VALUES(?,NULL,'model','conversation.request',?,?)")
-    .run(conversation, JSON.stringify({ taskId, requestPrompt: 'b2 guard continue' }), GUARD_STAMP);
+    .run(conversation, JSON.stringify({ taskId, requestPrompt: goal }), GUARD_STAMP);
 }
 // A cleanup_required managed-process fact with a pid that cannot exist; it is removed again by deleteResidueFact.
 function insertResidueFact(db, workspacePath, handleId) {
@@ -625,6 +749,322 @@ function evaluatePaging(full, pages) {
   return { ok: fullIds.length > 0 && JSON.stringify(fullIds) === JSON.stringify(mergedIds), full: fullIds.length, merged: mergedIds.length, pages: pages.length };
 }
 
+// ---- A9-36 supplement evaluators (pure; unit-tested without Electron) ------------------------------------------
+// ---- A9-36 supplement evaluators (pure; exported for the contract tests) ---------------------------------------------------------------------------------
+// Every verdict is a closed list of named checks; an unobserved fact is `undefined`, never equal to another unobserved fact, and fails its check.
+const SUP_SHA40 = /^[0-9a-f]{40}$/;
+const SUP_SHA64 = /^[a-f0-9]{64}$/;
+const supVerdict = (checks) => ({ ok: Object.values(checks).every((v) => v === true), checks });
+const supText = (value) => (typeof value === 'string' ? value : '');
+// An identity or expected value must be observed: two missing values are not "equal".
+const supNonEmpty = (value) => typeof value === 'string' && value.length > 0;
+// An entry of an undo outcome's `restored` list is the path itself or the path followed by one of the notes the checkpoint manager writes (src/workspace/src/checkpoint-manager.ts);
+// matching is by equality, so another file whose name merely begins with the path, or a note of another shape, is not this file.
+const SUP_RESTORED_NOTES = Object.freeze(['此前已撤销，未重复执行', '已移除新建文件', '检测到此前已完成恢复', '已恢复原始目录', '已恢复原始版本']);
+const supRestoredFor = (list, file) => Array.isArray(list) && supNonEmpty(file) && list.some((e) => typeof e === 'string' && (e === file || SUP_RESTORED_NOTES.some((note) => e === `${file} (${note})`)));
+// M1-02: the local bare origin still holds exactly refs/heads/main at the commit it had before the 19 push forms.
+// The product opens the native open dialog for two purposes: the workspace folder (openDirectory) and an explicit Shell executable (openFile, the title names the kind).
+// Each purpose gets its own answer; any other use is refused, so an answer meant for one purpose cannot reach the other.
+function openDialogAnswer(args, workspaceRoot, cmdExecutable) {
+  const options = (Array.isArray(args) ? args : []).find((item) => item && typeof item === 'object' && Array.isArray(item.properties)) || {};
+  const properties = Array.isArray(options.properties) ? options.properties : [];
+  if (properties.includes('openDirectory')) return { canceled: false, filePaths: [workspaceRoot] };
+  if (properties.includes('openFile') && options.title === '选择 cmd Shell 可执行文件') return { canceled: false, filePaths: [cmdExecutable] };
+  throw new Error('A9_36_UNEXPECTED_OPEN_DIALOG');
+}
+// M1-02: nineteen denied push forms. Each card is bound to the command and shows it; the Git binding names origin/main (the 17th form, cat11-bulk-cmd, is bound by the digest of the whole command);
+// nothing ran; origin still holds the one ref it held at setup, and the local main, which is one commit ahead of origin/main, did not move.
+const WHOLE_COMMAND_FORM_INDEX = 16;
+function evaluateGitDenials(f) {
+  const facts = f || {}; const forms = Array.isArray(facts.forms) ? facts.forms : [];
+  const all = (test) => forms.length === 19 && forms.every((x, i) => Boolean(x) && test(x, i));
+  return supVerdict({
+    nineteen_forms: forms.length === 19,
+    each_card_bound: all((x) => x.bound === true && x.visible_bound_card === true && x.row_bound === true),
+    each_denied_without_execution: all((x) => x.no_execution === true && x.approval_decision === 'denied'),
+    origin_main_binding: all((x, i) => (i === WHOLE_COMMAND_FORM_INDEX ? x.remote === null && x.branch === null : x.remote === 'origin' && x.branch === 'main')),
+    origin_refs_unchanged: evaluateOriginRefs(facts.origin_main, facts.refs_before) && facts.refs_before === facts.refs_after && evaluateOriginRefs(facts.origin_main, facts.refs_after),
+    local_main_ahead_unchanged: SUP_SHA40.test(facts.local_main_before || '') && facts.local_main_before !== facts.origin_main && facts.local_main_before === facts.local_main_after
+      && facts.unpushed_before === '1' && facts.unpushed_after === '1',
+  });
+}
+function evaluateOriginRefs(initialMain, refsText) {
+  return SUP_SHA40.test(initialMain || '') && typeof refsText === 'string' && refsText.trim() === `refs/heads/main ${initialMain}`;
+}
+// M1-04: local branch listing, local branch switch, add and an approved local commit; files, index, refs and processes before and after.
+function evaluateLocalBranch(f) {
+  const facts = f || {};
+  const ends = Array.isArray(facts.shell_ends) ? facts.shell_ends : [];
+  return supVerdict({
+    four_shell_calls: ends.length === 4 && ends.every((e) => e && e.exit_code === 0),
+    listed_main: Boolean(ends[0]) && supText(ends[0].stdout).trim() === 'main',
+    branch_before_main: facts.branch_before === 'main',
+    branch_after_topic: facts.branch_after === 'a2-topic',
+    commit_subject: facts.head_subject === 'A2-topic',
+    main_ref_unchanged: SUP_SHA40.test(facts.main_before || '') && facts.main_before === facts.main_after,
+    origin_unchanged: evaluateOriginRefs(facts.origin_main, facts.origin_refs_after),
+    worktree_dirty_before: /^ M probe\.txt$/m.test(supText(facts.status_before)),
+    probe_committed: !/probe\.txt/.test(supText(facts.status_after)) && Array.isArray(facts.head_files) && facts.head_files.includes('probe.txt'),
+    index_changed: typeof facts.index_before === 'string' && typeof facts.index_after === 'string' && facts.index_before !== facts.index_after,
+    blob_matches_file: SUP_SHA40.test(facts.head_blob || '') && facts.head_blob === facts.worktree_blob,
+    approval_accepted: Boolean(facts.approval) && facts.approval.accepted === true,
+    no_new_processes: Array.isArray(facts.new_processes) && facts.new_processes.length === 0,
+  });
+}
+// M1-05, test-class command: a command that ends, with its v3 stream frames persisted in order and the exit code.
+function evaluateTestStream(f) {
+  const facts = f || {};
+  const frames = Array.isArray(facts.frames) ? facts.frames : [];
+  const ends = Array.isArray(facts.ends) ? facts.ends : [];
+  return supVerdict({
+    order_ok: Boolean(facts.order) && facts.order.ok === true,
+    frames_present: frames.length >= 1,
+    frames_in_turn: supNonEmpty(facts.turn_id) && frames.length >= 1 && frames.every((fr) => fr && fr.turnId === facts.turn_id),
+    marker_streamed: frames.some((fr) => supText(fr.text).includes('A2-CHECK')),
+    one_shell_end: ends.length === 1,
+    exit_zero: ends.length === 1 && ends[0].exit_code === 0,
+    stdout_marker: ends.length === 1 && supText(ends[0].stdout).includes('A2-CHECK'),
+    explicit_cmd: facts.shell_kind === 'cmd',
+    completed: ['completed', 'completed_with_warnings'].includes(facts.outcome),
+  });
+}
+// M1-05, build-class command cancelled while it streams: output reached the page store first, the Turn ends cancelled, nothing keeps running or printing.
+function evaluateBuildCancel(f) {
+  const facts = f || {};
+  return supVerdict({
+    start_streamed: facts.start_seen === true,
+    ticks_before_cancel: Number.isSafeInteger(facts.ticks_before_cancel) && facts.ticks_before_cancel >= 2,
+    order_ok: Boolean(facts.order) && facts.order.ok === true,
+    cancelled: facts.terminal_outcome === 'cancelled',
+    output_stopped: Number.isSafeInteger(facts.frames_after_settle) && facts.frames_after_settle === facts.frames_after_wait,
+    no_new_processes: Array.isArray(facts.new_processes) && facts.new_processes.length === 0,
+    process_probe_complete: facts.process_probe_failures === 0,
+  });
+}
+// M1-06: the approval card of a command far above 200 characters, at 1366x768: full command and cwd in the text, nothing clipped, inside the window, controls reachable.
+function evaluateLongCard(f) {
+  const facts = f || {}; const rect = facts.card_rect || {}; const view = facts.viewport || {}; const buttons = Array.isArray(facts.buttons) ? facts.buttons : [];
+  const inside = (r) => Boolean(r) && r.width > 0 && r.height > 0 && r.left >= 0 && r.top >= 0 && r.right <= view.width && r.bottom <= view.height;
+  const command = supText(facts.command); const summary = supText(facts.summary);
+  return supVerdict({
+    command_above_200: command.length > 200,
+    summary_has_command: command.length > 0 && summary.includes(command),
+    summary_has_cwd: summary.includes('cwd=') && facts.cwd_shown_resolves === true,
+    page_text_equals_summary: facts.dom_summary === summary,
+    viewport_1366x768: view.width === 1366 && view.height === 768,
+    card_inside_window: inside(rect),
+    controls_inside_window: buttons.length >= 2 && buttons.every(inside),
+    summary_not_clipped: facts.clipped === false,
+    readable_font: Number.isFinite(facts.font_px) && facts.font_px >= 12,
+    bound_to_command: facts.bound === true,
+    denied_without_execution: facts.denied_ok === true && facts.tool_starts_after === 0,
+  });
+}
+// M1-07 [C]: the package Policy engine alone, Full Access. Wrapped launcher forms and pure data forms are all `allow` under POLICY_FULL_ACCESS_ALLOWED (ADR-0239); controls still ask.
+function evaluateF01(rows, expected) {
+  const list = Array.isArray(rows) ? rows : []; const want = expected || {};
+  const group = (name) => list.filter((r) => r && r.group === name);
+  const allowed = (r) => r.verdict === 'allow' && r.rule_id === 'POLICY_FULL_ACCESS_ALLOWED';
+  const sameSet = (name, commands) => Array.isArray(commands) && group(name).length === commands.length && commands.every((c) => group(name).some((r) => r.command === c));
+  return supVerdict({
+    wrapped_listed: sameSet('wrapped', want.wrapped) && group('wrapped').length === 13,
+    data_listed: sameSet('data', want.data) && group('data').length === 4,
+    controls_listed: sameSet('control', want.controls) && group('control').length === 2,
+    wrapped_allowed: group('wrapped').length === 13 && group('wrapped').every(allowed),
+    data_allowed: group('data').length === 4 && group('data').every(allowed),
+    controls_not_allowed: group('control').length === 2 && group('control').every((r) => r.verdict !== 'allow'),
+    no_execution: want.tool_starts_before !== undefined && want.tool_starts_before === want.tool_starts_after,
+  });
+}
+// M2-04 input binding: the request carries the AGENTS.md that was on disk and one system prompt body, hashed.
+function evaluateInputShas(f) {
+  const facts = f || {}; const requests = Array.isArray(facts.requests) ? facts.requests : [];
+  return supVerdict({
+    two_requests: requests.length === 2,
+    agents_bound: SUP_SHA64.test(facts.agents_sha256 || '') && requests.length > 0 && requests.every((r) => r.agents_sha256 === facts.agents_sha256 && r.agents_in_request === true),
+    system_hashed: requests.length > 0 && requests.every((r) => SUP_SHA64.test(r.system_sha256 || '')),
+    system_stable: requests.length > 0 && new Set(requests.map((r) => r.system_sha256)).size === 1,
+    one_rule_one_environment: requests.length > 0 && requests.every((r) => r.rules === 1 && r.environment === 1),
+  });
+}
+// M2-03 and M2-06 (audit): a required audit write fails; the Turn stops, the next submit is refused with the audit code, nothing is dispatched afterwards.
+function evaluateAuditStage(f) {
+  const facts = f || {}; const counts = facts.requests || {}; const cont = facts.continue_attempts;
+  const checks = {
+    trigger_installed: facts.trigger_installed === true,
+    failing_event_absent: facts.failing_event_rows === 0,
+    turn_not_completed: facts.turn_completed === false,
+    second_tool_never_ran: facts.never_exists === false,
+    no_tool_result_dispatch: Number.isSafeInteger(facts.tool_result_requests) && facts.tool_result_requests <= (facts.max_tool_result_requests || 0),
+    submit_refused: facts.second_submit_ok === false && facts.second_submit_code === 'A9_AUDIT_PERSISTENCE_FAILED',
+    no_request_after_submit: Number.isSafeInteger(counts.after_turn) && counts.after_turn === counts.after_submit,
+    first_request_sent: Number.isSafeInteger(counts.before) && counts.after_turn - counts.before >= 1,
+  };
+  if (facts.require_continue === true) {
+    const counted = (c, a, b) => Number.isSafeInteger(c[a]) && Number.isSafeInteger(c[b]) && c[a] === c[b];
+    checks.continue_blocked = Array.isArray(cont) && cont.length === 2 && cont.every((c) => c && c.code === 'A9_AUDIT_PERSISTENCE_FAILED' && c.ok === false
+      && counted(c, 'requests_before', 'requests_after') && counted(c, 'continue_events_before', 'continue_events_after') && counted(c, 'turns_before', 'turns_after') && counted(c, 'tool_starts_before', 'tool_starts_after'));
+    checks.continue_revisions_differ = Array.isArray(cont) && cont.length === 2 && supNonEmpty(cont[0].revision) && supNonEmpty(cont[1].revision) && cont[0].revision !== cont[1].revision;
+  }
+  return supVerdict(checks);
+}
+// M2-04 (continuation): the new loop reads the AGENTS.md of the moment, the environment facts and the same system prompt; the original goal is carried.
+function evaluateContinueReload(f) {
+  const facts = f || {}; const base = facts.baseline || {}; const lines = Array.isArray(facts.continuation_lines) ? facts.continuation_lines : [];
+  return supVerdict({
+    baseline_bound: SUP_SHA64.test(facts.agents_old_sha256 || '') && base.agents_sha256 === facts.agents_old_sha256 && SUP_SHA64.test(base.system_sha256 || ''),
+    continuation_requests: lines.length >= 1 && lines.every((r) => r.continuation === true),
+    agents_changed: SUP_SHA64.test(facts.agents_new_sha256 || '') && facts.agents_new_sha256 !== facts.agents_old_sha256,
+    agents_reloaded: lines.length >= 1 && lines.every((r) => r.agents_sha256 === facts.agents_new_sha256 && r.agents_in_request === true),
+    only_new_rule_marker: lines.length >= 1 && lines.every((r) => JSON.stringify(r.rule_markers) === JSON.stringify([facts.new_marker]) && r.rules === 1),
+    environment_once: lines.length >= 1 && lines.every((r) => r.environment === 1),
+    system_prompt_same: lines.length >= 1 && lines.every((r) => r.system_sha256 === base.system_sha256),
+    goal_carried: lines.length >= 1 && lines.every((r) => r.prompt === facts.goal),
+  });
+}
+// M2-06 Provider failure: zero automatic dispatch after the failure, one explicit click dispatches, the chain names the failed Turn, a repeated old key returns the original identity.
+function evaluateProviderFailureContinue(f) {
+  const facts = f || {}; const first = facts.first || {}; const second = facts.second || {}; const dup = facts.duplicate || {};
+  return supVerdict({
+    failed_dispatch: Number.isSafeInteger(first.requests_delta) && first.requests_delta >= 1 && first.continue_events === 1,
+    no_automatic_dispatch: Number.isSafeInteger(facts.requests_after_failure) && facts.requests_after_failure === facts.requests_after_wait,
+    actionable_again: stopLeavesActionableCard(facts.recovery_before, facts.recovery_after_failure) === true,
+    click_dispatches: Number.isSafeInteger(second.requests_before) && second.requests_after > second.requests_before && second.requests_before === facts.requests_after_wait,
+    two_continue_events: second.continue_events === 2,
+    chain_names_failed_turn: Boolean(first.turn_id) && second.interrupted_turn_id === first.turn_id
+      && Boolean(facts.recovery_after_failure) && facts.recovery_after_failure.interruptedTurnId === first.turn_id,
+    second_turn_completed: ['completed', 'completed_with_warnings'].includes(second.turn_status),
+    duplicate_identity: dup.ok === true && dup.duplicate === true && Boolean(first.turn_id) && dup.turn_id === first.turn_id,
+    duplicate_no_dispatch: Number.isSafeInteger(dup.requests_before) && dup.requests_before === dup.requests_after && dup.continue_events_before === dup.continue_events_after,
+  });
+}
+// M2-06 budget: a continuation whose non-compressible input is above the saved budget sends nothing, keeps its Turn fact and shows the budget diagnostic.
+function evaluateBudgetClick(f) {
+  const facts = f || {}; const before = facts.before || {}; const after = facts.after || {}; const diag = facts.diagnostic || {};
+  return supVerdict({
+    requests_unchanged: Number.isSafeInteger(before.requests) && before.requests === after.requests,
+    tools_unchanged: Number.isSafeInteger(before.tool_starts) && before.tool_starts === after.tool_starts,
+    turn_fact_kept: Number.isSafeInteger(before.turns) && after.turns === before.turns + 1,
+    continue_event_added: Number.isSafeInteger(before.continue_events) && after.continue_events === before.continue_events + 1,
+    budget_code: diag.code === 'A9_CONTEXT_BUDGET_EXCEEDED',
+    budget_is_saved_value: diag.budgetChars === facts.configured_budget,
+    estimate_above_budget: Number.isFinite(diag.estimatedChars) && diag.estimatedChars > facts.configured_budget,
+    actionable_again: stopLeavesActionableCard(facts.recovery_before, facts.recovery_after) === true,
+  });
+}
+// M2-06 budget, changed condition: only after the input fits is a new request sent.
+function evaluateBudgetChanged(f) {
+  const facts = f || {}; const before = facts.before || {}; const after = facts.after || {};
+  return supVerdict({
+    request_sent: Number.isSafeInteger(before.requests) && after.requests > before.requests,
+    continue_event_added: Number.isSafeInteger(before.continue_events) && after.continue_events === before.continue_events + 1,
+    input_fits: Number.isFinite(facts.chars) && facts.chars > 0 && facts.chars <= facts.configured_budget,
+    turn_completed: ['completed', 'completed_with_warnings'].includes(facts.turn_status),
+  });
+}
+// M3-01 and M3-03: B0 before the Turn, B1 after an external modification of an EXISTING file, B2 after undo. B1 differs from B0 and B2 equals B0, byte for byte.
+function evaluatePerFileStep(step, files) {
+  const pf = step || {}; const target = files.find((x) => x && x.path === pf.path); const outcome = pf.result && pf.result.outcome;
+  return Boolean(target) && pf.result.ok === true && Boolean(outcome) && Array.isArray(outcome.errors) && outcome.errors.length === 0
+    && Array.isArray(outcome.restored) && supRestoredFor(outcome.restored, pf.path) && Boolean(pf.after)
+    && pf.after[pf.path] === target.b0 && files.filter((x) => x.path !== pf.path).every((x) => pf.after[x.path] === x.b1);
+}
+function evaluateExternalBytes(f) {
+  const facts = f || {}; const files = Array.isArray(facts.files) ? facts.files : [];
+  return supVerdict({
+    files_listed: files.length >= 1 && files.every((x) => x && typeof x.path === 'string'),
+    modified: files.length >= 1 && files.every((x) => SUP_SHA64.test(x.b0 || '') && SUP_SHA64.test(x.b1 || '') && x.b1 !== x.b0),
+    expected_content: files.length >= 1 && files.every((x) => supNonEmpty(x.expected_b1_text) && x.b1_text === x.expected_b1_text),
+    in_diff: files.length >= 1 && files.every((x) => Array.isArray(facts.review_paths) && facts.review_paths.includes(x.path)),
+    restored_bytes: files.length >= 1 && files.every((x) => x.b2 === x.b0),
+    undo_ok: Array.isArray(facts.undo_results) && facts.undo_results.length >= 1 && facts.undo_results.every((r) => r && r.ok === true),
+    // `ok` alone does not say that a file was restored: every undo reports its errors, and every file must be listed as restored by some undo.
+    no_undo_errors: Array.isArray(facts.undo_results) && facts.undo_results.length >= 1 && facts.undo_results.every((r) => r && r.outcome && Array.isArray(r.outcome.errors) && r.outcome.errors.length === 0),
+    restored_listed: files.length >= 1 && Array.isArray(facts.undo_results) && files.every((x) => facts.undo_results.some((r) => r && r.outcome && Array.isArray(r.outcome.restored) && supRestoredFor(r.outcome.restored, x.path))),
+    // With a per-file undo before the whole-Turn undo, the bytes right after the per-file undo are the proof that this step worked on its own.
+    per_file_undo: facts.require_per_file !== true || evaluatePerFileStep(facts.per_file, files),
+    // A whole-Turn undo that follows a per-file undo may list the already restored path, so the caller names the results that must be free of drift.
+    no_drift: Array.isArray(facts.drift_results || facts.undo_results) && (facts.drift_results || facts.undo_results).length >= 1
+      && (facts.drift_results || facts.undo_results).every((r) => r && Array.isArray(r.driftReasons) && r.driftReasons.length === 0 && r.outcome && Array.isArray(r.outcome.drifted) && r.outcome.drifted.length === 0),
+  });
+}
+// M3-02: the checkpoint of a continuation Turn belongs to that Turn and conversation, and undo restores the file edited in it.
+function evaluateContinuationCheckpoint(f) {
+  const facts = f || {};
+  return supVerdict({
+    continue_event: Boolean(facts.continuation_turn_id) && facts.continue_events === 1,
+    turn_completed: ['completed', 'completed_with_warnings'].includes(facts.turn_status),
+    file_changed: facts.b0_text === 'cont0\n' && facts.b1_text === 'cont1\n',
+    checkpoint_owned: Boolean(facts.checkpoint) && supNonEmpty(facts.continuation_turn_id) && supNonEmpty(facts.conversation_id) && facts.checkpoint.turn_id === facts.continuation_turn_id && facts.checkpoint.session_id === facts.conversation_id,
+    old_turn_has_no_checkpoint: facts.old_turn_checkpoints === 0,
+    in_diff: Array.isArray(facts.review_paths) && facts.review_paths.includes('cont_target.txt'),
+    undo_restores: facts.undo_ok === true && facts.b2_text === facts.b0_text,
+  });
+}
+// M3-05: the same journey after a product restart on the same data: nothing was sent or replayed at start, the counts and the files are those the main Stage left,
+// the earlier Turn's review is still readable, a second undo of an already undone Turn restores nothing again, and a later Turn goes on.
+function evaluateReviewRestart(f) {
+  const facts = f || {}; const prior = facts.prior || {}; const before = prior.counts || {}; const counts = facts.counts || {}; const undo = facts.reundo || {}; const outcome = undo.outcome || {};
+  const same = (key) => Number.isSafeInteger(counts[key]) && counts[key] === before[key];
+  const sameList = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length >= 1 && JSON.stringify(a) === JSON.stringify(b);
+  const paths = (list) => (Array.isArray(list) ? list.slice().sort() : null);
+  return supVerdict({
+    same_journey: supNonEmpty(prior.conversation_id) && facts.conversation_id === prior.conversation_id && supNonEmpty(prior.first_turn_id),
+    no_request_at_start: facts.requests_at_start === 0 && facts.requests_after_wait === 0,
+    no_replay_in_counts: same('turns') && same('tool_starts') && same('approvals') && same('checkpoints') && same('managed'),
+    files_as_left: sameList(prior.tree, facts.tree),
+    review_readable: facts.review_ok === true && Array.isArray(prior.first_review_paths) && prior.first_review_paths.length >= 1 && JSON.stringify(paths(facts.review_paths)) === JSON.stringify(paths(prior.first_review_paths)),
+    undo_not_replayed: undo.ok === true && Array.isArray(outcome.errors) && outcome.errors.length === 0 && Array.isArray(outcome.drifted) && outcome.drifted.length === 0 && Array.isArray(outcome.restored) && outcome.restored.length >= 1
+      && outcome.restored.every((e) => typeof e === 'string' && e.endsWith(' (此前已撤销，未重复执行)')) && sameList(prior.tree, facts.tree_after_undo),
+    later_turn_continues: ['completed', 'completed_with_warnings'].includes(facts.next_outcome) && supNonEmpty(facts.next_turn_id) && facts.next_turn_id !== prior.first_turn_id && Number.isSafeInteger(facts.next_requests) && facts.next_requests >= 1,
+  });
+}
+// M3-04 (ADR-0243): after the baseline collection a background process writes again; undo keeps the late bytes, names the path as drifted and touches nothing else.
+function evaluateLateWrite(f) {
+  const facts = f || {};
+  return supVerdict({
+    baseline_collected: facts.review_ok === true && Array.isArray(facts.review_paths) && facts.review_paths.includes('late_target.txt') && facts.b1_text === 'late1\n',
+    late_write_happened: SUP_SHA64.test(facts.b1 || '') && SUP_SHA64.test(facts.late || '') && facts.late !== facts.b1 && facts.late_text === 'late2\n',
+    bytes_kept: facts.after_undo === facts.late,
+    path_drifted: Array.isArray(facts.drifted_paths) && facts.drifted_paths.includes('late_target.txt'),
+    undo_answered: facts.undo_ok === true,
+    nothing_else_touched: Array.isArray(facts.tree_before) && JSON.stringify(facts.tree_before) === JSON.stringify(facts.tree_after),
+  });
+}
+// M5 precondition: the system prompt body of the real Provider request, hashed once per request, and the request is only the pinned service and model.
+function evaluateSystemPromptBody(f) {
+  const facts = f || {}; const bodies = Array.isArray(facts.bodies) ? facts.bodies : [];
+  return supVerdict({
+    bodies_captured: bodies.length >= 1,
+    all_hashed: bodies.length >= 1 && bodies.every((b) => SUP_SHA64.test(b.system_sha256 || '') && Number.isSafeInteger(b.system_chars) && b.system_chars > 0),
+    one_body: bodies.length >= 1 && new Set(bodies.map((b) => b.system_sha256)).size === 1,
+    model_pinned: bodies.length >= 1 && bodies.every((b) => b.model === facts.expected_model),
+    marker_recorded: typeof facts.system_prompt_version === 'string' && facts.system_prompt_version.length > 0,
+  });
+}
+// M5 precondition rehearsal: with a managed process alive, a Provider change is refused with A9_PROVIDER_MANAGED_ACTIVE (an expected rejection, not a failure), and the process is untouched.
+function evaluateProviderGuard(f) {
+  const facts = f || {};
+  return supVerdict({
+    process_running: facts.running_before === true,
+    refused: facts.attempt_ok === false && facts.attempt_code === 'A9_PROVIDER_MANAGED_ACTIVE',
+    process_untouched: facts.running_after === true && Number.isSafeInteger(facts.pid_before) && facts.pid_before > 0 && facts.pid_before === facts.pid_after,
+    provider_unchanged: supNonEmpty(facts.model_before) && facts.model_before === facts.model_after && supNonEmpty(facts.base_url_before) && facts.base_url_before === facts.base_url_after,
+    no_request_sent: Number.isSafeInteger(facts.requests_before) && facts.requests_before === facts.requests_after,
+  });
+}
+// §4.2: the isolated Electron userData sits inside the run, and holds no A8 database the product would adopt.
+function evaluateUserDataIsolation(f) {
+  const facts = f || {}; const real = facts.real || {};
+  return supVerdict({
+    inside_run: supNonEmpty(facts.user_data) && supNonEmpty(facts.run_root) && facts.user_data.toLowerCase().startsWith(facts.run_root.toLowerCase()),
+    expected_location: supNonEmpty(facts.expected) && supNonEmpty(facts.user_data) && facts.user_data.toLowerCase() === facts.expected.toLowerCase(),
+    no_a8_database: facts.a8_database_exists === false,
+    // The same three locations after links are resolved.
+    real_inside_run: supNonEmpty(real.run_root) && ['user_data', 'data_root', 'workspace'].every((k) => supNonEmpty(real[k]) && real[k].toLowerCase().startsWith(real.run_root.toLowerCase())),
+  });
+}
+
 // ---- Driver (Electron only) ------------------------------------------------------------------------------------
 
 const results = [];
@@ -636,6 +1076,9 @@ function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function writeJson(file, value) { fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 
 const EXIT_BUTTONS = Object.freeze(['停止后退出', '留给系统后退出', '取消']);
+// The Stage modes of the supplement; the orchestrator's closed STAGE_PLAN may name only these (checked by the contract test and again at start).
+const SUPPLEMENT_MODES = Object.freeze(['supplement_continue_schema', 'supplement_policy_git', 'supplement_verification', 'supplement_audit_output', 'supplement_audit_managed',
+  'supplement_audit_ownership', 'supplement_continue', 'supplement_budget', 'supplement_review', 'supplement_review_restart', 'supplement_provider_guard', 'supplement_real_model']);
 
 async function runDriver() {
   const { app, BrowserWindow, dialog, ipcMain } = require('electron');
@@ -1972,6 +2415,668 @@ async function runDriver() {
     record('B2-UI-02-LAYOUTS-DPI', 1, verdict.status, `layouts=${rows.length}; unusable=${verdict.bad}; card_found=${cardFacts.card_found}; card_unusable_or_disabled=${verdict.card_bad}; shorter_window_run_in_viewport=${shorter.inViewport}; shorter_window_card_usable=${verdict.shorter_card_ok}; page_zoom_only_not_windows_dpi=true; below_800=NOT_VERIFIED`);
   }
 
+  async function continueSchema() {
+    await bootstrap();
+    await waitIdle(20000, 'supplement schema idle');
+    const databaseFacts = () => ({
+      turns: supplementalRowsFacts(dbAll('SELECT * FROM a9_turns ORDER BY rowid LIMIT 1001')),
+      tasks: supplementalRowsFacts(dbAll('SELECT * FROM a9_tasks ORDER BY rowid LIMIT 1001')),
+      events: supplementalRowsFacts(dbAll('SELECT * FROM a9_events ORDER BY rowid LIMIT 1001')),
+      managed: supplementalRowsFacts(dbAll('SELECT * FROM a9_managed_processes ORDER BY rowid LIMIT 1001')),
+      approvals: supplementalRowsFacts(dbAll('SELECT * FROM a9_approvals ORDER BY rowid LIMIT 1001')),
+    });
+    const before = { database: databaseFacts(), provider: await counters(), workspace: supplementalWorkspaceFacts(workspaceRoot) };
+    const api = await exec(`({ keys: Object.keys(window.win7Agent.a9).sort(), requireType: typeof window.require, processType: typeof window.process })`);
+    const ipcStart = ipcLog.length;
+    const observations = [];
+    for (const item of continuationSchemaCases()) {
+      const response = await exec(`window.win7Agent.a9.continueTask(...${JSON.stringify(item.args)})`);
+      observations.push({ ...item, ok: response && response.ok, code: response && response.error && response.error.code });
+    }
+    const after = { database: databaseFacts(), provider: await counters(), workspace: supplementalWorkspaceFacts(workspaceRoot) };
+    const requests = ipcLog.slice(ipcStart).filter((item) => item.action === 'a9.task.continue');
+    const rejected = evaluateContinuationSchema(observations, requests);
+    const countsUnchanged = JSON.stringify(before.database) === JSON.stringify(after.database)
+      && JSON.stringify(before.provider) === JSON.stringify(after.provider);
+    const workspaceUnchanged = JSON.stringify(before.workspace) === JSON.stringify(after.workspace);
+    const isolatedApi = api.requireType === 'undefined' && api.processType === 'undefined'
+      && !api.keys.some((key) => /^(invoke|send|ipcRenderer|execute|exec|spawn|rawIpc)$/i.test(key));
+    out('a2-m4-schema.json', { evidence_level: 'CURRENT_PACKAGE_PUBLIC_PRELOAD_IPC', observations, requests, before, after, api,
+      unreachable_inputs: ['schemaVersion override', 'action override', 'additional payload fields'],
+      scope: 'No arbitrary raw IPC; file side-effect comparison covers only the isolated workspace.' });
+    record('A2-M4-CONTINUE-SCHEMA', 1, rejected ? 'PASS' : 'FAIL', `rejected=${observations.filter((item) => item.code === 'A9_PAYLOAD_INVALID').length}/17; ipc=${requests.length}`);
+    record('A2-M4-CONTINUE-SCHEMA', 2, countsUnchanged && workspaceUnchanged ? 'PASS' : 'FAIL', `database_provider_unchanged=${countsUnchanged}; isolated_workspace_unchanged=${workspaceUnchanged}`);
+    record('A2-M4-CONTINUE-SCHEMA', 3, isolatedApi ? 'PASS' : 'FAIL', 'public API inspected; schema/action overrides are not constructible');
+  }
+
+  // A9-36 candidate-external supplements. All product operations use the real public preload/IPC.
+  // One driver launch runs one Stage of the orchestrator's closed plan (`STAGE_PLAN`); a Stage reports exactly its own assertion ids.
+  const supplementModule = () => {
+    if (!env.A9_ALPHA2_INPUT_MODULE || env.A9_ALPHA2_SUPPLEMENT_MODE !== MODE) throw new Error('A9_36_SUPPLEMENT_INPUT_REQUIRED');
+    return require(env.A9_ALPHA2_INPUT_MODULE);
+  };
+  const localFile = (name) => path.join(workspaceRoot, name);
+  const textFile = (name) => fs.existsSync(localFile(name)) ? fs.readFileSync(localFile(name), 'utf8') : null;
+  const fileSha = (name) => fs.existsSync(localFile(name)) ? sha256(fs.readFileSync(localFile(name))) : null;
+  const supplementAssert = (group, n, ok, facts) => { out(`a2-${group}-${n}.json`, facts); record(`A2-${group.toUpperCase()}`, n, ok === true ? 'PASS' : 'FAIL', JSON.stringify(facts).slice(0, 1600)); };
+  // The fixture reads the workspace AGENTS.md at request time (to bind requests to input hashes), so it must know the workspace.
+  const supplementBootstrap = async () => { const snap = await bootstrap(); await setFixture({ workspace: workspaceRoot }); return snap; };
+  async function supplementTurn(prompt, timeout = 180000) {
+    const proof = await runPrompt(prompt, timeout); const ended = proof.events.filter((e) => isTerminalEvent(e)).slice(-1)[0];
+    if (!ended) throw new Error('A9_36_TERMINAL_MISSING');
+    await waitIdle(30000, 'supplement terminal idle');
+    return { turnId: ended.turnId, ended, data: eventData(ended), events: proof.events.filter((e) => e.turnId === ended.turnId), dom: proof.dom };
+  }
+  const approvalReply = (p, decision, overrides = {}) => exec(`window.win7Agent.a9.resumeApproval(${JSON.stringify(p.approvalId)},${JSON.stringify(decision)},${JSON.stringify(overrides.digest || p.bindingDigest)},${JSON.stringify(overrides.conversation || p.conversationId)},${JSON.stringify(p.taskId)},${JSON.stringify(p.turnId)})`);
+  const turnCount = (conv) => dbAll('SELECT count(*) AS n FROM a9_turns WHERE session_id = ?', conv)[0].n;
+  const toolStartCount = (conv) => dbAll("SELECT count(*) AS n FROM a9_events WHERE session_id = ? AND event_type = 'tool_start'", conv)[0].n;
+  const reviewCounts = (conv) => ({ turns: turnCount(conv), tool_starts: toolStartCount(conv), approvals: dbAll('SELECT count(*) AS n FROM a9_approvals')[0].n,
+    checkpoints: dbAll('SELECT count(*) AS n FROM a9_checkpoints')[0].n, managed: dbAll('SELECT count(*) AS n FROM a9_managed_processes')[0].n });
+  const eventRows = (conv, type) => dbAll('SELECT count(*) AS n FROM a9_events WHERE session_id = ? AND event_type = ?', conv, type)[0].n;
+  const shellEnds = (evts) => evts.filter((e) => e.eventType === 'tool_end' && eventData(e).toolName === 'shell')
+    .map((e) => ({ exit_code: eventData(e).shell ? eventData(e).shell.exitCode : undefined, stdout: (eventData(e).shell && eventData(e).shell.stdout) || '', event_id: e.eventId }));
+  // Local Git facts come from the Git binary the orchestrator pinned, never through the product.
+  const gitCli = (args, cwd) => {
+    const r = childProcess.spawnSync(env.A9_ALPHA2_GIT, args, { cwd: cwd || workspaceRoot, encoding: 'utf8', timeout: 20000, windowsHide: true });
+    return { status: r.status, stdout: String(r.stdout || '').replace(/\s+$/, ''), stderr: String(r.stderr || '').trim().slice(0, 300) };
+  };
+  const originRefs = () => { const r = gitCli(['--git-dir', env.A9_ALPHA2_ORIGIN, 'for-each-ref', '--format=%(refname) %(objectname)']); return r.status === 0 ? r.stdout : null; };
+  // Files of the workspace with their hashes; the recovery store and the repository metadata are not workspace content.
+  function workspaceTree() {
+    const rows = [];
+    const visit = (directory) => {
+      for (const item of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        if (item.name === '.agent_recovery' || item.name === '.git') continue;
+        const absolute = path.join(directory, item.name);
+        if (item.isDirectory()) visit(absolute);
+        else if (item.isFile()) rows.push({ path: path.relative(workspaceRoot, absolute).split(path.sep).join('/'), sha256: sha256(fs.readFileSync(absolute)) });
+      }
+    };
+    visit(workspaceRoot);
+    return rows;
+  }
+  // An interrupted task written the way the A9-32 lifecycle tests write one; the card appears after the page reloads and shows the conversation again.
+  async function injectInterrupted(conv, taskId, oldTurn, goal) {
+    const db = openDb(false);
+    try { insertInterruptedTask(db, conv, taskId, oldTurn, goal); } finally { db.close(); }
+    const recovery = await waitFor(() => findRecovery(taskId), 20000, 'injected recovery fact');
+    await reloadRenderer(); await activateConversation(conv);
+    await waitFor(async () => (await domState()).cards > 0, 30000, 'continue card');
+    return recovery;
+  }
+  // One real click on the card's button: waits for the card to be enabled, the continue event, and the end of the Turn.
+  async function clickAndSettle(conv, taskId, label) {
+    const before = (await continueEventsFor(conv, taskId)).length;
+    await waitFor(async () => { const c = await cardInfo(); return c && c.disabled === false ? c : null; }, 30000, 'enabled continue card ' + label);
+    if ((await clickContinue()) !== 'clicked') throw new Error('A9_36_CONTINUE_NOT_CLICKED');
+    await waitFor(async () => (await continueEventsFor(conv, taskId)).length >= before + 1, 30000, 'continue event ' + label);
+    await waitIdle(120000, 'continue settled ' + label);
+    return continueEventsFor(conv, taskId);
+  }
+  const continueState = async (conv, taskId) => ({ requests: (await counters()).requests, tool_starts: toolStartCount(conv), turns: turnCount(conv), continue_events: (await continueEventsFor(conv, taskId)).length });
+
+  async function deniedGit(prompt, command) {
+    await waitIdle(30000, 'git denial idle'); const baseline = await eventBaseline(); await submit(prompt);
+    const pending = await waitFor(async () => (await snapshot()).pendingApproval || null, 30000, 'git approval');
+    const bound = pending.args && pending.args.command === command && pending.gitBinding && pending.gitBinding.commandSha256 === sha256(command);
+    const card = await exec(`({ visible: !document.getElementById('a9-approval-card').hidden, digest: document.getElementById('a9-approval-card').dataset.bindingDigest })`);
+    const denied = await approvalReply(pending, 'denied');
+    await observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline, pending.turnId)), 30000, 'denied terminal');
+    await waitIdle(30000, 'denied idle');
+    const audit = (await events(pending.conversationId, 1000)).events.filter((e) => e.turnId === pending.turnId);
+    const row = dbAll('SELECT approval_id, session_id, turn_id, decision FROM a9_approvals WHERE approval_id = ?', pending.approvalId)[0];
+    return { command_sha256: sha256(command), bound: Boolean(bound), remote: pending.gitBinding && pending.gitBinding.remote !== undefined ? pending.gitBinding.remote : null,
+      branch: pending.gitBinding && pending.gitBinding.branch !== undefined ? pending.gitBinding.branch : null, visible_bound_card: card.visible && card.digest === pending.bindingDigest,
+      denied_ok: denied && denied.ok, approval_decision: row ? row.decision : null,
+      no_execution: !audit.some((e) => e.eventType === 'tool_start'), row_bound: Boolean(row && row.session_id === pending.conversationId && row.turn_id === pending.turnId) };
+  }
+  const LOCAL_COMMIT = 'git -c user.name=A2 -c user.email=a2@example.invalid commit -m A2-local';
+  async function localCommitTurn(prompt, expected = LOCAL_COMMIT) {
+    await waitIdle(30000, 'local commit idle'); const baseline = await eventBaseline(); await submit(prompt);
+    const pending = await waitFor(async () => (await snapshot()).pendingApproval || null, 30000, 'explicit local commit approval');
+    if (pending.toolName !== 'shell' || pending.args?.command !== expected || pending.gitBinding?.commandSha256 !== sha256(expected)) throw new Error('A9_36_LOCAL_COMMIT_BINDING');
+    const accepted = await approvalReply(pending, 'approved'); if (!accepted.ok) throw new Error('A9_36_LOCAL_COMMIT_REFUSED');
+    const proof = await observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline, pending.turnId)), 60000, 'local commit terminal');
+    await waitIdle(30000, 'local commit settled'); const terminal = targetTurnEnd(proof.events, baseline, pending.turnId);
+    return { turnId: pending.turnId, data: eventData(terminal), events: proof.events.filter((e) => e.turnId === pending.turnId), approval: { command_sha256: sha256(expected), accepted: accepted.ok } };
+  }
+  // M1-07 [C]: the candidate's own Policy engine, Full Access, evaluation only; nothing is dispatched.
+  function f01Rows(module) {
+    const dist = path.join(candidateRoot, 'resources', 'app', 'core', 'dist');
+    const types = require(path.join(dist, 'types.js')); const { PolicyEngine } = require(path.join(dist, 'policy.js'));
+    const engine = new PolicyEngine(); const rows = [];
+    for (const [group, list] of [['wrapped', module.F01_WRAPPED], ['data', module.F01_DATA], ['control', module.F01_CONTROLS]]) {
+      for (const command of list) {
+        const decision = engine.evaluate({ id: 'a2-f01', toolName: 'shell', args: { command }, approvalLevel: types.ApprovalLevel.FULL_ACCESS });
+        rows.push({ group, command, verdict: decision.verdict, rule_id: decision.ruleId });
+      }
+    }
+    return rows;
+  }
+  // M1-06: the approval card of the long command at 1366x768, measured in the page and photographed, then denied.
+  async function longCardTurn(module) {
+    await waitIdle(30000, 'long card idle'); win.setContentSize(1366, 768); await sleep(600);
+    const baseline = await eventBaseline(); await submit('a2-long-card:请执行长命令');
+    const pending = await waitFor(async () => (await snapshot()).pendingApproval || null, 30000, 'long card approval');
+    await sleep(500);
+    const page = await exec(`(() => {
+      const card = document.getElementById('a9-approval-card'); const summary = document.getElementById('a9-approval-summary');
+      const rect = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
+      const style = getComputedStyle(summary);
+      const hidden = (value) => value === 'hidden' || value === 'clip';
+      const clipped = (hidden(style.overflowY) && summary.scrollHeight > summary.clientHeight + 1) || (hidden(style.overflowX) && summary.scrollWidth > summary.clientWidth + 1)
+        || (style.textOverflow === 'ellipsis' && summary.scrollWidth > summary.clientWidth + 1);
+      const buttons = Array.from(card.querySelectorAll('button')).filter((b) => !b.hidden && b.offsetParent !== null).map(rect);
+      return { dom_summary: summary.textContent, card_rect: rect(card), summary_rect: rect(summary), buttons, clipped, font_px: parseFloat(style.fontSize),
+        overflow: [style.overflowX, style.overflowY], white_space: style.whiteSpace, scroll: [summary.scrollWidth, summary.scrollHeight, summary.clientWidth, summary.clientHeight],
+        viewport: { width: window.innerWidth, height: window.innerHeight }, card_hidden: card.hidden };
+    })()`);
+    await screenshot('a2-m1-long-card.png');
+    const denied = await approvalReply(pending, 'denied');
+    await observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline, pending.turnId)), 30000, 'long card denied terminal');
+    await waitIdle(30000, 'long card denied idle');
+    const audit = (await events(pending.conversationId, 1000)).events.filter((e) => e.turnId === pending.turnId);
+    const shown = /shell cwd=(.*?): /s.exec(String(pending.summary || ''));
+    const cwdResolves = Boolean(shown) && path.resolve(workspaceRoot, shown[1]).toLowerCase() === path.resolve(workspaceRoot).toLowerCase();
+    return { command: module.LONG_CARD_COMMAND, command_chars: module.LONG_CARD_COMMAND.length, summary: pending.summary, summary_chars: String(pending.summary || '').length, cwd_shown: shown ? shown[1] : null,
+      cwd_shown_resolves: cwdResolves, dom_summary: page.dom_summary, card_rect: page.card_rect, summary_rect: page.summary_rect, buttons: page.buttons, clipped: page.clipped, font_px: page.font_px,
+      viewport: page.viewport, overflow: page.overflow, white_space: page.white_space, scroll: page.scroll,
+      bound: pending.toolName === 'shell' && Boolean(pending.args) && pending.args.command === module.LONG_CARD_COMMAND && /^[a-f0-9]{64}$/.test(String(pending.bindingDigest || '')),
+      denied_ok: Boolean(denied && denied.ok), tool_starts_after: audit.filter((e) => e.eventType === 'tool_start').length };
+  }
+
+  async function supplementPolicyGit() {
+    await supplementBootstrap(); const module = supplementModule(); const forms = [];
+    const refsBefore = originRefs(); const localBefore = { main: gitCli(['rev-parse', 'refs/heads/main']).stdout, unpushed: gitCli(['rev-list', '--count', 'refs/remotes/origin/main..refs/heads/main']).stdout };
+    for (let n = 0; n < module.GIT_FORMS.length; n++) forms.push(await deniedGit(`a2-git:${n}`, module.GIT_FORMS[n]));
+    const refsAfter = originRefs(); const localAfter = { main: gitCli(['rev-parse', 'refs/heads/main']).stdout, unpushed: gitCli(['rev-list', '--count', 'refs/remotes/origin/main..refs/heads/main']).stdout };
+    const denials = evaluateGitDenials({ forms, origin_main: env.A9_ALPHA2_ORIGIN_MAIN, refs_before: refsBefore, refs_after: refsAfter, local_main_before: localBefore.main, local_main_after: localAfter.main,
+      unpushed_before: localBefore.unpushed, unpushed_after: localAfter.unpushed });
+    supplementAssert('m1-policy-git', 1, denials.ok, { forms, entry_alternation: 'shell/start_process', origin: { main_before_forms: env.A9_ALPHA2_ORIGIN_MAIN, refs_before: refsBefore, refs_after: refsAfter },
+      local: { before: localBefore, after: localAfter }, verdict: denials });
+    await exec('window.win7Agent.a9.setMode("read_only")');
+    await waitFor(async () => (await snapshot()).mode === 'read_only', 10000, 'read only');
+    const ro = [];
+    for (const name of ['write', 'shell', 'start_process']) ro.push(await supplementTurn('a2-readonly:' + name));
+    const absent = ['readonly.txt', 'readonly-shell.txt', 'readonly-start.txt'].every((n) => !fs.existsSync(localFile(n)));
+    const readOnly = supplementalReadOnlyFacts(ro, providerLines(), absent);
+    supplementAssert('m1-policy-git', 2, readOnly.ok, { ...readOnly, terminals: ro.map((r) => r.data) });
+    await ensureMode();
+    fs.writeFileSync(localFile('probe.txt'), 'modified before approved reset\n', 'utf8');
+    const baseline = await eventBaseline(); await submit('a2-approve');
+    const pending = await waitFor(async () => (await snapshot()).pendingApproval || null, 30000, 'reset approval');
+    const before = await counters(); const wrongDigest = await approvalReply(pending, 'approved', { digest: '0'.repeat(64) });
+    const wrongTarget = await approvalReply(pending, 'approved', { conversation: 'wrong-conversation' });
+    const afterWrong = await counters(); const stillPending = (await snapshot()).pendingApproval;
+    const unchanged = textFile('probe.txt') === 'modified before approved reset\n';
+    supplementAssert('m1-policy-git', 3, wrongDigest.ok === false && wrongTarget.ok === false && unchanged && before.requests === afterWrong.requests
+      && stillPending && stillPending.approvalId === pending.approvalId, { wrongDigest, wrongTarget, unchanged, requests_before: before.requests, requests_after: afterWrong.requests });
+    const approved = await approvalReply(pending, 'approved');
+    const reset = await observeUntil(async (evts) => Boolean(targetTurnEnd(evts, baseline, pending.turnId)), 30000, 'approved reset');
+    await waitIdle(30000, 'reset idle');
+    const resetAudit = reset.events.filter((e) => e.turnId === pending.turnId);
+    supplementAssert('m1-policy-git', 4, approved.ok === true && textFile('probe.txt') === 'value 0\n'
+      && resetAudit.some((e) => e.eventType === 'tool_end' && eventData(e).shell?.exitCode === 0), { approved, restored: textFile('probe.txt'), events: resetAudit });
+    fs.writeFileSync(localFile('probe.txt'), 'local commit content\n', 'utf8');
+    const local = await localCommitTurn('a2-git-local:请创建本地Git提交，只提交probe.txt');
+    const result = gitCli(['log', '-1', '--format=%s']);
+    const ends = local.events.filter((e) => e.eventType === 'tool_end' && eventData(e).toolName === 'shell');
+    supplementAssert('m1-policy-git', 5, result.status === 0 && result.stdout.trim() === 'A2-local' && ends.length === 4 && ends.every((e) => eventData(e).shell?.exitCode === 0), { last_commit: result.stdout.trim(), terminal: local.data, shell_ends: ends });
+    // Explicit CMD uses the product shell selector; this is separate from automatic fallback in an absent-PS environment.
+    const shellBefore = (await snapshot()).shell;
+    const cmdResult = await exec('window.win7Agent.a9.configureShell({kind:"cmd",envOverlay:{}})');
+    const cmdShell = (await snapshot()).shell; const cmdConfigured = cmdResult.ok === true && cmdShell.kind === 'cmd'; let cmdTurn = null;
+    // A failed configuration is recorded and stops the Stage here: the commands below would run in the previous Shell and prove nothing about CMD.
+    if (cmdConfigured) {
+      fs.writeFileSync(localFile('probe.txt'), 'local CMD commit content\n', 'utf8');
+      cmdTurn = await localCommitTurn('a2-git-local:请创建本地Git提交，只提交probe.txt');
+    }
+    supplementAssert('m1-policy-git', 6, cmdConfigured && cmdTurn.events.some((e) => e.eventType === 'tool_end' && eventData(e).shell?.exitCode === 0),
+      { previous_shell: shellBefore, cmd_result: cmdResult, cmd_shell: cmdShell, cmd_executable: cmdExecutable, terminal: cmdTurn ? cmdTurn.data : null, automatic_fallback: 'NOT_PERFORMED_HOST_POWERSHELL_PRESENT', fresh_local_commit: cmdConfigured });
+    if (!cmdConfigured) throw new Error('A9_36_CMD_NOT_CONFIGURED');
+    // M1-04: local branch listing, local branch switch, add and an approved local commit; the repository, index, files and processes are read before and after.
+    fs.writeFileSync(localFile('probe.txt'), 'topic branch content\n', 'utf8');
+    const branchBefore = gitCli(['branch', '--show-current']).stdout; const mainBefore = gitCli(['rev-parse', 'refs/heads/main']).stdout;
+    const statusBefore = gitCli(['status', '--porcelain']).stdout; const indexBefore = gitCli(['ls-files', '-s']).stdout; const treeBefore = myTree();
+    const topicCommit = 'git -c user.name=A2 -c user.email=a2@example.invalid commit -m A2-topic';
+    const topic = await localCommitTurn('a2-git-branch:请在本地分支提交probe.txt', topicCommit);
+    await sleep(1500);
+    const topicFacts = { shell_ends: shellEnds(topic.events), branch_before: branchBefore, branch_after: gitCli(['branch', '--show-current']).stdout, head_subject: gitCli(['log', '-1', '--format=%s']).stdout,
+      main_before: mainBefore, main_after: gitCli(['rev-parse', 'refs/heads/main']).stdout, origin_main: env.A9_ALPHA2_ORIGIN_MAIN, origin_refs_after: originRefs(),
+      status_before: statusBefore, status_after: gitCli(['status', '--porcelain']).stdout, index_before: indexBefore, index_after: gitCli(['ls-files', '-s']).stdout,
+      head_files: gitCli(['ls-tree', '-r', '--name-only', 'HEAD']).stdout.split('\n').filter(Boolean), head_blob: gitCli(['rev-parse', 'HEAD:probe.txt']).stdout,
+      worktree_blob: gitCli(['hash-object', 'probe.txt']).stdout, approval: topic.approval, new_processes: newProcesses(treeBefore, myTree()) };
+    const topicVerdict = evaluateLocalBranch(topicFacts);
+    supplementAssert('m1-policy-git', 7, topicVerdict.ok, { ...topicFacts, terminal: topic.data, verdict: topicVerdict });
+    // M1-05: a test-class command that ends, with its v3 stream frames; the shell is the explicitly selected CMD.
+    // check.py exits 0 only when probe.txt starts with 'value '; the branch step above left other content, so the test input is set explicitly.
+    fs.writeFileSync(localFile('probe.txt'), 'value test\n', 'utf8');
+    const testTurn = await supplementTurn('a2-cmd-test:请运行测试');
+    const testFrames = framesFromEvents(testTurn.events); const testVerdict = evaluateTestStream({ frames: testFrames, order: evaluateStreamOrder(testFrames), ends: shellEnds(testTurn.events),
+      turn_id: testTurn.turnId, shell_kind: (await snapshot()).shell.kind, outcome: testTurn.data.outcome });
+    supplementAssert('m1-policy-git', 8, testVerdict.ok, { frames: testFrames.length, frame_texts: testFrames.map((fr) => fr.text).slice(0, 8), order: evaluateStreamOrder(testFrames), ends: shellEnds(testTurn.events), terminal: testTurn.data, verdict: testVerdict });
+    // M1-05: a build-class command cancelled while it streams.
+    const buildTree = myTree(); const buildBaseline = await eventBaseline(); await waitIdle(30000, 'build idle'); await submit('a2-cmd-build:请运行构建');
+    const ticksNeeded = 2; const streaming = await observeUntil(async (evts) => framesFromEvents(evts).filter((fr) => fr.text.includes('A2-BUILD-TICK')).length >= ticksNeeded, 120000, 'build ticks');
+    const framesBeforeCancel = framesFromEvents(streaming.events).filter((fr) => fr.eventId > buildBaseline);
+    await exec('document.getElementById("cancel-task").click(); true');
+    await waitIdle(60000, 'build cancelled'); await sleep(3000);
+    const buildConv = await conversationId(); const afterSettle = (await events(buildConv, 1000)).events.filter((e) => e.eventId > buildBaseline);
+    await sleep(3000);
+    const afterWait = (await events(buildConv, 1000)).events.filter((e) => e.eventId > buildBaseline);
+    const buildTerminal = afterWait.filter(isTerminalEvent).slice(-1)[0];
+    const wmicBefore = wmicFailures; const buildNew = newProcesses(buildTree, myTree());
+    const buildFrames = framesFromEvents(afterWait);
+    const buildVerdict = evaluateBuildCancel({ start_seen: framesBeforeCancel.some((fr) => fr.text.includes('A2-BUILD-START')), ticks_before_cancel: framesBeforeCancel.filter((fr) => fr.text.includes('A2-BUILD-TICK')).length,
+      order: evaluateStreamOrder(buildFrames), terminal_outcome: buildTerminal ? eventData(buildTerminal).outcome : null, frames_after_settle: framesFromEvents(afterSettle).length, frames_after_wait: buildFrames.length,
+      new_processes: buildNew, process_probe_failures: wmicFailures - wmicBefore });
+    supplementAssert('m1-policy-git', 9, buildVerdict.ok, { frames_before_cancel: framesBeforeCancel.length, frames_total: buildFrames.length, terminal: buildTerminal ? eventData(buildTerminal) : null, new_processes: buildNew,
+      shell_ends: shellEnds(afterWait), verdict: buildVerdict });
+    // M1-06: the long command card at 1366x768.
+    const card = await longCardTurn(module); const cardVerdict = evaluateLongCard(card);
+    supplementAssert('m1-policy-git', 10, cardVerdict.ok, { ...card, verdict: cardVerdict });
+    // M1-07 [C]: F-01 characterisation by the package Policy engine; no tool dispatched.
+    const startsBefore = dbAll("SELECT count(*) AS n FROM a9_events WHERE event_type = 'tool_start'")[0].n;
+    const rows = f01Rows(module);
+    const startsAfter = dbAll("SELECT count(*) AS n FROM a9_events WHERE event_type = 'tool_start'")[0].n;
+    const f01 = evaluateF01(rows, { wrapped: module.F01_WRAPPED, data: module.F01_DATA, controls: module.F01_CONTROLS, tool_starts_before: startsBefore, tool_starts_after: startsAfter });
+    supplementAssert('m1-policy-git', 11, f01.ok, { level: 'COMPONENT_PACKAGE_POLICY_ENGINE', mode: 'full_access', rows, tool_starts: { before: startsBefore, after: startsAfter }, verdict: f01,
+      meaning: 'behaviour matches known limitation F-01 (ADR-0239); it does not show that wrappers ask for confirmation', unknown_modes: ['review', 'workspace_write'] });
+  }
+  async function supplementVerification() {
+    await supplementBootstrap(); const verification = [];
+    for (let n = 1; n <= 5; n++) {
+      fs.writeFileSync(localFile('probe.txt'), `value ${n - 1}\n`, 'utf8');
+      const turn = await supplementTurn(`a2-verify:${n}`);
+      verification.push({ round: n, ...turn });
+    }
+    await waitFor(() => fs.existsSync(localFile('background-effect.txt')) ? true : null, 30000, 'verification background effect');
+    await stopAllManaged();
+    const largeFailure = verification[3].events.some((e) => e.eventType === 'tool_end' && eventData(e).shell?.exitCode === 1 && (eventData(e).shell?.stdout || '').length >= 20000);
+    const expected = ['unverified', 'verified', 'unverified', 'unverified', 'unverified'];
+    supplementAssert('m2-verification', 1, largeFailure && verification.every((t, n) => t.data.verification === expected[n]), { largeFailure, expected, observed: verification.map((t) => t.data),
+      checks: verification.map((t) => ({ turnId: t.turnId, verification_events: t.events.filter((e) => ['verification_result', 'tool_end'].includes(e.eventType)) })) });
+    const provider = [];
+    for (const reason of ['tool_calls', 'missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']) {
+      await newConversation(); if (fs.existsSync(localFile('provider-effect.txt'))) fs.unlinkSync(localFile('provider-effect.txt'));
+      const turn = await supplementTurn('a2-provider:' + reason);
+      provider.push({ reason, terminal: turn.data, written: textFile('provider-effect.txt'), starts: turn.events.filter((e) => e.eventType === 'tool_start').length });
+    }
+    supplementAssert('m2-verification', 2, provider[0].written === 'tool_calls' && provider[0].starts === 1
+      && provider.slice(1).every((p) => p.written === null && p.starts === 0 && p.terminal.outcome === 'failed'), { provider });
+    const rules = []; const agentsSha = sha256(textFile('AGENTS.md'));
+    for (let n = 0; n < 2; n++) { await newConversation(); const turn = await supplementTurn('a2-rules'); rules.push({ turnId: turn.turnId, started: turn.events.find((e) => e.eventType === 'turn_started') }); }
+    const requests = providerLines().filter((r) => r.prompt === 'a2-rules' && !r.probe);
+    supplementAssert('m2-verification', 3, requests.length === 2 && requests.every((r) => r.rules === 1 && r.environment === 1), { requests, rules });
+    const before = await counters(); const retry = await supplementTurn('a2-context-retry'); const after = await counters();
+    supplementAssert('m2-verification', 4, after.requests - before.requests === 2 && ['completed', 'completed_with_warnings'].includes(retry.data.outcome), { requests: after.requests - before.requests, terminal: retry.data, irreducible_budget: 'DEFERRED_NOT_RUN' });
+    fs.writeFileSync(localFile('probe.txt'), 'value 0\n', 'utf8');
+    const db = openDb(false);
+    try { db.exec("CREATE TRIGGER a2_tool_start_failure BEFORE INSERT ON a9_events WHEN NEW.event_type='tool_start' AND json_extract(NEW.payload_json,'$.data.toolName')='edit' BEGIN SELECT RAISE(FAIL,'a2 injected tool_start failure'); END"); }
+    finally { db.close(); }
+    const auditBefore = await counters();
+    const response = await exec('window.win7Agent.a9.submitTurn("a2-audit-start")');
+    await waitIdle(30000, 'tool start audit failure');
+    const second = await exec('window.win7Agent.a9.submitTurn("a2-rules")'); const auditAfter = await counters();
+    const currentEvents = (await events(await conversationId(), 1000)).events;
+    supplementAssert('m2-verification', 5, textFile('probe.txt') === 'value 0\n' && !fs.existsSync(localFile('never.txt'))
+      && second.ok === false && auditAfter.requests - auditBefore.requests === 2, { response, second, requests: auditAfter.requests - auditBefore.requests,
+        content: textFile('probe.txt'), never_exists: fs.existsSync(localFile('never.txt')), audit_tail: currentEvents.slice(-15) });
+    // M2-04: the request is bound to the AGENTS.md that was on disk and to one system prompt body, by hash.
+    const inputs = evaluateInputShas({ agents_sha256: agentsSha, requests });
+    supplementAssert('m2-verification', 6, inputs.ok, { agents_sha256: agentsSha, requests: requests.map((r) => ({ request: r.request, agents_sha256: r.agents_sha256, agents_in_request: r.agents_in_request, system_sha256: r.system_sha256, rules: r.rules, environment: r.environment })), verdict: inputs });
+  }
+  // M2-03: one required audit write fails in its own product start (the block lasts until the product restarts). `spec.failing` is the event type whose write is refused.
+  async function auditStage(spec) {
+    await supplementBootstrap(); await newConversation(); const conv = await conversationId();
+    const db = openDb(false);
+    try { db.exec(spec.trigger_sql); } finally { db.close(); }
+    const installed = dbAll("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?", spec.trigger_name).length === 1;
+    const before = await counters(); const lineStart = providerLines().length;
+    const response = await exec(`window.win7Agent.a9.submitTurn(${JSON.stringify(spec.prompt)})`);
+    await waitIdle(60000, spec.trigger_name + ' turn ended');
+    const afterTurn = await counters();
+    const second = await exec('window.win7Agent.a9.submitTurn("a2-rules")'); const afterSubmit = await counters();
+    const lines = providerLines().slice(lineStart).filter((r) => !r.probe && r.prompt === spec.prompt);
+    const all = (await events(conv, 1000)).events;
+    const facts = { prompt: spec.prompt, failing: spec.failing, trigger_installed: installed, response_ok: response && response.ok, response_code: response && response.error ? response.error.code : null,
+      failing_event_rows: eventRows(conv, spec.failing), turn_completed: all.some((e) => e.eventType === 'turn_completed'), never_exists: spec.never_file ? fs.existsSync(localFile(spec.never_file)) : false,
+      tool_result_requests: lines.filter((r) => r.tool_messages >= 1).length, max_tool_result_requests: spec.max_tool_result_requests || 0, tool_starts: toolStartCount(conv), provider_lines: lines.map((r) => ({ request: r.request, tool_messages: r.tool_messages, issued_tool: r.issued_tool })),
+      second_submit_ok: second && second.ok, second_submit_code: second && second.error ? second.error.code : null,
+      requests: { before: before.requests, after_turn: afterTurn.requests, after_submit: afterSubmit.requests }, require_continue: spec.with_continue === true };
+    if (spec.with_continue) {
+      const taskId = 'a2-audit-task';
+      const dbTask = openDb(false);
+      try { insertInterruptedTask(dbTask, conv, taskId, 'a2-audit-old-turn', 'a2-rules'); } finally { dbTask.close(); }
+      const recovery = await waitFor(() => findRecovery(taskId), 20000, 'audit recovery fact');
+      const attempt = async (revision) => {
+        const s0 = await continueState(conv, taskId);
+        const result = await exec(`window.win7Agent.a9.continueTask(${JSON.stringify(conv)}, ${JSON.stringify(taskId)}, ${JSON.stringify(recovery.interruptedTurnId)}, ${JSON.stringify(revision)})`);
+        const s1 = await continueState(conv, taskId);
+        return { ok: result && result.ok, code: result && result.error ? result.error.code : null, revision, requests_before: s0.requests, requests_after: s1.requests, continue_events_before: s0.continue_events,
+          continue_events_after: s1.continue_events, turns_before: s0.turns, turns_after: s1.turns, tool_starts_before: s0.tool_starts, tool_starts_after: s1.tool_starts, blocked_reason_on_card: recovery.blockedReason || null };
+      };
+      facts.continue_attempts = [await attempt(recovery.recoveryRevision), await attempt('f'.repeat(64))];
+    }
+    const verdict = evaluateAuditStage(facts);
+    // The injected trigger and any leftover background process are removed; the data root is disposable.
+    try { const cleanup = openDb(false); try { cleanup.exec(`DROP TRIGGER IF EXISTS ${spec.trigger_name}`); } finally { cleanup.close(); } } catch (_error) { /* disposable data root */ }
+    await sleep(spec.settle_ms || 0);
+    try { await stopAllManaged(); } catch (error) { facts.stop_all_error = String(error && error.message ? error.message : error).slice(0, 200); }
+    supplementAssert('m2-verification', spec.id, verdict.ok, { ...facts, verdict });
+  }
+  const supplementAuditOutput = () => auditStage({ id: 7, prompt: 'a2-audit-output', failing: 'tool_output', never_file: 'never-output.txt', with_continue: true, trigger_name: 'a2_tool_output_failure',
+    trigger_sql: "CREATE TRIGGER a2_tool_output_failure BEFORE INSERT ON a9_events WHEN NEW.event_type='tool_output' AND json_extract(NEW.payload_json,'$.data.toolName')='shell' BEGIN SELECT RAISE(FAIL,'a2 injected tool_output failure'); END" });
+  const supplementAuditManaged = () => auditStage({ id: 8, prompt: 'a2-audit-managed', failing: 'tool_output', never_file: null, max_tool_result_requests: 1, settle_ms: 4000, trigger_name: 'a2_managed_output_failure',
+    trigger_sql: "CREATE TRIGGER a2_managed_output_failure BEFORE INSERT ON a9_events WHEN NEW.event_type='tool_output' AND json_extract(NEW.payload_json,'$.data.toolName')='start_process' BEGIN SELECT RAISE(FAIL,'a2 injected managed tool_output failure'); END" });
+  const supplementAuditOwnership = () => auditStage({ id: 9, prompt: 'a2-audit-ownership', failing: 'managed_process_ownership', never_file: 'never-ownership.txt', settle_ms: 1000, trigger_name: 'a2_ownership_failure',
+    trigger_sql: "CREATE TRIGGER a2_ownership_failure BEFORE INSERT ON a9_events WHEN NEW.event_type='managed_process_ownership' BEGIN SELECT RAISE(FAIL,'a2 injected ownership event failure'); END" });
+  // M2-04 (continuation) and M2-06 (Provider failure): an interrupted task, a changed AGENTS.md, a failing Provider, one click; then the Provider recovers and one more click.
+  async function supplementContinue() {
+    await supplementBootstrap(); await newConversation(); const conv = await conversationId();
+    const taskId = 'a2-cont-task'; const goal = 'a2-rules'; const newMarker = 'A2-RULE-MARKER-CHANGED';
+    const agentsOld = textFile('AGENTS.md'); const agentsOldSha = sha256(agentsOld);
+    await supplementTurn(goal);
+    const baseline = providerLines().filter((r) => !r.probe && r.prompt === goal && r.continuation === false)[0] || null;
+    const recovery0 = await injectInterrupted(conv, taskId, 'a2-cont-old-turn', goal);
+    const agentsNew = `# ${newMarker}\nOnly change files in this isolated workspace.\nThe rule text changed after the interruption.\n`;
+    fs.writeFileSync(localFile('AGENTS.md'), agentsNew, 'utf8'); const agentsNewSha = sha256(agentsNew);
+    await setFixture({ providerFail: true });
+    const s0 = await continueState(conv, taskId); const lineStart = providerLines().length;
+    const events1 = await clickAndSettle(conv, taskId, 'provider failure');
+    const s1 = await continueState(conv, taskId);
+    const continuationLines = providerLines().slice(lineStart).filter((r) => !r.probe);
+    const recovery1 = await waitFor(async () => { const r = await findRecovery(taskId); return r && r.interruptedTurnId !== recovery0.interruptedTurnId ? r : null; }, 30000, 'recovery after failed continuation');
+    const reload = evaluateContinueReload({ baseline, continuation_lines: continuationLines, agents_old_sha256: agentsOldSha, agents_new_sha256: agentsNewSha, new_marker: newMarker, goal });
+    supplementAssert('m2-verification', 10, reload.ok, { baseline: baseline && { agents_sha256: baseline.agents_sha256, system_sha256: baseline.system_sha256, rule_markers: baseline.rule_markers },
+      continuation_lines: continuationLines.map((r) => ({ request: r.request, continuation: r.continuation, prompt: r.prompt, rules: r.rules, rule_markers: r.rule_markers, environment: r.environment, agents_sha256: r.agents_sha256, agents_in_request: r.agents_in_request, system_sha256: r.system_sha256, chars: r.chars })),
+      agents_old_sha256: agentsOldSha, agents_new_sha256: agentsNewSha, budget_chars_in_snapshot: ((await snapshot()).contextWindow || {}).budgetChars, verdict: reload });
+    const requestsAfterFailure = (await counters()).requests;
+    await sleep(3000);
+    const requestsAfterWait = (await counters()).requests;
+    await setFixture({ providerFail: false });
+    const s2 = await continueState(conv, taskId);
+    const events2 = await clickAndSettle(conv, taskId, 'provider recovered');
+    const s3 = await continueState(conv, taskId);
+    const first = events1[0]; const secondEvent = events2[events2.length - 1];
+    const dupBefore = await continueState(conv, taskId);
+    const duplicate = await exec(`window.win7Agent.a9.continueTask(${JSON.stringify(conv)}, ${JSON.stringify(taskId)}, ${JSON.stringify(recovery0.interruptedTurnId)}, ${JSON.stringify(recovery0.recoveryRevision)})`);
+    const dupAfter = await continueState(conv, taskId);
+    const failure = evaluateProviderFailureContinue({ first: { requests_delta: s1.requests - s0.requests, continue_events: s1.continue_events - s0.continue_events, turn_id: first ? first.turnId : null },
+      requests_after_failure: requestsAfterFailure, requests_after_wait: requestsAfterWait, recovery_before: recovery0, recovery_after_failure: recovery1,
+      second: { requests_before: s2.requests, requests_after: s3.requests, continue_events: s3.continue_events, interrupted_turn_id: secondEvent ? eventData(secondEvent).interruptedTurnId : null, turn_status: secondEvent ? turnStatus(secondEvent.turnId) : null },
+      duplicate: { ok: duplicate && duplicate.ok, duplicate: duplicate && duplicate.continuation ? duplicate.continuation.duplicate === true : null, turn_id: duplicate && duplicate.continuation ? duplicate.continuation.turnId : null,
+        requests_before: dupBefore.requests, requests_after: dupAfter.requests, continue_events_before: dupBefore.continue_events, continue_events_after: dupAfter.continue_events } });
+    supplementAssert('m2-verification', 11, failure.ok, { s0, s1, s2, s3, requests_after_failure: requestsAfterFailure, requests_after_wait: requestsAfterWait, recovery_before: recovery0, recovery_after_failure: recovery1,
+      first_turn: first ? first.turnId : null, second_event: secondEvent ? { turnId: secondEvent.turnId, interrupted: eventData(secondEvent).interruptedTurnId } : null, duplicate, verdict: failure });
+  }
+  // M2-06 (budget), in a second product start on the same data: the saved budget is 16000 characters, the workspace rules fill most of it, a continuation sends nothing and says why.
+  async function supplementBudget() {
+    await supplementBootstrap(); const conv = await conversationId(); const configured = ((await snapshot()).contextWindow || {}).budgetChars;
+    const taskId = 'a2-budget-task'; const goal = 'a2-rules'; const small = textFile('AGENTS.md');
+    const filler = `# A2-RULE-MARKER-BIG\n${'Budget filler line for the non-compressible context of the continuation request.\n'.repeat(300)}`;
+    if (Buffer.byteLength(filler, 'utf8') >= 32 * 1024) throw new Error('A9_36_BUDGET_FILLER_TOO_LARGE');
+    fs.writeFileSync(localFile('AGENTS.md'), filler, 'utf8');
+    const recovery0 = await injectInterrupted(conv, taskId, 'a2-budget-old-turn', goal);
+    const diagnostic = async (turnId) => {
+      const failed = (await events(conv, 1000)).events.filter((e) => e.turnId === turnId && e.eventType === 'turn_failed').map(eventData)[0] || {};
+      return { code: failed.code, budgetChars: failed.budgetChars, estimatedChars: failed.estimatedChars, error: failed.error };
+    };
+    const click = async (label, recoveryBefore) => {
+      const before = await continueState(conv, taskId); const all = await clickAndSettle(conv, taskId, label); const after = await continueState(conv, taskId);
+      const turnId = all[all.length - 1].turnId; const recoveryAfter = await waitFor(async () => { const r = await findRecovery(taskId); return r && r.interruptedTurnId !== recoveryBefore.interruptedTurnId ? r : null; }, 30000, 'recovery after ' + label).catch(() => null);
+      return { before, after, turnId, recoveryBefore, recoveryAfter, diagnostic: await diagnostic(turnId) };
+    };
+    const first = await click('budget first', recovery0);
+    const firstVerdict = evaluateBudgetClick({ before: first.before, after: first.after, diagnostic: first.diagnostic, configured_budget: configured, recovery_before: first.recoveryBefore, recovery_after: first.recoveryAfter });
+    supplementAssert('m2-verification', 12, configured === 16000 && firstVerdict.ok, { configured_budget_in_snapshot: configured, agents_chars: filler.length, first: { ...first, recoveryBefore: undefined, recoveryAfter: undefined }, verdict: firstVerdict });
+    const second = await click('budget second, same condition', first.recoveryAfter || recovery0);
+    const secondVerdict = evaluateBudgetClick({ before: second.before, after: second.after, diagnostic: second.diagnostic, configured_budget: configured, recovery_before: second.recoveryBefore, recovery_after: second.recoveryAfter });
+    fs.writeFileSync(localFile('AGENTS.md'), small, 'utf8');
+    const lineStart = providerLines().length;
+    const third = await click('budget third, condition changed', second.recoveryAfter || first.recoveryAfter || recovery0);
+    const fitLine = providerLines().slice(lineStart).filter((r) => !r.probe && r.continuation === true)[0] || null;
+    const changed = evaluateBudgetChanged({ before: third.before, after: third.after, chars: fitLine ? fitLine.chars : null, configured_budget: configured, turn_status: turnStatus(third.turnId) });
+    supplementAssert('m2-verification', 13, secondVerdict.ok && changed.ok, { second: { ...second, recoveryBefore: undefined, recoveryAfter: undefined }, second_verdict: secondVerdict,
+      third: { ...third, recoveryBefore: undefined, recoveryAfter: undefined }, request_chars: fitLine ? fitLine.chars : null, changed_verdict: changed });
+  }
+
+  async function reviewUi(turnId, file) {
+    await waitFor(() => exec(`(() => {
+      const row=Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row')).find(r=>r.querySelector('.checkpoint-id')?.textContent===${JSON.stringify(turnId)});
+      const button=Array.from(row?.querySelectorAll('.checkpoint-actions button')||[]).find(b=>b.textContent==='查看改动');
+      if(button&&!button.disabled){button.click();return true;}return false;})()`), 15000, 'review show changes');
+    return waitFor(() => exec(`(() => {
+      const row=Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row')).find(r=>r.querySelector('.checkpoint-id')?.textContent===${JSON.stringify(turnId)});
+      const toggle=Array.from(row?.querySelectorAll('.review-file-toggle')||[]).find(b=>b.textContent.includes(${JSON.stringify(file)}));
+      if(toggle&&toggle.getAttribute('aria-expanded')!=='true')toggle.click();
+      const detail=toggle?.closest('.review-file')?.querySelector('.review-file-detail');
+      const diff=detail?.querySelector('.review-file-diff')?.textContent||'';
+      return diff.length?{diff,visible:!detail.hidden,tab:document.getElementById('inspector-tab-changes')?.getAttribute('aria-selected')}:null;})()`), 15000, 'review diff');
+  }
+  async function queueUndo(turnId, file, recall) {
+    const clicked = await exec(`(() => {
+      const row=Array.from(document.querySelectorAll('#a9-checkpoint-list .checkpoint-row')).find(r=>r.querySelector('.checkpoint-id')?.textContent===${JSON.stringify(turnId)});
+      const detail=Array.from(row?.querySelectorAll('.review-file')||[]).find(r=>r.querySelector('.review-file-toggle')?.textContent.includes(${JSON.stringify(file)}))?.querySelector('.review-file-detail');
+      const button=Array.from(detail?.querySelectorAll('button')||[]).find(b=>b.textContent==='撤销此文件');if(!button||button.disabled)return false;button.click();return true;})()`);
+    if (!clicked) throw new Error('A9_36_UNDO_NOT_CLICKED');
+    if (recall) {
+      await waitFor(() => exec(`(() => {const b=Array.from(document.querySelectorAll('.review-pending button')).find(x=>x.textContent==='撤回');if(!b||b.disabled)return false;b.click();return true;})()`), 1800, 'recall undo');
+      return waitFor(() => exec('document.getElementById("a9-undo-state").textContent').then((t) => /已撤回撤销/.test(t) ? t : null), 15000, 'undo recalled');
+    }
+    // An ordinary undo runs by itself after the 5 s countdown. The product asks for a confirmation only after a crash reconciliation (needsConfirmation),
+    // so the confirm button is clicked only when it really appears, and the click is recorded.
+    const outcomeText = /已撤销|外部修改|又被修改/;
+    const reached = await waitFor(() => exec(`(() => {const b=Array.from(document.querySelectorAll('.review-confirmation button')).find(x=>x.textContent==='确认撤销');
+      if(b&&!b.disabled){b.click();return {confirmation_clicked:true};}
+      const t=document.getElementById('a9-undo-state').textContent;return ${outcomeText}.test(t)?{text:t}:null;})()`), 20000, 'undo outcome or confirmation');
+    if (reached.text) return reached.text;
+    return waitFor(() => exec('document.getElementById("a9-undo-state").textContent').then((t) => outcomeText.test(t) ? t : null), 15000, 'undo outcome after confirmation');
+  }
+  async function supplementReview() {
+    await supplementBootstrap(); const first = await supplementTurn('a2-review:1'); const review = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(first.turnId)})`);
+    const ui = await reviewUi(first.turnId, 'probe.txt'); const paths = (review.review?.files || []).map((v) => v.path);
+    supplementAssert('m3-review', 1, review.ok === true && paths.includes('probe.txt') && paths.includes('notes.md') && ui.visible && ui.tab === 'true' && ui.diff.includes('value'), { review, ui, turn: first.data });
+    await reviewUi(first.turnId, 'notes.md'); const hashBefore = sha256(fs.readFileSync(localFile('notes.md')));
+    const recalled = await queueUndo(first.turnId, 'notes.md', true); await sleep(5200);
+    supplementAssert('m3-review', 2, recalled.includes('已撤回撤销') && sha256(fs.readFileSync(localFile('notes.md'))) === hashBefore, { recalled, hashBefore, after: sha256(fs.readFileSync(localFile('notes.md'))) });
+    await reviewUi(first.turnId, 'notes.md'); const undone = await queueUndo(first.turnId, 'notes.md', false);
+    supplementAssert('m3-review', 3, undone.includes('已撤销') && !fs.existsSync(localFile('notes.md')) && textFile('probe.txt') === 'value 1\n', { undone, probe: textFile('probe.txt'), notes_exists: fs.existsSync(localFile('notes.md')) });
+    const second = await supplementTurn('a2-review:2'); fs.writeFileSync(localFile('b.txt'), 'external drift\n', 'utf8');
+    const drift = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(second.turnId)})`);
+    supplementAssert('m3-review', 4, drift.ok === true && textFile('a.txt') === 'a0\n' && textFile('b.txt') === 'external drift\n'
+      && (drift.driftReasons || []).some((r) => r.path === 'b.txt'), { drift, a: textFile('a.txt'), b: textFile('b.txt') });
+    const third = await supplementTurn('a2-review:3');
+    await waitFor(() => fs.existsSync(localFile('start-effect.txt')) ? true : null, 30000, 'start_process effect');
+    await stopAllManaged();
+    const externalReview = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(third.turnId)})`);
+    const externalPaths = (externalReview.review?.files || []).map((v) => v.path);
+    const undo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(third.turnId)})`);
+    supplementAssert('m3-review', 5, externalPaths.includes('shell-effect.txt') && externalPaths.includes('start-effect.txt') && undo.ok === true
+      && !fs.existsSync(localFile('shell-effect.txt')) && !fs.existsSync(localFile('start-effect.txt')), { externalReview, undo, terminal: third.data });
+    const fourth = await supplementTurn('a2-review:4');
+    const later = await exec(`window.win7Agent.a9.undoFile(${JSON.stringify(first.turnId)}, 'probe.txt')`);
+    const guarded = textFile('probe.txt') === 'value 4\n' && (later.driftReasons || []).some((r) => r.path === 'probe.txt' && r.kind === 'later_turn' && r.laterTurnId === fourth.turnId);
+    const undoFourth = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(fourth.turnId)})`);
+    const whole = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(first.turnId)})`);
+    const next = await supplementTurn('a2-rules'); const ignore = textFile('.agent_recovery/.gitignore');
+    supplementAssert('m3-review', 6, guarded && undoFourth.ok === true && whole.ok === true && textFile('probe.txt') === 'value 0\n' && next.turnId !== third.turnId
+      && ['completed', 'completed_with_warnings'].includes(next.data.outcome) && ignore === '*\n', { later, guarded, undoFourth, whole, next: next.data, recovery_ignore: ignore,
+        persisted_checkpoints: dbAll('SELECT turn_id FROM a9_checkpoints ORDER BY rowid'), zero_replay: 'INHERITED_EVIDENCE_WIN7_45_E03_E06_NOT_RERUN' });
+    // M3-01: an edit and a Shell that rewrites an EXISTING file; B0 before, B1 after, B2 after the per-file undo and the whole-Turn undo.
+    const shellFiles = [['ext_edit.txt', 'edit1\n'], ['ext_shell.txt', 'shell1\n']];
+    const shellB0 = Object.fromEntries(shellFiles.map(([name]) => [name, fileSha(name)]));
+    const ext = await supplementTurn('a2-ext:shell');
+    const extReview = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(ext.turnId)})`);
+    const shellB1 = Object.fromEntries(shellFiles.map(([name]) => [name, { sha: fileSha(name), text: textFile(name) }]));
+    const extFileUndo = await exec(`window.win7Agent.a9.undoFile(${JSON.stringify(ext.turnId)}, 'ext_shell.txt')`);
+    const shellAfterFile = Object.fromEntries(shellFiles.map(([name]) => [name, fileSha(name)]));
+    const extWholeUndo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(ext.turnId)})`);
+    const shellVerdict = evaluateExternalBytes({ review_paths: (extReview.review?.files || []).map((v) => v.path), undo_results: [extFileUndo, extWholeUndo], drift_results: [extFileUndo], require_per_file: true, per_file: { path: 'ext_shell.txt', result: extFileUndo, after: shellAfterFile },
+      files: shellFiles.map(([name, expected]) => ({ path: name, b0: shellB0[name], b1: shellB1[name].sha, b1_text: shellB1[name].text, expected_b1_text: expected, b2: fileSha(name) })) });
+    supplementAssert('m3-review', 7, shellVerdict.ok, { b0: shellB0, b1: shellB1, b2: Object.fromEntries(shellFiles.map(([name]) => [name, fileSha(name)])), after_file_undo: shellAfterFile, review: extReview, undo: [extFileUndo, extWholeUndo], terminal: ext.data, verdict: shellVerdict });
+    // M3-02: a continuation Turn's checkpoint belongs to that Turn; its edit is undone.
+    const conv = await conversationId(); const contTask = 'a2-cont-edit-task'; const oldTurn = 'a2-cont-edit-old-turn';
+    await injectInterrupted(conv, contTask, oldTurn, 'a2-cont-edit:1');
+    const contB0 = textFile('cont_target.txt');
+    const contEvents = await clickAndSettle(conv, contTask, 'cont edit'); const contTurn = contEvents[contEvents.length - 1].turnId;
+    const contB1 = textFile('cont_target.txt'); const contReview = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(contTurn)})`);
+    const contCheckpoint = dbAll('SELECT turn_id, session_id FROM a9_checkpoints WHERE turn_id = ?', contTurn)[0] || null;
+    const oldCheckpoints = dbAll('SELECT count(*) AS n FROM a9_checkpoints WHERE turn_id = ?', oldTurn)[0].n;
+    const contUndo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(contTurn)})`);
+    const contVerdict = evaluateContinuationCheckpoint({ continuation_turn_id: contTurn, continue_events: contEvents.length, turn_status: turnStatus(contTurn), b0_text: contB0, b1_text: contB1, b2_text: textFile('cont_target.txt'),
+      checkpoint: contCheckpoint, conversation_id: conv, old_turn_checkpoints: oldCheckpoints, review_paths: (contReview.review?.files || []).map((v) => v.path), undo_ok: contUndo && contUndo.ok === true });
+    supplementAssert('m3-review', 8, contVerdict.ok, { continuation_turn: contTurn, checkpoint: contCheckpoint, old_turn_checkpoints: oldCheckpoints, review: contReview, undo: contUndo, verdict: contVerdict });
+    // M3-03: start_process rewrites an existing file; the Turn ends after the process wrote (the fixture delays its final answer).
+    const bgB0 = fileSha('ext_bg.txt'); const bg = await supplementTurn('a2-ext:bg');
+    await waitFor(() => textFile('ext_bg.txt') === 'bg1\n' ? true : null, 30000, 'start_process rewrote existing file'); await stopAllManaged();
+    const bgReview = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(bg.turnId)})`); const bgB1 = { sha: fileSha('ext_bg.txt'), text: textFile('ext_bg.txt') };
+    const bgUndo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(bg.turnId)})`);
+    const bgVerdict = evaluateExternalBytes({ review_paths: (bgReview.review?.files || []).map((v) => v.path), undo_results: [bgUndo],
+      files: [{ path: 'ext_bg.txt', b0: bgB0, b1: bgB1.sha, b1_text: bgB1.text, expected_b1_text: 'bg1\n', b2: fileSha('ext_bg.txt') }] });
+    supplementAssert('m3-review', 9, bgVerdict.ok, { b0: bgB0, b1: bgB1, b2: fileSha('ext_bg.txt'), review: bgReview, undo: bgUndo, terminal: bg.data, verdict: bgVerdict });
+    // M3-04 (ADR-0243): a background process writes the file again after the post-Turn baseline was collected and shown; undo keeps those bytes and names the path.
+    const late = await supplementTurn('a2-late:1');
+    const lateReview = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(late.turnId)})`); const lateUi = await reviewUi(late.turnId, 'late_target.txt');
+    const lateB1 = { sha: fileSha('late_target.txt'), text: textFile('late_target.txt') };
+    fs.writeFileSync(localFile('late.go'), 'go\n', 'utf8');
+    await waitFor(() => textFile('late_target.txt') === 'late2\n' ? true : null, 30000, 'late write');
+    const lateAfterWrite = { sha: fileSha('late_target.txt'), text: textFile('late_target.txt') }; const lateTreeBefore = workspaceTree();
+    const lateUndo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(late.turnId)})`);
+    await sleep(1500); const lateTreeAfter = workspaceTree(); const undoState = await exec('document.getElementById("a9-undo-state") ? document.getElementById("a9-undo-state").textContent : null');
+    await stopAllManaged();
+    const lateVerdict = evaluateLateWrite({ review_ok: lateReview.ok === true && lateUi.visible === true, review_paths: (lateReview.review?.files || []).map((v) => v.path), b1: lateB1.sha, b1_text: lateB1.text,
+      late: lateAfterWrite.sha, late_text: lateAfterWrite.text, after_undo: fileSha('late_target.txt'), drifted_paths: (lateUndo.driftReasons || []).map((r) => r.path), undo_ok: lateUndo && lateUndo.ok === true,
+      tree_before: lateTreeBefore, tree_after: lateTreeAfter });
+    supplementAssert('m3-review', 10, lateVerdict.ok, { b1: lateB1, late: lateAfterWrite, after_undo: { sha: fileSha('late_target.txt'), text: textFile('late_target.txt') }, undo: lateUndo, undo_state_text: undoState,
+      review: lateReview, ui_visible: lateUi.visible, verdict: lateVerdict, ui_wording: 'observation only (PRD A9-F03 has no verbatim wording)' });
+    // What the restart Stage of M3-05 compares against: the counts, the files and the first Turn's review at the end of this Stage.
+    out('a2-m3-end-state.json', { conversation_id: conv, first_turn_id: first.turnId, first_review_paths: paths, counts: reviewCounts(conv), tree: workspaceTree() });
+  }
+  // M3-05: the product is restarted on the data of the review Stage (same conversation, same checkpoints); nothing is replayed and the journey goes on.
+  async function supplementReviewRestart() {
+    const priorDir = env.A9_ALPHA2_PRIOR_STAGE_DIR; if (!priorDir) throw new Error('A9_36_PRIOR_STAGE_MISSING');
+    const prior = JSON.parse(fs.readFileSync(path.join(priorDir, 'a2-m3-end-state.json'), 'utf8'));
+    await supplementBootstrap(); const conv = await conversationId();
+    const requestsAtStart = (await counters()).requests; await sleep(3000);
+    const requestsAfterWait = (await counters()).requests; const counts = reviewCounts(conv); const tree = workspaceTree();
+    const review = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(prior.first_turn_id)})`);
+    const reundo = await exec(`window.win7Agent.a9.undoTurn(${JSON.stringify(prior.first_turn_id)})`); const treeAfterUndo = workspaceTree();
+    const requestsBeforeNext = (await counters()).requests; const next = await supplementTurn('a2-rules'); const requestsAfterNext = (await counters()).requests;
+    const verdict = evaluateReviewRestart({ prior, conversation_id: conv, requests_at_start: requestsAtStart, requests_after_wait: requestsAfterWait, counts, tree,
+      review_ok: review && review.ok === true, review_paths: ((review && review.review && review.review.files) || []).map((v) => v.path), reundo, tree_after_undo: treeAfterUndo,
+      next_outcome: next.data.outcome, next_turn_id: next.turnId, next_requests: requestsAfterNext - requestsBeforeNext });
+    supplementAssert('m3-review', 11, verdict.ok, { prior, conversation_id: conv, requests: { at_start: requestsAtStart, after_wait: requestsAfterWait, before_next: requestsBeforeNext, after_next: requestsAfterNext }, counts, tree_files: tree.length,
+      review_paths: ((review && review.review && review.review.files) || []).map((v) => v.path), reundo, next: next.data, verdict });
+  }
+  // M5 precondition rehearsal (fixture Provider, no real service): a managed process is alive, a Provider change is refused with the expected code and touches nothing.
+  async function supplementProviderGuard() {
+    await supplementBootstrap(); await newConversation();
+    await supplementTurn('a2-bg-hold');
+    const running = await waitFor(async () => (await snapshot()).managedProcesses.find((p) => p.lastProbeStatus === 'running') || null, 60000, 'managed process running');
+    const before = await snapshot(); const c0 = await counters();
+    const attempt = await exec(`window.win7Agent.a9.configureProvider(${JSON.stringify({ baseUrl: fixtureUrl, model: 'a2-guard-model-changed' })})`);
+    const after = await snapshot(); const c1 = await counters();
+    const still = after.managedProcesses.find((p) => p.handleId === running.handleId) || null;
+    let stopError = null;
+    try { await stopAllManaged(); } catch (error) { stopError = String(error && error.message ? error.message : error).slice(0, 200); }
+    const verdict = evaluateProviderGuard({ running_before: running.lastProbeStatus === 'running', attempt_ok: attempt && attempt.ok, attempt_code: attempt && attempt.error ? attempt.error.code : null,
+      running_after: Boolean(still) && still.lastProbeStatus === 'running', pid_before: running.pid, pid_after: still ? still.pid : null, model_before: (before.provider || {}).model, model_after: (after.provider || {}).model,
+      base_url_before: (before.provider || {}).baseUrl, base_url_after: (after.provider || {}).baseUrl, requests_before: c0.requests, requests_after: c1.requests });
+    supplementAssert('m5-journey', 6, verdict.ok && stopError === null, { handle: running.handleId, attempt, expected_rejection: 'A9_PROVIDER_MANAGED_ACTIVE', counted_as_failure: false, stop_error: stopError, verdict });
+  }
+
+  const realNetwork = { requests: 0, response_bytes: 0, tls: [], limit_rejected: false, bodies: [], body_errors: 0 };
+  function installRealProviderBudget() {
+    const https = require('https'); const original = https.request;
+    const expected = JSON.parse(env.A9_ALPHA2_PROVIDER || '{}');
+    if (expected.base_url !== 'https://api.deepseek.com' || expected.model !== 'deepseek-v4-flash' || expected.max_requests !== 40 || expected.max_response_bytes !== 1048576) throw new Error('A9_36_PROVIDER_BUDGET');
+    https.request = function(options, callback) {
+      if (!options || options.hostname !== 'api.deepseek.com' || options.protocol !== 'https:' || options.rejectUnauthorized !== true || options.ca || options.checkServerIdentity || options.createConnection || options.agent) throw new Error('A9_36_PROVIDER_TLS_OPTIONS');
+      if (realNetwork.requests >= expected.max_requests) { realNetwork.limit_rejected = true; throw new Error('A9_36_PROVIDER_REQUEST_LIMIT'); }
+      realNetwork.requests++;
+      const req = original.call(this, options, (response) => {
+        response.on('data', (chunk) => { realNetwork.response_bytes += chunk.length; if (realNetwork.response_bytes > expected.max_response_bytes) { realNetwork.limit_rejected = true; req.destroy(new Error('A9_36_PROVIDER_RESPONSE_LIMIT')); } });
+        if (callback) callback(response);
+      });
+      // Only hashes of the system message leave this wrapper; the request body itself is neither stored nor logged.
+      const chunks = []; let captured = 0;
+      const take = (chunk) => { if (chunk === undefined || chunk === null || typeof chunk === 'function') return; const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)); captured += buffer.length; if (captured <= 4 * 1024 * 1024) chunks.push(buffer); };
+      const originalWrite = req.write.bind(req); const originalEnd = req.end.bind(req);
+      req.write = function(chunk, ...rest) { take(chunk); return originalWrite(chunk, ...rest); };
+      req.end = function(chunk, ...rest) {
+        take(chunk);
+        try {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')); const system = (body.messages || []).find((m) => m.role === 'system');
+          const content = system ? (typeof system.content === 'string' ? system.content : JSON.stringify(system.content)) : null;
+          realNetwork.bodies.push({ model: body.model, probe: (body.tools || []).some((t) => t.function && t.function.name === 'probe_test_echo'), system_sha256: content === null ? null : sha256(content), system_chars: content === null ? 0 : content.length, messages: (body.messages || []).length });
+        } catch (_error) { realNetwork.body_errors++; }
+        return originalEnd(chunk, ...rest);
+      };
+      req.on('socket', (socket) => socket.once('secureConnect', () => { realNetwork.tls.push({ authorized: socket.authorized === true, protocol: socket.getProtocol(), host: options.hostname }); }));
+      return req;
+    };
+  }
+  async function supplementRealModel() {
+    await waitFor(() => exec('document.readyState === "complete"'), 30000, 'real model renderer');
+    await selectWorkspace(); await ensureMode();
+    let snap = await snapshot(); let p = snap.provider || {};
+    const restored = p.configured === true && p.baseUrl.replace(/\/$/, '') === 'https://api.deepseek.com' && p.model === 'deepseek-v4-flash'
+      && p.apiKey?.available === true && p.apiKey?.source === 'dpapi' && !p.proxy && !p.caBundle && !p.diagnostics;
+    // The restored configuration carries no probe record, and the page keeps sending disabled until the product's own probe classifies the Provider as tool_calling.
+    // The probe runs through the public page control; its requests go through the same counted network wrapper and use part of the 40-request budget.
+    let probe = null; let probeRequests = 0; let probeError = null;
+    if (restored) {
+      const requestsBefore = realNetwork.requests;
+      try {
+        await exec('document.getElementById("a9-provider-probe").click(); true');
+        probe = await waitFor(async () => { const s = await snapshot(); const c = s.provider && s.provider.probe; return c && c.classification && c.classification !== 'skipped' ? c : null; }, 120000, 'real provider probe');
+      } catch (error) { probeError = String(error && error.message ? error.message : error).slice(0, 200); }
+      probeRequests = realNetwork.requests - requestsBefore; snap = await snapshot(); p = snap.provider || {};
+    }
+    const ready = restored && probe !== null && probe.classification === 'tool_calling' && p.probe?.classification === 'tool_calling';
+    supplementAssert('m5-journey', 1, ready, { configured: p.configured, model: p.model, key_available: p.apiKey?.available, key_source: p.apiKey?.source, key_remembered: p.apiKey?.remembered, custom_ca: Boolean(p.caBundle), proxy: Boolean(p.proxy),
+      restored, probe_classification: probe ? probe.classification : null, probe_latency_ms: probe ? probe.latencyMs : null, probe_requests: probeRequests, probe_error: probeError });
+    if (!ready) throw new Error('A9_36_SAVED_PROVIDER_NOT_READY');
+    const j1 = await supplementTurn('只读解释此项目。先读取AGENTS.md、README.md及相关源码，说明add缺陷，引用严格写成calc.py:1和calc.py:2，对应实际行内容并分别引用完整代码行。最终回答必须含原句“add 应做加法，实际做减法”。不要修改文件，不执行Shell。', 300000);
+    const modelText = typeof j1.data.finalMessage === 'string' ? j1.data.finalMessage : '';
+    const citations = journeyReadCitations(j1.events, workspaceRoot, modelText, textFile('calc.py') || '', { 'AGENTS.md': textFile('AGENTS.md'), 'README.md': textFile('README.md') });
+    supplementAssert('m5-journey', 2, citations.ok && !j1.events.some((e) => e.eventType === 'tool_start' && ['edit', 'write', 'delete', 'copy', 'move', 'shell', 'start_process'].includes(eventData(e).toolName))
+      && textFile('calc.py') === 'def add(a, b):\n    return a - b\n', { turn: j1.data, model_text: modelText, citations });
+    const j2 = await supplementTurn('修复README描述的add缺陷。先运行python test_calc.py保留真实失败，再读相关文件并修改，再运行同一测试直到成功。本轮只修改calc.py，不改test_calc.py、build.py和acceptance_check.py。测试命令必须原样使用python test_calc.py，完成后如实说明验证状态。不要安装依赖或提交。', 600000);
+    const shells = journeyShellChecks(j2.events, workspaceRoot, 'python test_calc.py');
+    const failTest = shells.find((e) => e.shell?.exitCode !== 0 && /FAIL|AssertionError/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')));
+    const passTest = shells.find((e) => failTest && e.eventId > failTest.eventId && e.shell?.exitCode === 0 && /OK/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')));
+    const j2Diff = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(j2.turnId)})`);
+    supplementAssert('m5-journey', 3, Boolean(failTest && passTest) && j2.events.some((e) => e.eventType === 'tool_start' && ['edit','write'].includes(eventData(e).toolName) && e.eventId > failTest.eventId && e.eventId < passTest.startId)
+      && textFile('test_calc.py') === supplementModule().JOURNEY_FILES['test_calc.py'] && j2.data.verification === 'verified' && j2.data.verificationEvidence?.command === 'python test_calc.py' && j2Diff.ok === true
+      && (j2Diff.review?.files || []).some((f) => f.path === 'calc.py'), { turn: j2.data, tests: shells, diff: j2Diff });
+    const j3 = await supplementTurn('增加跨文件小功能：calc.py加入multiply(a,b)；display.py加入format_product(a,b)，返回乘积的字符串；test_calc.py新增至少2个测试覆盖正数和负数。先展示新测试失败，再实现，测试和构建命令必须原样使用python test_calc.py和python build.py。最后必须原样运行python acceptance_check.py通过独立功能检查；不要修改build.py和acceptance_check.py。保留原功能，不安装依赖，不提交。', 600000);
+    const j3Shells = journeyShellChecks(j3.events, workspaceRoot, 'python test_calc.py');
+    const builds = journeyShellChecks(j3.events, workspaceRoot, 'python build.py');
+    const functional = journeyShellChecks(j3.events, workspaceRoot, 'python acceptance_check.py');
+    const guardedScripts = ['build.py','acceptance_check.py'].every((n) => textFile(n) === supplementModule().JOURNEY_FILES[n]);
+    const j3Fail = j3Shells.findIndex((e) => e.shell?.exitCode !== 0 && /FAIL|Error/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')));
+    const j3Pass = j3Shells.findIndex((e, index) => index > j3Fail && e.shell?.exitCode === 0 && /Ran [4-9]\d* tests/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')) && /OK/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')));
+    const j3Diff = await exec(`window.win7Agent.a9.getDiff(${JSON.stringify(j3.turnId)})`);
+    const changed = (j3Diff.review?.files || []).map((f) => f.path);
+    const ui = await reviewUi(j3.turnId, 'calc.py');
+    await screenshot('a2-m5-final-diff.png');
+    supplementAssert('m5-journey', 4, ['calc.py', 'display.py', 'test_calc.py'].every((n) => changed.includes(n)) && j3.data.verification === 'verified'
+      && j3Fail >= 0 && j3Pass > j3Fail && guardedScripts && builds.some((e) => e.shell?.exitCode === 0 && /A2-BUILD-PASS/.test(e.shell?.stdout || ''))
+      && j3Shells.some((e) => e.shell?.exitCode === 0 && /OK/.test((e.shell?.stdout || '') + (e.shell?.stderr || '')))
+      && functional.some((e) => e.shell?.exitCode === 0 && /A2-FUNCTIONAL-CONTRACT-PASS/.test(e.shell?.stdout || ''))
+      && j3.data.verificationEvidence?.command === 'python acceptance_check.py'
+      && ui.visible && realNetwork.requests > 0 && realNetwork.requests <= 40 && !realNetwork.limit_rejected && realNetwork.tls.length > 0 && realNetwork.tls.every((t) => t.authorized),
+      { turn: j3.data, tests: j3Shells, builds, functional, guardedScripts, changed, ui, network: { ...realNetwork, bodies: undefined, body_count: realNetwork.bodies.length } });
+    // M5 precondition: the system prompt body of the real requests, by hash; the version marker is the constant the product ships and cannot tell two bodies apart.
+    let promptVersion = null;
+    try { promptVersion = require(path.join(candidateRoot, 'resources', 'app', 'core', 'dist', 'system-prompt.js')).A9_SYSTEM_PROMPT_VERSION; } catch (_error) { promptVersion = null; }
+    const bodies = realNetwork.bodies.filter((b) => !b.probe); const promptVerdict = evaluateSystemPromptBody({ bodies, expected_model: 'deepseek-v4-flash', system_prompt_version: promptVersion });
+    supplementAssert('m5-journey', 5, promptVerdict.ok && realNetwork.body_errors === 0, { system_prompt_version_marker: promptVersion, bodies: realNetwork.bodies, body_errors: realNetwork.body_errors, verdict: promptVerdict,
+      note: 'hashes only; the marker does not distinguish two bodies, the hash does' });
+  }
+
   // ---- Dispatcher ------------------------------------------------------------------------------------------------------------------
   const MODE_TABLE = {
     chain_a: chainA, chain_interrupt: chainInterrupt, chain_recover: chainRecover, chain_exit: chainExit,
@@ -1981,9 +3086,17 @@ async function runDriver() {
     continue_mode_guard: continueModeGuard, continue_unknown: continueUnknown,
     safe_rules: safeRules, ui_interrupt: uiInterrupt, ui_continue: uiContinue, ui_layouts: uiLayouts,
   };
+  // A separate explicit input is required; the original formal mode set stays closed. Every name here is a Stage of the orchestrator's STAGE_PLAN.
+  const SUPPLEMENT_MODE_TABLE = { supplement_continue_schema: continueSchema, supplement_policy_git: supplementPolicyGit,
+    supplement_verification: supplementVerification, supplement_audit_output: supplementAuditOutput, supplement_audit_managed: supplementAuditManaged,
+    supplement_audit_ownership: supplementAuditOwnership, supplement_continue: supplementContinue, supplement_budget: supplementBudget,
+    supplement_review: supplementReview, supplement_review_restart: supplementReviewRestart, supplement_provider_guard: supplementProviderGuard, supplement_real_model: supplementRealModel };
+
+  if (JSON.stringify(Object.keys(SUPPLEMENT_MODE_TABLE)) !== JSON.stringify(SUPPLEMENT_MODES)) throw new Error('A9_36_SUPPLEMENT_MODE_TABLE');
 
   // Pre-ready seams ---------------------------------------------------------------------------------------------------------------------
-  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [workspaceRoot] });
+  const cmdExecutable = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'cmd.exe');
+  dialog.showOpenDialog = async (...args) => openDialogAnswer(args, workspaceRoot, cmdExecutable);
   const originalMessageBox = dialog.showMessageBox.bind(dialog);
   dialog.showMessageBox = async (...args) => {
     const options = args.find((item) => item && typeof item === 'object' && !item.webContents) || {};
@@ -2001,16 +3114,35 @@ async function runDriver() {
     if (typeof listener !== 'function' || String(channel) !== 'product:a9-request') return originalHandle(channel, listener);
     return originalHandle(channel, async (...args) => {
       const request = args[1] || {};
+      const supplementalInput = MODE === 'supplement_continue_schema' && request.action === 'a9.task.continue' ? continuationRequestFacts(request) : {};
       const result = await listener(...args);
       ipcLog.push({ at: new Date().toISOString(), action: request.action, payload_keys: request.payload && typeof request.payload === 'object' ? Object.keys(request.payload).sort() : [],
-        ok: result && result.ok, error: result && result.error ? String(result.error.code || '').slice(0, 80) : null, duplicate: result && result.continuation ? result.continuation.duplicate === true : undefined });
+        ...supplementalInput, ok: result && result.ok, error: result && result.error ? String(result.error.code || '').slice(0, 80) : null, duplicate: result && result.continuation ? result.continuation.duplicate === true : undefined });
       return result;
     });
   };
+  if (MODE === 'supplement_real_model' && env.A9_ALPHA2_SUPPLEMENT_MODE === MODE) installRealProviderBudget();
   require(env.A9_BATCH2_PRODUCT_MAIN);
+  if (env.A9_ALPHA2_SUPPLEMENT_MODE === MODE) {
+    const expectedUserData = path.join(env.LOCALAPPDATA, 'Win7CodingAgent');
+    const runRoot = path.dirname(path.dirname(env.A9_ALPHA2_INPUT_MODULE));
+    // Physical location: the nearest existing ancestor is resolved through links and junctions, so a path that only looks like it lies inside the run cannot pass.
+    const realOf = (target) => { let current = path.resolve(target); const rest = []; for (;;) { try { return path.join(fs.realpathSync.native(current), ...rest.reverse()); } catch (_error) { const parent = path.dirname(current); if (parent === current) return null; rest.push(path.basename(current)); current = parent; } } };
+    const realRun = realOf(runRoot);
+    const isolation = evaluateUserDataIsolation({ user_data: path.resolve(app.getPath('userData')), run_root: path.resolve(runRoot) + path.sep, expected: path.resolve(expectedUserData),
+      a8_database_exists: fs.existsSync(path.join(app.getPath('userData'), 'state', 'agent-events-v2.db')),
+      real: { run_root: realRun ? realRun + path.sep : null, user_data: realOf(app.getPath('userData')), data_root: realOf(env.A9_BATCH2_DATAROOT), workspace: realOf(env.A9_BATCH2_WORKSPACE) } });
+    if (!isolation.ok) throw new Error('A9_36_USERDATA_NOT_ISOLATED');
+    out('a2-isolated-roots.json', { user_data: app.getPath('userData'), a9_data: dataRoot, portable: env.WIN7AGENT_PORTABLE, verdict: isolation });
+  }
 
   const finish = async (error) => {
     if (ownsExit && !error) return;
+    if (env.A9_ALPHA2_SUPPLEMENT_MODE === MODE && !error) {
+      try { const tree = myTree(); out('a2-prequit-processes.json', { tree, wmic_failures: wmicFailures, stale_parent_links: [...staleParentLinks.values()] });
+        if (wmicFailures > 0 || tree.some((p) => wmiStampMicros(p.created) === null)) throw new Error('A9_36_PREQUIT_TREE_UNKNOWN'); }
+      catch (failure) { error = failure; }
+    }
     const payload = { schema_version: 1, mode: MODE, status: error ? 'ERROR' : 'DONE', error: error ? String(error && error.stack ? error.stack : error).slice(0, 1500) : null,
       assertions: results, evidence: evidenceIndex, ipc: ipcLog.slice(-200), dialogs: dialogLog, duration_ms: Date.now() - startedAt };
     try { writeJson(resultFile, payload); } catch (_error) { /* reported by the exit code */ }
@@ -2026,7 +3158,7 @@ async function runDriver() {
   await app.whenReady();
   try {
     win = await waitFor(() => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('renderer/workbench.html')) || null, 45000, 'workbench window');
-    const runner = MODE_TABLE[MODE];
+    const runner = MODE_TABLE[MODE] || (env.A9_ALPHA2_SUPPLEMENT_MODE === MODE && SUPPLEMENT_MODE_TABLE[MODE]);
     if (!runner) throw new Error(`A9_BATCH2_DRIVER_MODE_UNKNOWN:${MODE}`);
     await runner();
     await finish(null);
@@ -2037,11 +3169,15 @@ async function runDriver() {
 }
 
 module.exports = {
+  continuationSchemaCases, continuationRequestFacts, evaluateContinuationSchema, supplementalRowsFacts, supplementalWorkspaceFacts, supplementalReadOnlyFacts, journeyToolFacts, journeyShellChecks, journeyReadCitations,
   assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, exitDialogFacts, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,
   subResult, summarizeSubs, guardRefused, withGuard, statusOf, retryableStopStatus, stopLeavesActionableCard, evaluateUiLayouts, evaluateUiJourney, storedHasToken, OUTPUT_TOKEN_PATTERN,
   keyEventsFor, summarizeKeyPress, KEY_RECORDER_SOURCE, evaluateAuditHardStop, evaluateEncodingOutcomes, ENCODING_GATING, AUDIT_FAILURE_CODE, evaluateTerminalAudit, evaluateRestartCounts, evaluateOldTurnUnchanged, evaluateInterruptRecords, isCount, isStatusText,
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
+  SUPPLEMENT_MODES, SUP_RESTORED_NOTES, supRestoredFor, openDialogAnswer, evaluateGitDenials, evaluateOriginRefs, evaluateLocalBranch, evaluateTestStream, evaluateBuildCancel, evaluateLongCard, evaluateF01, evaluateInputShas, evaluateAuditStage,
+  evaluateContinueReload, evaluateProviderFailureContinue, evaluateBudgetClick, evaluateBudgetChanged, evaluateExternalBytes, evaluateContinuationCheckpoint,
+  evaluateLateWrite, evaluateReviewRestart, evaluateSystemPromptBody, evaluateProviderGuard, evaluateUserDataIsolation,
 };
 
 if (process.versions.electron && process.env.A9_BATCH2_MODE) {
