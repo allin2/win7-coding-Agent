@@ -30,9 +30,9 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
-  // A9-33 §6.1：正式 batch2 候选 Profile。候选号 WIN7-45 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
+  // A9-39 §3：正式 batch2 候选 Profile。候选号 WIN7-46 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
   'A9-BATCH2-INPUTS-D013-V26-MANAGED': {
-    task: 'A9-33', candidate: 'WIN7-45', candidateTentative: true, batch2: true,
+    task: 'A9-39', candidate: 'WIN7-46', candidateTentative: true, batch2: true,
     lockFile: 'a9-batch2-input-lock.json', kitFile: 'A9_BATCH2_VALIDATION_KIT.json',
     validationDoc: 'A9_BATCH2_WIN7_VALIDATION.md',
     integrityCommand: 'RUN_A9_BATCH2_INTEGRITY.cmd', smokeCommand: 'RUN_A9_BATCH2_SMOKE.cmd',
@@ -842,7 +842,7 @@ function createValidationKit(root, sourceCommit, lock, profile) {
   return createWin22ValidationKit(root, sourceCommit, lock);
 }
 
-// ---- A9-33 正式 batch2 候选（WIN7-45 暂定）-------------------------------------------------------
+// ---- A9-39 正式 batch2 候选（WIN7-46 暂定）-------------------------------------------------------
 // 套件文件清单与 kit 由 a9-batch2-fixtures.cjs 的合同定义；生产者只搬运、校验编码并绑定哈希。
 
 function batch2Closure(profile) {
@@ -918,7 +918,7 @@ function createBatch2ValidationKit(root, sourceCommit, lock, profile, suiteHashe
   }
   return {
     schema_version: 1,
-    kit_id: `A9-33-${profile.candidate}-BATCH2-1`,
+    kit_id: `${profile.task}-${profile.candidate}-BATCH2-1`,
     candidate_label: profile.candidate,
     candidate_tentative: profile.candidateTentative === true,
     candidate_id: lock.release_id,
@@ -2299,7 +2299,7 @@ function copyContractEvidence(root, stage, profile) {
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125/ADR-0141/ADR-0142：候选任务书映射。
   const developerTaskBooks = { 'A9-30': 'docs/tasks/A9_30_SHELL_STREAMING.md', 'A9-31': 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'A9-32': 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md' };
-  const taskBook = profile.developmentOnly ? developerTaskBooks[profile.task] : profile.batch2 ? 'docs/tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md' : profile.candidate === 'WIN7-38'
+  const taskBook = profile.developmentOnly ? developerTaskBooks[profile.task] : profile.batch2 ? 'docs/tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md' : profile.candidate === 'WIN7-38'
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
@@ -2324,9 +2324,10 @@ function copyContractEvidence(root, stage, profile) {
   if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41' || profile.candidate === 'WIN7-42') {
     contracts.push('docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md', 'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md');
   }
-  // A9-33 §6.1：正式 batch2 须带 A9-30/31/32/33 合同与当前增量矩阵、覆盖台账。
+  // A9-39 §3：当前任务身份之外保留 A9-30/31/32/33 原合同、增量矩阵与覆盖台账。
   if (profile.batch2) {
     contracts.push('docs/tasks/A9_30_SHELL_STREAMING.md', 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md',
+      'docs/tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md',
       'docs/plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md', 'docs/plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md');
   }
   for (const relative of contracts) {

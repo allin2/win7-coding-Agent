@@ -198,3 +198,5 @@
 | ADR-0247 | A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0248 | A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏（ADR-0246补充） | Accepted |
 | ADR-0249 | A9-38 登记 `A9_38_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
+| ADR-0250 | Alpha 2 范围纳入 A9-37、A9-38；WIN7-45 不再是 Alpha 2 最终候选 | Accepted |
+| ADR-0251 | Alpha 2 补证采用方案 R2：A9-36 改在 WIN7-46 执行，WIN7-45 的 A9-36 r7 门 A 不签发 | Accepted |

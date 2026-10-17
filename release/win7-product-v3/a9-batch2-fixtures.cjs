@@ -1,4 +1,4 @@
-// A9-33 batch2 validation contract and bounded fixtures (WIN7-45 tentative, ADR-0155 Proposed).
+// A9-39 batch2 validation contract identity (WIN7-46 tentative, ADR-0250/0251; ADR-0155 Proposed).
 //
 // This module is the single definition of the batch2 acceptance contract. The producer
 // (scripts/release/build-a9-product-v3.mjs) builds the validation kit from it, and the packaged
@@ -11,16 +11,16 @@
 
 const CONTRACT = Object.freeze({
   schema_version: 1,
-  task: 'A9-33',
-  decision: 'ADR-0155 (Proposed; not accepted by A9-33 section 6.7)',
+  task: 'A9-39',
+  decision: 'ADR-0250, ADR-0251 (ADR-0155 remains Proposed)',
   lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED',
   release_id: 'WIN7-CODING-AGENT-A9-ALPHA2',
   version: '0.3.0-alpha.2',
-  // WIN7-45 is tentative. Before freeze the number is checked against refs, registrations and
+  // WIN7-46 is tentative. Before freeze the number is checked against refs, registrations and
   // directories; a renumber changes this file, the profile, the lock and the kit together.
-  candidate: 'WIN7-45',
+  candidate: 'WIN7-46',
   candidate_tentative: true,
-  result_on_complete: 'A9_33_WIN7_45_BATCH2_EXECUTION_CAPABILITY_PASS',
+  result_on_complete: 'A9_39_WIN7_46_BATCH2_EXECUTION_CAPABILITY_PASS',
   result_ceiling: 'Batch-2 execution capability only; never the full Alpha 2 or an RC verdict.',
 });
 
