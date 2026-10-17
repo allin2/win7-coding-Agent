@@ -1,14 +1,62 @@
 # 当前项目状态
 
+
+## A9-36 r7 作废，按 ADR-0251 改在 WIN7-46 执行；改绑见任务书 §10.12（2026-10-17 UTC）
+
+执行代理已在 A9-36 §3 六路径内完成 §9 缺口的追加实现（含 M6），固定断言 49 条：driver 44 条加 M6 的 5 条（ADR-0245）。开发机合同 321/321 通过；codex 八轮只读复审的 P0/P1/P2 均已处理，第八轮结论见[A9-36 §10](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#10-追加实现与独立复审结果2026-10-16-utc)。未提交，Win7 实机仍 `NOT_PERFORMED`（M4 之后的各阶段）。
+
+负责人已于 2026-10-17 签发门 A（r5：`1ff2376f…`，修订 1：`dd0d19ef…`；r6：`9a13a17e…`，运行 `76c7f922…`）。r5 在 m4 因执行策略和 `EPIPE` 停止，没有启动产品。r6（Win7 实机，候选 WIN7-45）完成 R0 至 R3：桌面入口修复在目标机生效，`--issue` 与 `--run` 都完成，请求被消费；随后编排器的候选完整性检查约 3 秒内抛 `A9_36_CANDIDATE_CHANGED`，m4 结果 `FAIL`，账本 `HALTED`，没有产品进程，没有断言结果。执行代理按硬停止规则停止，取回 8 个证据文件，删除六个任务；目标机系统策略未改，文件全部保留，预算已用管理员 SSH 12/112。
+
+原因判断（推断，没有在目标机逐文件定位）：编排器用被 Electron 修补的 `fs`，`resources/default_app.asar` 被当作归档目录。执行代理在开发机让该检查改走 `original-fs`，codex 第七、八轮复审，合同 321/321，r7 作废，按 ADR-0251 改在 WIN7-46 执行；改绑见[任务书 §10.12](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#1012-codex-接手候选改绑2026-10-17)。原 r7 材料的运行 `44e39fb0…`、请求 SHA256 `fca429ad…` 与原字节保留，不得用于新候选。WIN7-46 的新门 A 与 R2 实际运行时预检均为 `NOT_PERFORMED`。目标机候选目录是否另有文件被改动、新写法的 Win7 运行均为 `NOT_PERFORMED`。未提交。明细见[任务书 §10.9、§10.10](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#1010-修复完整性检查与新门-ar7请求材料2026-10-17-utc已作废未签发)，登记见[缺口表§23](plans/A9_ALPHA2_GAP_DISPOSITION.md#23-a9-36-追加实现与三轮独立复审已完成2026-10-16-utc)。
+
+
+## A9-36 两份分叉并为一份，实现缺口已比对（2026-10-16 UTC）
+
+负责人回复“批准”后，执行代理核对分支发现：2026-10-15 负责人已批准 A9-36 六路径 M1～M5 本地实现，该任务书在 `codex/a9-36-alpha2-supplement` 工作树，六路径已实现（开发机 R7 276 PASS），门 A 已过期，R0 因 agent 会话 5 断开停止。下文“A9-36 草案”是 a9-33 工作树的另一份分叉。负责人裁决以 a9-36 工作树为准（ADR-0244，选项 A）：[草案的必跑集合、隔离范围与 M6](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md) 已并入，M4 字节改钉六路径现有字节。
+
+并入后的静态比对（开发机，未运行驱动）见[任务书 §9](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#9-并入后实现缺口比对2026-10-16-utc只读)：26 行中已覆盖 10、部分覆盖 10、未覆盖 5（M1-07、M2-06、M3-02、M3-04、M6）、超出 ADR-0242 缩减 1（M2-05）。追加实现、M6 和新目标门 A 均未批准，仍 `NOT_PERFORMED`；旧门 A 已过期，续期草案未签。待负责人裁决：M2-05 已实现断言的保留或删除、M1-02 `refs` 判据、是否批准追加实现。登记见[缺口表§21](plans/A9_ALPHA2_GAP_DISPOSITION.md#21-a9-36-两份分叉并为一份2026-10-16-utc)。
+
+## WIN7-45 门 B 已限定范围签发，Alpha 2 影响分析已交付，G16、G17 已裁决（2026-10-16 UTC）
+
+负责人回复“门B选A1”：WIN7-45 第二批限定已直接证明范围签发，结论 `A9_33_WIN7_45_BATCH2_PASS_WITH_KNOWN_LIMITS`（Win7 实机，source `ba042757…` / ZIP `ae1d4bb1…` / run `5773470e…`）。KL-12 为排除项，仍 P1 / NOT_PERFORMED。不声明原完整合同全部满足；完整 Alpha 2、RC、ADR-0155、A9-32 `DEVELOPER_VERIFIED` 均未签。见 ADR-0238 与[A9-33 §6.80](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#680-门-b-限定范围签发与-q1-影响分析2026-10-16-utc)。
+
+缺口表 Q1 选 C。[影响分析](reports/2026-10/a9_alpha2_impact_analysis_g04_g05_g07_g08_g09_2026-10-16.md)（开发机，只改文档）结论：G05、G08 的审阅与检查点代码无改动，G04 的 Provider、预算、终态验证判定代码区无改动，G09 只多一个窄入口。G07 发现 F-01：13 种启动器包装写法（如 `start npm publish`）在 WIN7-42 要确认、在 WIN7-45 直接放行，负责人选 A：登记为 Alpha 2 已知限制，不在验收前修复，不改候选（ADR-0239）；修复排期未裁决，不授权实现。
+
+[G11、G12、G14 影响分析](reports/2026-10/a9_alpha2_impact_analysis_g11_g12_g14_2026-10-16.md)（开发机，只改文档）结论：三行都不能整行继承，未发现新的行为回归。98 种“包装器 + Git”写法新旧判定一致，F-01 不波及 Git。G14 的撤销函数与检查点管理器未改，缺续跑回合与后台进程相关的撤销证据。G11 在 Win7 上没有任何候选的真实模型存档证据，M5 保留。G12 的 CMD 降级路径在 WIN7-45 未被执行。观察 O-01：系统提示正文变了，版本标记仍是 `a9-system-prompt-v3`。
+
+缺口表 Q2 已按推荐裁决（ADR-0240）：企业 CA 与代理、POSIX Shell 与 PowerShell `/Command`、A9-17 启动与内存、≤799px、A9-34、KL-12 登记为 Alpha 2 已知限制并延期到 RC。G16（A8-06）与 G17（部署、回退、备份、DPAPI、SBOM）先做只读对照再定。对照完成前 Alpha 2 候选保持冻结的 WIN7-45。见[缺口表§11](plans/A9_ALPHA2_GAP_DISPOSITION.md#11-q2-裁决六项已知限制延期到-rcg16g17-先对照2026-10-16-utc)。
+
+[G16、G17 对照](reports/2026-10/a9_alpha2_comparison_g16_g17_2026-10-16.md)（开发机，只改文档）已交付，负责人按推荐裁决（ADR-0241）：G16 登记为 `N/A`；G17 升级与回退补最小 Win7 组 M6（待并入 A9-36 草案，未批准执行），DPAPI、备份生成、诊断包导出、SBOM 内容适用性登记为 Alpha 2 已知限制并延期到 RC。M6 的草案范围见[缺口表§14](plans/A9_ALPHA2_GAP_DISPOSITION.md#14-m6-草案范围2026-10-16-utc草案未批准)，已按负责人回复并入 A9-36 草案 §6（组件级，回退目标 WIN7-42，状态仍为草案，见[缺口表§15](plans/A9_ALPHA2_GAP_DISPOSITION.md#15-m6-已并入-a9-36-草案2026-10-16-utc)）。codex 对 A9-36 草案只读独立审核一轮（0 项 P0、3 项 P1、3 项 P2，全部复核采纳）：夹具与探针并入既有 `a9-alpha2-supplement.cjs`，通过判据改为与开发机基线逐字段相同，损坏库判据固定，见[缺口表§16](plans/A9_ALPHA2_GAP_DISPOSITION.md#16-a9-36-m6-独立审核与修订2026-10-16-utc)。负责人暂不批准 A9-36，并要求对 M1～M5 部分也做一轮 codex 只读审核：0 项 P0、7 项 P1、2 项 P2，全部复核采纳，A9-36 新增必跑集合与隔离范围（含 Electron `userData`），仍为草案，见[缺口表§17](plans/A9_ALPHA2_GAP_DISPOSITION.md#17-a9-36-m1m5-独立审核与修订2026-10-16-utc)。负责人随后采纳影响分析对 M2-05 的缩减（ADR-0242）：不重做 Provider 拒绝与预算检查，保留 M2-06 的再次主动尝试；这两项在 WIN7-45 Win7 实机 `NOT_PERFORMED`，依据只是开发机源码区间比较，见[缺口表§18](plans/A9_ALPHA2_GAP_DISPOSITION.md#18-m2-05-缩减已登记2026-10-16-utc)。负责人随后要求对修订后的 A9-36 全文复审，codex 只读复审一轮（0 项 P0、3 项 P1、2 项 P2，全部复核采纳）：新增放行规则（必跑项缺一项则该组未完成，排除项随结论携带）、M3 的 B0/B1/B2 字节基线与 M3-04 的 `drifted` 判据、M2-06 三项判据、M6 比较规则，并把 M1-02 的 19 种 Git 形态清单来源更正为 `W42_GIT_FORMS`，见[缺口表§19](plans/A9_ALPHA2_GAP_DISPOSITION.md#19-a9-36-全文复审与修订2026-10-16-utc)。负责人确认 M3-04 通过口径：晚写后撤销，字节保持晚写内容，路径列入 `drifted`（ADR-0243，见[缺口表§20](plans/A9_ALPHA2_GAP_DISPOSITION.md#20-m3-04-通过口径已确认2026-10-16-utc)）。A9-36 仍为草案，负责人暂不批准。对照结论如下。G16 建议登记为 `N/A`：A8 已被 ADR-0089 冻结，A8-06 对象是 `0.2.0-alpha.1`。G17 的包闭包、SBOM 与许可证文件有 Win7 实机证据，双构建是 macOS 开发机记录；升级与回退在 WIN7-45 无 Win7 实机证据，开发机跨版本数据库差分 13 项接口调用无异常，但发现两处回退差异：R-1（持久化为 `running` 且 `owned` 的 `start_process` 句柄，WIN7-45 判需要清理，WIN7-42 判不需要）和 R-2（续跑过的任务，WIN7-42 把续跑提示词当作任务目标）；DPAPI、备份生成、诊断包导出、SBOM 内容适用性建议延期。codex 独立审核一轮，8 条发现已采纳。候选仍是冻结的 WIN7-45。见[缺口表§12](plans/A9_ALPHA2_GAP_DISPOSITION.md#12-g16g17-只读对照已交付待负责人裁决2026-10-16-utc)与[§13](plans/A9_ALPHA2_GAP_DISPOSITION.md#13-g16g17-裁决已登记2026-10-16-utc)。
+
+## Alpha2补证门A已批准，R0桌面断开阻断（2026-10-15 UTC）
+
+负责人同意更新执行时限，续期材料已在候选外准备。最新只读核对agent会话5仍Disc，新run不存在，未执行产品。新准确材料仍待活动桌面恢复后的确认。
+
+后续负责人授权切换既有agent会话5。系统tscon一次调用被账户限制拒绝，Windows错误1327；未更改密码、权限或策略。需要本地交互登录agent。原门A已于洛杉矶时间2026-10-15 16:30到期，当前仍未执行产品。详见[A9-36 §7.3](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#73-负责人授权切换用户系统账户限制拒绝)。
+
+[A9-36](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md)六路径在隔离分支codex/a9-36-alpha2-supplement完成。基线HEAD013cf796…加准确工作字节，产品/原生/冻结WIN7-45不改。完整开发机合同R7为276 PASS，末次引用修复的R8定向14 PASS/0 FAIL，其余262未重跑。独审R6关闭配置、请求、Read Only与J1读回/最终引用问题；本轮限定输入无未关闭问题。既有M4读取峰值P2和KL-12延期技术状态保留。
+
+24件本轮构建生成的tracked runner/dist已恢复HEAD。旧A9-33十输入与交接SHA匹配，主树原47项修改保留；冻结ZIP/manifest/IDENTITY摘要一致。未提交或推送。此处A9_36_DEVELOPER_VERIFIED只对应本地输入阶段，不能推导目标PASS或A9-32签发。
+
+准确门A材料及SHA见[A9-36 §7](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#7-待负责人签发的目标门a)。新run0daf288c…拟普通agent/session5执行M4→M1→M2→M3→M5，5请求/5400秒；真实Provider三轮、40 HTTPS请求及1MiB累计响应。旧候选只读复用，新输入/任务/profile均在新run。负责人已批准准确门A材料f1c0d968…并另存回执。R0包/工具哈希等核对一致，但agent会话5已断开，无活动console；已停止下游并保存HALTED_R0。未上传、建目标目录/任务或运行产品；M1～M5为NOT_PERFORMED。KL-12延期已接受，不重复申请接受。
+
+已授权只读元数据确认现存Python3.8.10/MinGit2.46.2路径与SHA、PS5.1及保存的HTTPS api.deepseek.com/deepseek-v4-flash配置。Medium/InJob、DPAPI/TLS和模型旅程仍需新实际入口证明。进度继续集中在[缺口处置表§7.5](plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
+
+## Alpha2补证准备：Win7配置已只读核对，M4驱动待复核（2026-10-15 UTC）
+
+负责人要求优先由执行代理验证，并选择M5复用Win7普通agent已保存的真实服务配置。新准备run为`0daf288c-7d26-4ebc-b17c-40bc9702ce13`。首次SSH握手超时FAIL已保存；负责人确认连接恢复后，第二次只读预检PASS：DCCS-CHAIZL-PC/Win7 SP1 x64/agent精确SID匹配，当前活动桌面是console5，旧正式run的console2绑定不可复用。新远端根不存在，未见相关Electron/helper。真实Provider非秘密配置为`https://api.deepseek.com`、`deepseek-v4-flash`、已记住密钥、无代理/自定义CA；DPAPI恢复、真实请求和M1～M5产品执行仍NOT_PERFORMED。
+
+已在A9-33原白名单的驱动/合同测试两路径实现M4的17种公开continueTask非法参数输入；独审指出的P1已修复，开发机合同262 PASS。补充入口独立显式启用，不改变原正式模式闭集、25用例/43断言或冻结候选。新M1～M5调度需要当前白名单外入口，已备[A9-36六路径本地实现提案](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md)，状态DRAFT_READY_FOR_REVIEW；相关新实现等待批准，未生效。新目标运行输入/身份/预算和适用门A尚未形成，不上传、启动产品或复用旧预算。详见[A9-33 §6.79](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#679-alpha2补证执行委托与准备2026-10-15-utc)与[缺口表§7.5](plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
+
 ## WIN7-45 实机执行与复核已结束，KL-12 延期，门 B 待签（2026-10-15 UTC）
 
 独立复核已完成：0P0/1P1/0P2，不建议按当前未缩小合同进入门B签发PASS。唯一既有P1剩余项为KL-12：真实helper启动后ready失败清理仍NOT_PERFORMED；无效cwd预启动拒绝不能替代，release部分已取得直接证据。新产品运行缺陷发现0，不改正式43条PASS原值，也不签原合同完整满足。独立报告SHA-256 65cbe27f…，见[交接书§10](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#10-独立复核结论与门-b-前置处置2026-10-15-utc)及[A9-33 §6.75](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#675-独立复核完成kl-12-p1-与负责人待裁决2026-10-15-utc)。
 
-负责人已要求将KL-12登记并在后续计划中修复。该指令确定延期安排，不把缺口改为已覆盖，也不等于门B签发。本轮实机执行、证据回收和独立复核已结束；不自动派发实机动作。KL-12仍为P1/NOT_PERFORMED，已进入[后续计划](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#67-kl-12-延期修复与补证登记2026-10-15-utc)和[覆盖台账§8](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#8-kl-12-后续修复与补证计划2026-10-15-utc)。
+负责人本轮已明确接受KL-12延期，并要求只读证据对账。延期接受事实已登记，不再等待重复接受；该项仍为P1/NOT_PERFORMED，不改原始技术结果。本轮实机执行、证据回收和独立复核已结束；不自动派发实机动作。后续修复安排保持[推进顺序§6.7](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#67-kl-12-延期修复与补证登记2026-10-15-utc)与[覆盖台账§8](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#8-kl-12-后续修复与补证计划2026-10-15-utc)。
 
-正式验收收口须由负责人明确仅签已直接证明范围，并将KL-12列为排除项、保留NOT_PERFORMED。待签口径见[交接书§11](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。当前门B仍NOT_PERFORMED，不签原合同全部满足、完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED。本轮同名分支Git同步已另获授权，见[A9-33 §6.77](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#677-工作状态与同名分支-git-同步授权2026-10-15-utc)；不发布。
+KL-12延期接受与准确限定范围口径见[交接书§12](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#12-负责人明确接受-kl-12-延期2026-10-15-utc)。当前只读对账不执行门B签发，门B仍NOT_PERFORMED；不签原合同全部满足、完整Alpha2/RC、ADR-0155或DEVELOPER_VERIFIED。前一轮同名分支Git同步已完成，本轮只读核对源码/证据并产出文档，不新增Git提交/推送或发布。
 
-完整Alpha2剩余工作已汇总到[缺口处置表§6](plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)。第二批门B、A9-32证据对应与开发结论、共享安全及J1～J5旅程覆盖、未测范围和延期边界、最终Alpha2裁决均未关闭。旧表8类回归须先与当前证据核销；不直接推定全部重测。主工作区入口本轮补同步指引，源代码仍在各自分支，不从Git同步推导主线整合或验收通过。
+只读证据对账已完成，清单见[缺口处置表§7](plans/A9_ALPHA2_GAP_DISPOSITION.md#7-只读证据对账与最小补证清单2026-10-15-utc)。旧8类R项合并为M1 Policy/Git、M2验证/Provider/预算、M3 Diff/撤销恢复、M4继续Schema负向、M5真实模型旅程5组，不代表5次实机运行。10阶段/43断言原值及hash匹配；三个稳定组件34件包内文件同字节但未批准行为继承。A9-32仍缺部分合同对应，A9-34与其他Alpha2范围处置保留。源码、候选和原始证据不变。
 
 负责人在当前会话对准确载荷47fe7cae…及交接书范围回复“批准”。回执首次观察时间11:58:37Z，聊天消息精确时间UNKNOWN；本轮正式窗口至19:58:37Z。run5773470e…保持，1次/16请求/7200秒、原目标/角色/限制不变。R1确认Win7 SP1 x64、agent/SID/console2、新根不存在、102进程无Electron/helper；R2新根建立，R3全部10文件大小/哈希一致，R4解压manifest一致。
 

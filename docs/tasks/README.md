@@ -5,12 +5,17 @@
 | 任务书 | 类型 | 状态 | Phase-Gate | Win7 验证 |
 |---|---|---|---|---|
 | [A9-32](A9_32_EXPLICIT_TASK_CONTINUE.md) | EXECUTION_CAPABILITY | APPROVED_FOR_IMPLEMENTATION | A9_32_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
-| [A9-33](A9_33_BATCH_2_WIN7_ACCEPTANCE.md) | RELEASE_REISSUE_AND_WIN7_ACCEPTANCE | APPROVED_FOR_IMPLEMENTATION | A9_33_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
+| [A9-33](A9_33_BATCH_2_WIN7_ACCEPTANCE.md) | RELEASE_REISSUE_AND_WIN7_ACCEPTANCE | APPROVED_FOR_IMPLEMENTATION | A9_33_IMPLEMENTATION_AUTHORIZED | A9_33_WIN7_45_BATCH2_PASS_WITH_KNOWN_LIMITS |
 | [A9-35](A9_35_MANAGED_START_FAILURE.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_35_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
+| [A9-36](A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md) | ALPHA2_SUPPLEMENTAL_ACCEPTANCE | APPROVED_FOR_IMPLEMENTATION | A9_36_DEVELOPER_VERIFIED | NOT_PERFORMED |
+
+A9-36六路径本地实现、检查与独立复核已获负责人“批准”，在隔离codex/a9-36-alpha2-supplement执行；不授权目标执行或复用A9-33旧门A。2026-10-15只读核对已确认Win7 agent当前console5及保存的HTTPS api.deepseek.com/deepseek-v4-flash配置；六路径本地入口已实现，完整合同R7为276 PASS，末次定向R8为14 PASS/262未重跑；独审问题已关闭，新目标门A已批准；R0因agent会话5断开停止，未进入目标写入；Win7新运行仍NOT_PERFORMED。2026-10-16负责人裁决以本任务书为唯一版本（ADR-0244）：a9-33树草案的§4.1必跑集合、§4.2隔离范围与M6已并入，追加实现与M6未批准，实现缺口见任务书§9。2026-10-16负责人批准按§9缺口追加实现（含M6，仍限六路径，ADR-0245）：实现、开发机合同与独立复审可进行，不提交，不执行目标机，新目标门A未批准；追加实现已完成并经三轮codex只读复审，开发机合同319 PASS，结果见任务书§10，目标执行仍NOT_PERFORMED。2026-10-17 执行代理按负责人授权接手候选改绑：WIN7-46 身份改由构建后的门 A 授权提供，M6 回退 WIN7-42 不变；r7 作废，ADR-0252 为 Proposed。入场判断、当前六路径与开发机检查见任务书 §10.12。本轮不提交、不构建正式候选、不连接目标机。完整补证缺口与进度只维护既有[处置表§7.5](../plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
 
 A9-33/A9-35的上表Win7列为正式验收状态。2026-10-15当前源ba042757…/同包ae1d4bb1…已在Win7普通agent完成预演18/19连续PASS，各25用例/43断言；两次均REHEARSAL_NOT_ELIGIBLE，真实helper ready失败清理仍NOT_PERFORMED（KL-12），不据此签正式PASS。见[A9-33 §6.71～6.72](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[当前状态](../STATUS.md)。
 
 2026-10-15 UTC，WIN7-45门A已批准，run5773470e…正式10阶段/25用例/43断言全部PASS；R7共338项大小/SHA匹配，零残留及秘密扫描正控通过。独立复核已完成0P0/1P1/0P2：KL-12真实helper ready失败清理仍NOT_PERFORMED，不建议按未缩小合同进入门B。负责人已要求登记并延期修复；本轮实机执行、回收和复核已结束。延期不等于门B签发或原合同全部满足，上表Win7列仍为NOT_PERFORMED。后续计划与待签范围见[A9-33 §6.76](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#676-kl-12-延期登记与本轮实机工作结束2026-10-15-utc)与[WIN7-45交接书§11](../plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#11-kl-12-延期登记与本轮结束口径2026-10-15-utc)。
+
+2026-10-16 UTC，负责人签发 WIN7-45 门 B（限定范围，KL-12 为排除项），上表 A9-33 的 Win7 列已更新。该结论不声明原完整合同全部满足，不签完整 Alpha 2、RC、ADR-0155 和 A9-32 `DEVELOPER_VERIFIED`。见 [A9-33 §6.80](A9_33_BATCH_2_WIN7_ACCEPTANCE.md#680-门-b-限定范围签发与-q1-影响分析2026-10-16-utc) 与 ADR-0238。
 
 历史批准不授权在本分支实施；既有状态与合同保留。
 
