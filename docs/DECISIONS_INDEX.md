@@ -196,3 +196,5 @@
 | ADR-0237 | A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236补充） | Accepted |
 | ADR-0246 | A9-37将checkpoint已知秘密判定与日志启发式脱敏分离 | Accepted |
 | ADR-0247 | A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
+| ADR-0248 | A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏（ADR-0246补充） | Accepted |
+| ADR-0249 | A9-38 登记 `A9_38_DEVELOPER_VERIFIED`（带已知限制） | Accepted |

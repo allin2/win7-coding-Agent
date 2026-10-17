@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## A9-38 开发收口已登记，带已知限制（2026-10-16，开发机）
+
+负责人回复“批准”，同意 A9-38 按选项 A 带已知限制签发并本地合入整合分支。执行代理以 [ADR-0249](DECISIONS.md#adr-0249-a9-38-登记-a9_38_developer_verified带已知限制) 登记 `A9_38_DEVELOPER_VERIFIED`。结论限开发机，绑定隔离分支 `codex/a9-38-basic-credential-redaction`、基线 `234e3dfb…`、产品 `1809d4a5…`、测试 `34b9036c…`。
+
+Node 20.17.0 三套 Jest 共 150 PASS/0 FAIL，`verify:quick`、`docs:check` 和差异检查通过。产品检查沿用第三轮与聚焦复核的 `INHERITED_EVIDENCE`。Claude、codex 复审、codex 聚焦复核分别为 0P0/0P1/4P2、0P0/0P1/1P2、0P0/0P1/0P2。各轮原始失败与审核报告保留，完整身份及审核哈希见[报告 §10](reports/2026-10/a9_38_basic_credential_redaction_2026-10-16.md#10-开发收口登记2026-10-16)。
+
+本结论带 ADR-0249 的 K2～K8 限制，K1 已关闭。K3 为 Digest 只替换首个参数；K7 为带引号值与 JSON/字典键形式不脱敏。数字/符号开头文本会多替换后续单词，属保守脱敏边界。POSIX 夹具为 `SURROGATE`；KL-12 仍为 P1/NOT_PERFORMED。
+
+`Win7-Validation` 保持 `NOT_PERFORMED`。A9-38 产品改动不在 WIN7-45（第二批正式验收候选）中，未在 Win7 实机验证。本登记不签 Electron/Win10、新候选、Alpha2/RC、推送、合入 main 或发布。本轮未提交、未整合、未推送、未连接远端。下一步为本地提交并快进合入 `codex/a9-alpha2-integration-r2`；整合前再核号，整合后按既有方案重跑 A9-32 §5。本轮未执行这些后续动作。
+
 ## A9-37 开发收口已登记，带已知限制（2026-10-16，开发机）
 
 负责人已批准 `A9_37_DEVELOPER_VERIFIED`，执行代理以 [ADR-0247](DECISIONS.md#adr-0247-a9-37-登记-a9_37_developer_verified带已知限制) 登记。结论限开发机，绑定隔离分支 `codex/a9-37-checkpoint-secrets`、基线 `013cf796…`、产品 `603323e2…` 与测试 `19120763…`。Node 20.17.0 三套 Jest 共 118 PASS/0 FAIL，`verify:quick`、`docs:check` 和差异检查通过。codex 第二轮独立审核为 0P0/0P1/0P2；Claude R-01 与 codex 首轮 P1 的同一项目说明外发门问题已修复。首轮 113 PASS/2 FAIL 与原失败证据保留。

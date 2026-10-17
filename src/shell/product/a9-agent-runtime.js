@@ -387,9 +387,18 @@ function createA9AgentRuntime(options) {
   let provider = null;
   let providerConfigurationInFlight = false;
   const knownSecrets = new Set();  // 仅内存；保留本进程见过的旧值用于切换后继续脱敏。
+  // A9-38：代理 Basic 认证发送 base64(用户名:密码)，其编码不含密码单值的任何编码变体。
+  // 仅内存保留本进程见过的组合，与 knownSecrets 同生命周期；不写盘。
+  const knownBasicCredentials = new Set();
 
   function rememberSecret(value) {
     if (typeof value === 'string' && value.length > 0) knownSecrets.add(value);
+  }
+
+  function rememberBasicCredential(username, password) {
+    if (typeof username === 'string' && username.length > 0 && typeof password === 'string' && password.length > 0) {
+      knownBasicCredentials.add(`${username}:${password}`);
+    }
   }
 
   function hasSecretMaterial(secrets) {
@@ -405,21 +414,48 @@ function createA9AgentRuntime(options) {
       ...knownSecrets]));
   }
 
+  // Composites first: a single value's encoding must not split a longer composite match.
+  function knownSecretMaterial() {
+    return [...knownBasicCredentials, ...knownSecretValues()];
+  }
+
+  // 网关以 btoa 生成代理头：组合含 U+0080～U+00FF 且无更高码位时，头部是 Latin-1 字节的 base64。
+  function latin1CompositeBase64(composite) {
+    if (!/[\u0080-\u00ff]/.test(composite) || /[^\u0000-\u00ff]/.test(composite)) return null;
+    return Buffer.from(composite, 'latin1').toString('base64');
+  }
+
+  // Shell 环境覆盖与 Runner 只按 UTF-8 计算编码，Latin-1 组合以去 padding 的原文形式交给它们匹配。
+  function environmentSensitiveValues() {
+    const values = [...knownBasicCredentials, ...knownSecrets];
+    for (const composite of knownBasicCredentials) {
+      const latin1 = latin1CompositeBase64(composite);
+      if (latin1) {
+        const unpadded = latin1.replace(/=+$/g, '');
+        values.push(unpadded, unpadded.replace(/\+/g, '-').replace(/\//g, '_'));
+      }
+    }
+    return values;
+  }
+
   function redactKnownSecrets(text) {
     let out = String(text);
-    const secrets = knownSecretValues();
+    const secrets = knownSecretMaterial();
     for (const secret of secrets) {
       if (typeof secret !== 'string' || secret.length === 0) continue;
-      const base64 = Buffer.from(secret, 'utf8').toString('base64');
-      const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+      const base64Forms = [Buffer.from(secret, 'utf8').toString('base64')];
+      const latin1 = knownBasicCredentials.has(secret) ? latin1CompositeBase64(secret) : null;
+      if (latin1) base64Forms.push(latin1);
       const percent = encodeURIComponent(secret);
-      const baseEncodings = [base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')];
+      const baseEncodings = base64Forms.flatMap((base64) => {
+        const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_');
+        return [base64, base64.replace(/=+$/g, ''), base64url, base64url.replace(/=+$/g, '')];
+      });
       const encodedBaseVariants = baseEncodings.flatMap((value) => {
         const encoded = encodeURIComponent(value);
         return [encoded, encoded.toLowerCase(), encoded.toUpperCase(), encoded.replace(/%20/gi, '+')];
       });
-      const variants = [secret, ...baseEncodings,
-        base64url.replace(/=+$/g, ''), percent, percent.toLowerCase(), percent.toUpperCase(),
+      const variants = [secret, ...baseEncodings, percent, percent.toLowerCase(), percent.toUpperCase(),
         percent.replace(/%20/gi, '+'), percent.toLowerCase().replace(/%20/g, '+'),
         percent.toUpperCase().replace(/%20/g, '+'), ...encodedBaseVariants];
       for (const variant of variants) {
@@ -438,7 +474,9 @@ function createA9AgentRuntime(options) {
   function redactSecrets(text) {
     let out = redactKnownSecrets(text);
     out = redactUrlUserinfo(out);
-    out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, '$1***redacted***');
+    // A9-38：Basic、NTLM 等单令牌方案连同凭据整体替换；方案名按 RFC 7235 token（首字符同为 tchar），
+    // 方案名后只跨空格/制表符，不吞下一行。
+    out = out.replace(/(authorization\s*[:=]\s*)(?:bearer\s+|[a-z0-9!#$%&'*+.^_`|~-]+[ \t]+(?=[^\s,;]))?[^\s,;]+/gi, '$1***redacted***');
     return out;
   }
 
@@ -636,6 +674,7 @@ function createA9AgentRuntime(options) {
     rememberSecret(memoryApiKey);
     if (memorySecrets) {
       rememberSecret(memorySecrets.proxyPassword);
+      rememberBasicCredential(providerConfig.proxy && providerConfig.proxy.username, memorySecrets.proxyPassword);
       Object.values(memorySecrets.headerValues || {}).forEach(rememberSecret);
     }
     const restoredSecret = Boolean(memoryApiKey) || hasSecretMaterial(memorySecrets);
@@ -668,7 +707,7 @@ function createA9AgentRuntime(options) {
   /** 保留长度覆盖所有已知秘密及其编码变体，避免跨 chunk 的秘密前缀先于完整匹配出现。 */
   function livePreviewHoldBack() {
     let longest = LIVE_PREVIEW_MIN_HOLD_BACK;
-    for (const secret of knownSecretValues()) {
+    for (const secret of knownSecretMaterial()) {
       if (typeof secret !== 'string' || secret.length === 0) continue;
       const base64 = Buffer.from(secret, 'utf8').toString('base64');
       longest = Math.max(longest, secret.length, base64.length,
@@ -765,7 +804,7 @@ function createA9AgentRuntime(options) {
       values.envOverlay && typeof values.envOverlay === 'object' && !Array.isArray(values.envOverlay)
         ? values.envOverlay
         : {},
-      Array.from(knownSecrets),
+      environmentSensitiveValues(),
     );
     if (allowAutomatic && (kind === '' || kind === 'automatic')) {
       if ((values.path && String(values.path).trim()) || (values.version && String(values.version).trim())) {
@@ -841,7 +880,7 @@ function createA9AgentRuntime(options) {
     for (const entry of Object.values(doc.workspaces)) {
       if (!entry || typeof entry !== 'object') continue;
       try {
-        modules.runner.validateTrustedShellEnvironmentOverlay(entry.envOverlay || {}, Array.from(knownSecrets));
+        modules.runner.validateTrustedShellEnvironmentOverlay(entry.envOverlay || {}, environmentSensitiveValues());
       } catch (_error) {
         delete entry.envOverlay;
         entry.environmentRejected = true;
@@ -908,7 +947,7 @@ function createA9AgentRuntime(options) {
 
   function selectAutomaticShell() {
     if (!automaticShellSelection) {
-      automaticShellSelection = modules.runner.selectShell({ sensitiveValues: Array.from(knownSecrets) });
+      automaticShellSelection = modules.runner.selectShell({ sensitiveValues: environmentSensitiveValues() });
     }
     return automaticShellSelection;
   }
@@ -918,7 +957,7 @@ function createA9AgentRuntime(options) {
       const entry = readShellConfigDocument().workspaces[shellWorkspaceKey];
       if (entry && entry.environmentRejected === true) throw new Error('A9_ENV_OVERLAY_REJECTED');
       modules.runner.validateTrustedShellEnvironmentOverlay(
-        (shellOptions && shellOptions.envOverlay) || {}, Array.from(knownSecrets),
+        (shellOptions && shellOptions.envOverlay) || {}, environmentSensitiveValues(),
       );
     } catch (error) {
       shellOptions = null;
@@ -977,7 +1016,7 @@ function createA9AgentRuntime(options) {
           input.envOverlay && typeof input.envOverlay === 'object' && !Array.isArray(input.envOverlay)
             ? input.envOverlay
             : {},
-          Array.from(knownSecrets),
+          environmentSensitiveValues(),
         ),
       } : { envOverlay: {} };
       const requestedKind = typeof values.kind === 'string' ? values.kind.trim().toLowerCase() : '';
@@ -1029,7 +1068,7 @@ function createA9AgentRuntime(options) {
     } : {}),
     ...(config.runnerPlatform ? { platform: config.runnerPlatform } : {}),
     redactText: redactSecrets,
-    getSensitiveValues: () => Array.from(knownSecrets),
+    getSensitiveValues: () => environmentSensitiveValues(),
     getConfiguredShellIdentity: () => shellOptions && shellOptions.path ? shellOptions.identity : undefined,
     onBackgroundStateChange: (handle) => recordManagedHandle(handle),
   });
@@ -1576,6 +1615,7 @@ function createA9AgentRuntime(options) {
     // endpoint or model identity.
     rememberSecret(nextApiKey);
     rememberSecret(proxyPassword);
+    rememberBasicCredential(proxyConfig && proxyConfig.username, proxyPassword);
     Object.values(headerValues).forEach(rememberSecret);
     revalidateShellEnvironments();
     // A value can become known only after recovery artifacts already exist.

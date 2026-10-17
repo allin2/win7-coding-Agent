@@ -218,6 +218,19 @@ function startFailingFixture(): Promise<{ baseUrl: string; close: () => Promise<
   });
 }
 
+/** A9-38 TEST_ONLY: fake safeStorage for the DPAPI vault contract on non-Windows hosts. */
+function fakeSafeStorage() {
+  return {
+    isEncryptionAvailable: () => true,
+    encryptString: (plain: string) => Buffer.from(`enc:${Buffer.from(plain, 'utf8').toString('base64')}`, 'utf8'),
+    decryptString: (cipher: Buffer) => {
+      const text = cipher.toString('utf8');
+      if (!text.startsWith('enc:')) throw new Error('bad ciphertext');
+      return Buffer.from(text.slice(4), 'base64').toString('utf8');
+    },
+  };
+}
+
 function makeEnv() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-f5-'));
   const workspaceRoot = path.join(root, 'ws');
@@ -309,7 +322,7 @@ function makeRuntime(env: ReturnType<typeof makeEnv>, managedFixture = false) {
 /** A9-37 TEST_ONLY: real short POSIX Shell behind the product loop adapter.
  * Windows native transport/Job evidence is NOT_PERFORMED. No production override.
  */
-function makeCheckpointRuntime(env: ReturnType<typeof makeEnv>, onExecute = () => {}) {
+function makeCheckpointRuntime(env: ReturnType<typeof makeEnv>, onExecute = () => {}, extraConfig: Record<string, unknown> = {}) {
   const modules = managedLifecycleModules();
   const adapt = modules.runner.createTrustedShellLoopAdapter;
   modules.runner.createTrustedShellLoopAdapter = (runner: any) => ({
@@ -320,7 +333,7 @@ function makeCheckpointRuntime(env: ReturnType<typeof makeEnv>, onExecute = () =
       return { status: 'completed', exitCode: 0, stdout, stderr: '', durationMs: 1, timedOut: false, cancelled: false, processTreeReaped: true };
     },
   });
-  return createA9AgentRuntime({ modules, workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot,
+  return createA9AgentRuntime({ ...extraConfig, modules, workspaceRoot: env.workspaceRoot, dataRoot: env.dataRoot,
     ownerId: `checkpoint-${process.pid}-${Date.now()}-${Math.random()}`,
     openDatabase: (p: string, o?: { readonly?: boolean }) => new Database(p, o?.readonly ? { readonly: true } : {}),
   });
@@ -1181,6 +1194,360 @@ describe('F5: pending approval keeps active state and resume continues the same 
       }
     }, 30_000,
   );
+
+  // A9-38: registered proxy username/password in HTTP Basic composite form.
+  // The proxy points at the path-agnostic Provider fixture, so the current pair stays active.
+  const A938_PROXY_USER = 'a9fixture';
+  const A938_PROXY_PASSWORD = 'A9-38-proxy-~~~???x';
+  const a938Composite = (user: string) => Buffer.from(`${user}:${A938_PROXY_PASSWORD}`, 'utf8').toString('base64');
+
+  it.each([
+    'proxy-authorization-header', 'bare-json', 'base64-unpadded', 'base64url-padded', 'base64url-unpadded',
+    'percent', 'utf16le', 'previous-after-proxy-null', 'previous-after-username-change', 'current-after-username-change',
+  ])('A9-38 blocks the registered proxy Basic credential in %s form', async (form) => {
+    const env = makeEnv();
+    const composite = a938Composite(form === 'current-after-username-change' ? 'a9renamed' : A938_PROXY_USER);
+    const base64url = composite.replace(/\+/g, '-').replace(/\//g, '_');
+    expect(composite).toContain('+');
+    expect(composite).toContain('/');
+    expect(composite).toMatch(/=+$/);
+    expect(composite).not.toContain(Buffer.from(A938_PROXY_PASSWORD).toString('base64').replace(/=+$/g, ''));
+    const text = form === 'bare-json' ? `{"auth":"${composite}"}`
+      : form === 'base64-unpadded' ? composite.replace(/=+$/g, '')
+        : form === 'base64url-padded' ? base64url
+          : form === 'base64url-unpadded' ? base64url.replace(/=+$/g, '')
+            : form === 'percent' ? encodeURIComponent(composite)
+              : `Proxy-Authorization: Basic ${composite}`;
+    const bytes = Buffer.from(text, form === 'utf16le' ? 'utf16le' : 'utf8');
+    fs.writeFileSync(path.join(env.workspaceRoot, 'proxy.txt'), bytes);
+    const fixture = await startQuickFixture({ name: 'shell', arguments: JSON.stringify({ command: 'printf SHOULD_NOT_RUN' }) });
+    const port = Number(new URL(fixture.baseUrl).port);
+    let shellCalls = 0;
+    const runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; });
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: 'different-current-key',
+        proxy: { host: '127.0.0.1', port, username: A938_PROXY_USER, password: A938_PROXY_PASSWORD }, skipProbe: true });
+      if (form === 'previous-after-proxy-null') {
+        await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', proxy: null, skipProbe: true });
+      }
+      if (form === 'previous-after-username-change' || form === 'current-after-username-change') {
+        await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture',
+          proxy: { host: '127.0.0.1', port, username: 'a9renamed', password: A938_PROXY_PASSWORD }, skipProbe: true });
+      }
+      const result = await runtime.submitTurn('try read-only Shell');
+      expect(fixture.requests.length).toBeGreaterThan(0);
+      expect(result.ok).toBe(false);
+      expect(result.error.message).toContain('A9_CHECKPOINT_SECRET_BLOCKED');
+      expect(shellCalls).toBe(0);
+      const projected = JSON.stringify([result, runtime.getSnapshot()]);
+      expect(projected).not.toContain(composite.replace(/=+$/g, ''));
+      expect(projected).not.toContain(A938_PROXY_PASSWORD);
+      const recoveryRoot = path.join(env.workspaceRoot, '.agent_recovery');
+      for (const file of fs.existsSync(recoveryRoot) ? listDataFiles(recoveryRoot) : []) {
+        const persisted = fs.readFileSync(file);
+        expect(persisted.includes(bytes)).toBe(false);
+        expect(persisted.includes(Buffer.from(composite.replace(/=+$/g, '')))).toBe(false);
+      }
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each([
+    ['unregistered composite', `Proxy-Authorization: Basic ${Buffer.from('other:other-pass').toString('base64')}`],
+    ['documentation example', 'Authorization: Basic dXNlcjpwYXNz'],
+  ])('A9-38 preserves and restores %s with a registered proxy', async (_label, content) => {
+    const env = makeEnv();
+    const original = Buffer.from(content, 'utf8');
+    const target = path.join(env.workspaceRoot, 'example.txt');
+    fs.writeFileSync(target, original);
+    const fixture = await startQuickFixture({
+      name: 'shell', arguments: JSON.stringify({ command: 'printf changed > example.txt' }),
+    });
+    const port = Number(new URL(fixture.baseUrl).port);
+    const runtime = makeCheckpointRuntime(env);
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture',
+        proxy: { host: '127.0.0.1', port, username: A938_PROXY_USER, password: A938_PROXY_PASSWORD }, skipProbe: true });
+      const result = await runtime.submitTurn('update the example file');
+      expect(result.ok).toBe(true);
+      expect(fs.readFileSync(target, 'utf8')).toBe('changed');
+      const recovery = listDataFiles(path.join(env.workspaceRoot, '.agent_recovery'));
+      expect(recovery.some((file) => fs.readFileSync(file).equals(original))).toBe(true);
+      const undo = await runtime.undoTurn(result.result.turnId);
+      expect(undo.outcome.errors).toEqual([]);
+      expect(fs.readFileSync(target)).toEqual(original);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A9-38 P2-3: each Authorization form is its own case so every one fails independently on the old regex.
+  it.each([
+    ['Authorization Basic', 'Authorization: Basic A938BASICCREDONE', 'A938BASICCREDONE'],
+    ['Proxy-Authorization Basic', 'Proxy-Authorization: Basic A938BASICCREDTWO', 'A938BASICCREDTWO'],
+    ['lowercase authorization=basic', 'authorization=basic A938BASICCREDTHREE', 'A938BASICCREDTHREE'],
+    ['Proxy-Authorization NTLM', 'Proxy-Authorization: NTLM A938NTLMTOKENFOUR', 'A938NTLMTOKENFOUR'],
+  ])('A9-38 redacts the %s credential in prompt projections and SQLite', async (_label, header, credential) => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('read_only');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn(`${header}\nA938-PROMPT-KEPT`);
+      expect(result.ok).toBe(true);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('A938-PROMPT-KEPT');
+      expect(snapshot).not.toContain(credential);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+    }
+    try {
+      const stored = listDataFiles(env.dataRoot).map((file) => fs.readFileSync(file));
+      expect(stored.some((bytes) => bytes.includes(Buffer.from('A938-PROMPT-KEPT')))).toBe(true);
+      expect(stored.some((bytes) => bytes.includes(Buffer.from(credential)))).toBe(false);
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-38 keeps the next line after a bare Basic scheme', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('read_only');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('Authorization: Basic\nA938-NEXT-LINE-KEPT');
+      expect(result.ok).toBe(true);
+      expect(JSON.stringify(runtime.getSnapshot())).toContain('A938-NEXT-LINE-KEPT');
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-38 redacts a Basic credential in manual conversation titles before SQLite and snapshot', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    const credential = 'A938TITLEBASICCRED';
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const activeId = runtime.getSnapshot().activeConversationId;
+      runtime.renameConversation(activeId, `A938-TITLE Authorization: Basic ${credential}`);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('A938-TITLE');
+      expect(snapshot).not.toContain(credential);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+    }
+    try {
+      const stored = listDataFiles(env.dataRoot).map((file) => fs.readFileSync(file));
+      expect(stored.some((bytes) => bytes.includes(Buffer.from('A938-TITLE')))).toBe(true);
+      expect(stored.some((bytes) => bytes.includes(Buffer.from(credential)))).toBe(false);
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A9-38 round 3: RFC 7235 token scheme names may start with any tchar, not only a letter.
+  it.each([
+    ['1Custom', 'A938DIGITSCHEMECRED'],
+    ['!Custom', 'A938BANGSCHEMECRED'],
+    ['_Custom', 'A938UNDERSCORESCHEMECRED'],
+  ])('A9-38 redacts the credential after the %s token scheme in titles and SQLite', async (scheme, credential) => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    let snapshot = '';
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const activeId = runtime.getSnapshot().activeConversationId;
+      runtime.renameConversation(activeId, `A938-SCHEME Authorization: ${scheme} ${credential}`);
+      snapshot = JSON.stringify(runtime.getSnapshot());
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+    }
+    try {
+      const stored = listDataFiles(env.dataRoot).map((file) => fs.readFileSync(file));
+      expect(snapshot).toContain('A938-SCHEME Authorization: ***redacted***');
+      expect(stored.some((bytes) => bytes.includes(Buffer.from('A938-SCHEME')))).toBe(true);
+      // Report both projections together so each path is observed on the unfixed product.
+      expect({
+        snapshotContainsCredential: snapshot.includes(credential),
+        sqliteContainsCredential: stored.some((bytes) => bytes.includes(Buffer.from(credential))),
+      }).toEqual({ snapshotContainsCredential: false, sqliteContainsCredential: false });
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-38 keeps the plain-text Authorization title projection unchanged', async () => {
+    const env = makeEnv();
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const activeId = runtime.getSnapshot().activeConversationId;
+      runtime.renameConversation(activeId, 'A938-PLAIN Authorization: see docs');
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('"A938-PLAIN Authorization: ***redacted***"');
+      expect(snapshot).not.toContain('see docs');
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-38 redacts a Basic credential in Shell command projections and SQLite', async () => {
+    const env = makeEnv();
+    const credential = 'A938COMMANDBASICCRED';
+    const command = `printf A938-COMMAND-RAN # Authorization: Basic ${credential}`;
+    const fixture = await startQuickFixture({ name: 'shell', arguments: JSON.stringify({ command }) });
+    let shellCalls = 0;
+    const runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; });
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('run the read-only command');
+      expect(result.ok).toBe(true);
+      expect(shellCalls).toBe(1);
+      const snapshot = JSON.stringify(runtime.getSnapshot());
+      expect(snapshot).toContain('A938-COMMAND-RAN');
+      expect(snapshot).not.toContain(credential);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+    }
+    try {
+      const stored = listDataFiles(env.dataRoot).map((file) => fs.readFileSync(file));
+      expect(stored.some((bytes) => bytes.includes(Buffer.from('printf A938-COMMAND-RAN')))).toBe(true);
+      expect(stored.some((bytes) => bytes.includes(Buffer.from(credential)))).toBe(false);
+    } finally {
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A9-38 P2-1: the composite is registered again from the persisted proxy after restart.
+  it('A9-38 blocks the restored proxy Basic credential after a runtime restart', async () => {
+    const env = makeEnv();
+    const composite = a938Composite(A938_PROXY_USER);
+    const vault = { safeStorage: fakeSafeStorage(), vaultPlatform: 'win32' };
+    const fixture = await startQuickFixture({ name: 'shell', arguments: JSON.stringify({ command: 'printf SHOULD_NOT_RUN' }) });
+    const port = Number(new URL(fixture.baseUrl).port);
+    let shellCalls = 0;
+    let runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; }, vault);
+    try {
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: 'different-current-key', rememberApiKey: true,
+        proxy: { host: '127.0.0.1', port, username: A938_PROXY_USER, password: A938_PROXY_PASSWORD }, skipProbe: true });
+      expect(runtime.getSnapshot().provider.proxy).toMatchObject({ username: A938_PROXY_USER, passwordAvailable: true });
+      await runtime.shutdown();
+      fs.writeFileSync(path.join(env.workspaceRoot, 'proxy.txt'), `Proxy-Authorization: Basic ${composite}`, 'utf8');
+      runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; }, vault);
+      expect(runtime.getSnapshot().provider.proxy).toMatchObject({ username: A938_PROXY_USER, passwordAvailable: true });
+      runtime.setMode('full_access');
+      const result = await runtime.submitTurn('try read-only Shell');
+      expect(fixture.requests.length).toBeGreaterThan(0);
+      expect(result.ok).toBe(false);
+      expect(result.error.message).toContain('A9_CHECKPOINT_SECRET_BLOCKED');
+      expect(shellCalls).toBe(0);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  // A9-38 P2-4: Shell environment overlays see the composite; Latin-1 composites are registered too.
+  const A938_LATIN1_PASSWORD = 'A9-38-préxy-ç';
+  const a938Latin1Composite = () => Buffer.from(`${A938_PROXY_USER}:${A938_LATIN1_PASSWORD}`, 'latin1').toString('base64');
+
+  it.each([
+    ['UTF-8 composite', () => a938Composite(A938_PROXY_USER), A938_PROXY_PASSWORD],
+    ['UTF-8 composite unpadded', () => a938Composite(A938_PROXY_USER).replace(/=+$/g, ''), A938_PROXY_PASSWORD],
+    ['UTF-8 composite base64url', () => a938Composite(A938_PROXY_USER).replace(/\+/g, '-').replace(/\//g, '_'), A938_PROXY_PASSWORD],
+    ['Latin-1 composite', a938Latin1Composite, A938_LATIN1_PASSWORD],
+  ])('A9-38 rejects the %s in a Shell environment overlay', async (_label, value, password) => {
+    const env = makeEnv();
+    const runtime = makeRuntime(env);
+    try {
+      await runtime.configureProvider({ baseUrl: 'https://example.test/v1', model: 'm',
+        proxy: { host: 'proxy.example.test', port: 8080, username: A938_PROXY_USER, password }, skipProbe: true });
+      const overlay = (value as () => string)();
+      expect(overlay).not.toContain(password);
+      await expect(runtime.configureShell({ kind: 'automatic', envOverlay: { BUILD_MODE: overlay } }))
+        .rejects.toThrow('A9_ENV_OVERLAY_REJECTED');
+      expect(fs.existsSync(path.join(env.dataRoot, 'a9-shell-config.v1.json'))).toBe(false);
+      expect(JSON.stringify(runtime.getSnapshot())).not.toContain(overlay);
+    } finally {
+      await runtime.shutdown();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each(['header', 'unpadded', 'base64url'])('A9-38 blocks the Latin-1 proxy Basic credential in %s form', async (form) => {
+    const env = makeEnv();
+    const latin1 = a938Latin1Composite();
+    const utf8 = Buffer.from(`${A938_PROXY_USER}:${A938_LATIN1_PASSWORD}`, 'utf8').toString('base64');
+    expect(latin1).not.toBe(utf8);
+    const text = form === 'unpadded' ? latin1.replace(/=+$/g, '')
+      : form === 'base64url' ? latin1.replace(/\+/g, '-').replace(/\//g, '_')
+        : `Proxy-Authorization: Basic ${latin1}`;
+    fs.writeFileSync(path.join(env.workspaceRoot, 'proxy.txt'), text, 'utf8');
+    const fixture = await startQuickFixture({ name: 'shell', arguments: JSON.stringify({ command: 'printf SHOULD_NOT_RUN' }) });
+    const port = Number(new URL(fixture.baseUrl).port);
+    let shellCalls = 0;
+    const runtime = makeCheckpointRuntime(env, () => { shellCalls += 1; });
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', apiKey: 'different-current-key',
+        proxy: { host: '127.0.0.1', port, username: A938_PROXY_USER, password: A938_LATIN1_PASSWORD }, skipProbe: true });
+      const result = await runtime.submitTurn('try read-only Shell');
+      expect(fixture.requests.length).toBeGreaterThan(0);
+      expect(result.ok).toBe(false);
+      expect(result.error.message).toContain('A9_CHECKPOINT_SECRET_BLOCKED');
+      expect(shellCalls).toBe(0);
+      expect(JSON.stringify([result, runtime.getSnapshot()])).not.toContain(latin1.replace(/=+$/g, ''));
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('A9-38 keeps project instructions with a Basic credential secret_blocked', async () => {
+    const env = makeEnv();
+    const credential = 'A938INSTRUCTIONBASICCRED';
+    fs.writeFileSync(path.join(env.workspaceRoot, 'AGENTS.md'), `Authorization: Basic ${credential}`, 'utf8');
+    const fixture = await startQuickFixture();
+    const runtime = makeRuntime(env);
+    try {
+      runtime.setMode('read_only');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'fixture', skipProbe: true });
+      const result = await runtime.submitTurn('read note.txt');
+      expect(result.ok).toBe(true);
+      const started = runtime.getSnapshot().timeline.find((event: any) => event.type === 'turn_started');
+      expect(started?.data?.projectInstructions?.status).toBe('secret_blocked');
+      expect(JSON.stringify(fixture.requests)).not.toContain(credential);
+    } finally {
+      await runtime.shutdown();
+      await fixture.close();
+      fs.rmSync(env.root, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it('blocks UTF-16LE known secrets before copying a Shell baseline into recovery', async () => {
     const env = makeEnv();

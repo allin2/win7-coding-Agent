@@ -2846,3 +2846,67 @@ Claude R-01 与 codex 首轮 P1 是同一项目说明外发门问题。第二轮
 
 - 边界：不签 Win7，`Win7-Validation` 保持 `NOT_PERFORMED`；不签 Electron/Win10、新候选、Alpha2/RC、推送/合并/发布。A9-37 产品改动不在 WIN7-45（第二批正式验收候选）中，未在 Win7 实机验证。当前文件未提交。
 - 后续：整合方案见[本地报告](reports/2026-10/a9_37_checkpoint_secret_classification_repair_2026-10-15.md#整合方案与复验边界)。整合后重跑 A9-32 §5；本次只准备方案，不执行整合或该轮复验，也不签 A9-32 状态。
+
+## ADR-0248 A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏
+
+- 状态：Accepted（2026-10-16；负责人批准 A9-38 任务书，原话“批准”；Q1 取 B、Q2 取 A 按推荐项登记）
+- 范围：ADR-0247 L1、L2；补充 ADR-0246，不改其已知秘密与启发式分离原则
+- 编号：2026-10-16 核对全部本地工作树与分支，最大为 ADR-0247。整合到主线前须再核号。
+
+L1 决定：已知秘密集合增加“代理用户名:密码”组合。组合只保存在进程内存，与已知单值同生命周期；代理清除、改名或改密后旧组合继续保留。重启后只由持久化的当前代理配置恢复。组合的原文、base64、URL-safe、去 padding 与 percent 变体按单值相同规则匹配，checkpoint、恢复区重校验、日志投影与实时预览保留长度共用该集合。
+
+L1 边界：只覆盖已登记用户名的组合。同一密码配其他用户名的 Basic 编码不识别；按字节对齐检测密码片段的方案对短密码误报不可控，不采用。checkpoint 仍不使用任何字段名启发式。
+
+L2 决定：日志启发式中，`Authorization` 字段值若为“方案名 + 空格/制表符 + 令牌”，方案名与令牌整体替换为 `***redacted***`。方案名覆盖 Basic、NTLM、Negotiate 等任意 token 字符方案；方案名后不跨换行。`Bearer` 既有规则不变。`Proxy-Authorization` 因包含字段名同样适用。
+
+L2 边界：`Digest` 的逗号分隔参数只替换首个参数，其余参数不保证脱敏。已写入 SQLite 的历史投影不迁移、不回洗。投影可能多替换源码中字段后的单词，属保守方向；项目说明外发门阻断集合不缩小。
+
+不改接口、Schema、持久化格式、vault、权限或 UI。结论限开发机；不创建新候选，不改 WIN7-45，Win7 为 NOT_PERFORMED。
+
+2026-10-16 审核处置补充：项目经理经负责人授权裁决独立审核 4 项 P2。补充内容如下，不改上文决定。
+
+- Shell 环境覆盖校验、自动 Shell 选择与 Runner 敏感值读取改用同一组敏感值：已知单值、代理组合，以及 Latin-1 组合的 base64。
+- 组合含 U+0080～U+00FF 且无更高码位时，同时登记 UTF-8 与 Latin-1 两种 base64；网关以 `btoa` 生成代理头即为 Latin-1 形式。码位高于 U+00FF 时 `btoa` 抛错，代理不可用，该缺陷属网关，不在本 ADR 范围。
+- 新增已知限制：带引号值（`Authorization: "Basic …"`）与 JSON/字典键形式（`{"Authorization":"Basic …"}`）的凭据不脱敏。该缺陷早于 A9-38，本 ADR 不修。
+
+## ADR-0249 A9-38 登记 `A9_38_DEVELOPER_VERIFIED`（带已知限制）
+
+- 状态：Accepted（2026-10-16；负责人对下列问题回复原话“批准”）。
+
+> A9-38 是否按选项 A 带已知限制签 A9_38_DEVELOPER_VERIFIED，并本地合入整合分支
+
+- 编号：本分支已有 ADR-0248。2026-10-16 只读核对 a9-36 分支工作树最大编号为 ADR-0245，a9-33 为 ADR-0243，整合工作树为 ADR-0247。整合前须再核号，本次核对不代替整合时核对。
+- 依据：开发机、Node 20.17.0，绑定分支 `codex/a9-38-basic-credential-redaction`、基线 `234e3dfb…` 及下列未提交文件字节。三套 Jest 共 150 PASS/0 FAIL，分别为 lifecycle 78、redaction 46、Provider persistence 26。`verify:quick`、`docs:check`、`git -c core.fsmonitor=false diff --check` 均通过。原始检查见[报告 §9.4](reports/2026-10/a9_38_basic_credential_redaction_2026-10-16.md#94-检查)。本次文档登记沿用第三轮和聚焦复核的开发机产品检查，标为 `INHERITED_EVIDENCE`；不重跑产品检查。
+
+| 绑定文件 | 完整 SHA-256（本次复算） |
+|---|---|
+| `src/shell/product/a9-agent-runtime.js` | `1809d4a559eb7fd7d35548d0a5412ca91d78a590224a451f478cb9013234924b` |
+| `src/shell/tests/product/a9-lifecycle.test.ts` | `34b9036c93ac25a931bfe8f1a08f0256584c1d444e14193550773830875020a8` |
+
+审核报告均位于候选外。原文与各轮结论保留，报告哈希经本次复算。
+
+| 独立审核 | 报告文件 | 报告 SHA-256 前 8 位 | 审核产品 | 原结论 |
+|---|---|---|---|---|
+| Claude | `/Users/qlyf/Library/Application Support/Claude/side-session-notes/local_53e0058b-d6de-450d-b89e-6dbe006dcf67/a9-38-independent-review-2026-10-16.md` | `c09d52cc…` | `d744db2d…` | 0P0/0P1/4P2 |
+| codex 复审 | `outputs/a9-38-basic-credential-redaction/codex-review/run-20261017T015206Z/review.md` | `856e4cd4…` | `bc3ed2b2…` | 0P0/0P1/1P2 |
+| codex 聚焦复核 | `outputs/a9-38-basic-credential-redaction/codex-review/recheck/review.md` | `71c19a43…` | `1809d4a5…` | 0P0/0P1/0P2 |
+
+Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。codex 复审 P2-01 已修复，聚焦复核确认关闭。零发现不关闭下列已知限制。
+
+- 决定：A9-38 阶段门登记为 `A9_38_DEVELOPER_VERIFIED`，随下列已知限制签发。完整编号沿用[报告 §5](reports/2026-10/a9_38_basic_credential_redaction_2026-10-16.md#5-已知限制)与[§8.4](reports/2026-10/a9_38_basic_credential_redaction_2026-10-16.md#84-已知限制更新)；K1 已关闭，其余保持。
+
+| 编号 | 限制与当前状态 |
+|---|---|
+| K1 | 已关闭：第二轮以 fake safeStorage 补启动恢复组合登记的直接测试，不提供真实 DPAPI 或 Win7 证据。 |
+| K2 | 未登记用户名的 Basic 组合不识别。 |
+| K3 | `Digest` 逗号分隔参数只替换首个参数，后续参数不保证脱敏。 |
+| K4 | 已写入 SQLite 的历史投影不迁移、不回洗。 |
+| K5 | GBK 解码分支无组合形式的直接测试，仍为 `NOT_VERIFIED`。 |
+| K6 | POSIX 进程夹具为 `SURROGATE`，不提供 Windows 原生身份或进程树清理证明。 |
+| K7 | 带引号值与 JSON/字典键形式的 Authorization 凭据不脱敏，该缺陷早于 A9-38。 |
+| K8 | 代理凭据含高于 U+00FF 的码位时，网关 `btoa` 抛错使代理不可用，不在本任务允许路径。 |
+
+数字/符号开头文本会多替换后续单词，属保守脱敏边界。POSIX 夹具仍为 `SURROGATE`。KL-12（真实 helper 启动后 ready 失败清理）仍为 P1/NOT_PERFORMED，本 ADR 不关闭。
+
+- 边界：不签 Win7，`Win7-Validation` 保持 `NOT_PERFORMED`；不签 Electron/Win10、新候选、Alpha2/RC、推送、合入 main 或发布。A9-38 产品改动不在 WIN7-45（第二批正式验收候选）中，未在 Win7 实机验证。
+- 后续：负责人已同意本地合入整合分支。本轮只登记文档，未提交、未整合、未推送、未连接远端。下一步为本地提交并快进合入 `codex/a9-alpha2-integration-r2`；整合前再核号，整合后按既有方案重跑 A9-32 §5。上述提交、整合与整合后复验本轮均为 `NOT_PERFORMED`，不签 A9-32 状态。
