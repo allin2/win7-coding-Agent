@@ -4,7 +4,7 @@
 
 | 任务书 | 类型 | 状态 | Phase-Gate | Win7 验证 |
 |---|---|---|---|---|
-| [A9-39（r3，选项 A）](A9_39_ALPHA2_FINAL_CANDIDATE.md) | RELEASE_REISSUE_AND_GATE_A_PREPARATION | APPROVED_FOR_IMPLEMENTATION | A9_39_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
+| [A9-39（预演2 HALTED，清理修订待新审核确认）](A9_39_ALPHA2_FINAL_CANDIDATE.md) | RELEASE_REISSUE_AND_GATE_A_PREPARATION | APPROVED_FOR_IMPLEMENTATION | A9_39_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
 | [A9-38](A9_38_BASIC_CREDENTIAL_REDACTION.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_38_DEVELOPER_VERIFIED | NOT_PERFORMED |
 | [A9-37（ADR-0247）](A9_37_CHECKPOINT_SECRET_CLASSIFICATION.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_37_DEVELOPER_VERIFIED | NOT_PERFORMED |
 | [A9-32](A9_32_EXPLICIT_TASK_CONTINUE.md) | EXECUTION_CAPABILITY | APPROVED_FOR_IMPLEMENTATION | A9_32_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
@@ -12,7 +12,13 @@
 | [A9-35](A9_35_MANAGED_START_FAILURE.md) | PRODUCT_HARDENING | APPROVED_FOR_IMPLEMENTATION | A9_35_IMPLEMENTATION_AUTHORIZED | NOT_PERFORMED |
 | [A9-36](A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md) | ALPHA2_SUPPLEMENTAL_ACCEPTANCE | APPROVED_FOR_IMPLEMENTATION | A9_36_DEVELOPER_VERIFIED | NOT_PERFORMED |
 
-A9-36六路径本地实现、检查与独立复核已获负责人“批准”，在隔离codex/a9-36-alpha2-supplement执行；不授权目标执行或复用A9-33旧门A。2026-10-15只读核对已确认Win7 agent当前console5及保存的HTTPS api.deepseek.com/deepseek-v4-flash配置；六路径本地入口已实现，完整合同R7为276 PASS，末次定向R8为14 PASS/262未重跑；独审问题已关闭，新目标门A已批准；R0因agent会话5断开停止，未进入目标写入；Win7新运行仍NOT_PERFORMED。2026-10-16负责人裁决以本任务书为唯一版本（ADR-0244）：a9-33树草案的§4.1必跑集合、§4.2隔离范围与M6已并入，追加实现与M6未批准，实现缺口见任务书§9。2026-10-16负责人批准按§9缺口追加实现（含M6，仍限六路径，ADR-0245）：实现、开发机合同与独立复审可进行，不提交，不执行目标机，新目标门A未批准；追加实现已完成并经三轮codex只读复审，开发机合同319 PASS，结果见任务书§10，目标执行仍NOT_PERFORMED。2026-10-17 执行代理按负责人授权接手候选改绑：WIN7-46 身份改由构建后的门 A 授权提供，M6 回退 WIN7-42 不变；r7 作废，ADR-0252 为 Proposed。入场判断、当前六路径与开发机检查见任务书 §10.12。本轮不提交、不构建正式候选、不连接目标机。完整补证缺口与进度只维护既有[处置表§7.5](../plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
+2026-10-18：预演2 r4签发7ff0f5c0…因总控误读ssh_exit_code在本地停止，R1窗口过期作废；未激活/连接/建根。r5已统一exit_code并补真实JSON往返，预算2/32/34，待重新审核与负责人逐字确认新包。run与新根不变，r4字节保留；详见任务书§11.8.11与outputs/a9-39-rehearsal-2-materials-r2/REPORT_DETAILS.json。
+
+2026-10-18：负责人“A”已裁决方案B及预演2独立33运输预算；新材料w46-rehearsal-2-preparation已备，待审核与r4逐字确认。新run df9b9b24-1efc-43d5-a1be-4207155604a7；预演1保持HALTED，不挪用旧预算/回执。新模板、完整SHA、验证与NOT_PERFORMED边界见任务书§11.8.10；本轮未连接目标或预检。
+
+2026-10-18 UTC，预演1 ce5b784f…在R6-p01以TARGET_MISMATCH:in_job HALTED；父false而controller自身true，包内0消费/0完成。R7回收14项、R8零残留，运输13/35且SFTP耗尽，不重跑。独立预演2草案采用B（同启动子探针后取值），开发机29/0与346/0，目标修复NOT_PERFORMED；新run df9b9b24-1efc-43d5-a1be-4207155604a7与预算33待裁决，未生成签发字节或预检。见任务书§11.8.9、w46-rehearsal-2-preparation-draft/CHANGE_LIST.md及outputs/a9-39-rehearsal-injob-r1/REPORT_DETAILS.json。
+
+A9-36六路径本地实现、检查与独立复核已获负责人“批准”，在隔离codex/a9-36-alpha2-supplement执行；不授权目标执行或复用A9-33旧门A。2026-10-15只读核对已确认Win7 agent当前console5及保存的HTTPS api.deepseek.com/deepseek-v4-flash配置；六路径本地入口已实现，完整合同R7为276 PASS，末次定向R8为14 PASS/262未重跑；独审问题已关闭，新目标门A已批准；R0因agent会话5断开停止，未进入目标写入；Win7新运行仍NOT_PERFORMED。2026-10-16负责人裁决以本任务书为唯一版本（ADR-0244）：a9-33树草案的§4.1必跑集合、§4.2隔离范围与M6已并入，追加实现与M6未批准，实现缺口见任务书§9。2026-10-16负责人批准按§9缺口追加实现（含M6，仍限六路径，ADR-0245）：实现、开发机合同与独立复审可进行，不提交，不执行目标机，新目标门A未批准；追加实现已完成并经三轮codex只读复审，开发机合同319 PASS，结果见任务书§10，目标执行仍NOT_PERFORMED。2026-10-17 执行代理按负责人授权接手候选改绑：WIN7-46 身份改由构建后的门 A 授权提供，M6 回退 WIN7-42 不变；r7 作废，ADR-0252 为 Accepted。入场判断、当前六路径与开发机检查见任务书 §10.12。本轮不提交、不构建正式候选、不连接目标机。完整补证缺口与进度只维护既有[处置表§7.5](../plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
 
 2026-10-16，负责人对 A9-39 §6 回复原话“r2”，执行代理以 ADR-0251 登记采用方案 R2。A9-36 产品绑定改为 WIN7-46，M6 回退目标仍为 WIN7-42。不签发、不执行现有 WIN7-45 r7；原字节、r6 `HALTED` 与首失败保留，旧 candidate/run/期限/预算不复用。
 

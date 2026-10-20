@@ -1,5 +1,205 @@
 # 项目状态流水（历史）
 
+## A9-39 预演2清理回收完成登记与只读诊断（2026-10-18 UTC）
+
+证据层级为 Win7 实机，按原时点 `INHERITED_EVIDENCE` 登记清理 `CLEANUP_COMPLETE`；候选 WIN7-46/source `dc8cdecbaa07008edb931c8e01024878e7ad3d58`，run `df9b9b24-1efc-43d5-a1be-4207155604a7`，`evidence_class=REHEARSAL_NOT_ELIGIBLE`。原预演2仍 HALTED，p03 不是 PASS，未重跑产品，不签正式门 A/门 B 或 Alpha 2/RC。
+
+负责人确认原话“确认执行预演 2 清理与回收，材料包 SHA e1c8d0c13b2eddea09cf0af78a35bd42483a50e3e1ba71627281113364737022”；回执 UTC `09:47:00.000Z`，有效到 `10:17:00.000Z`。执行 `09:47:05.343Z`～`09:47:34.668Z`；C1 目标 UTC `09:47:04.002Z` 主机 DCCS-CHAIZL-PC 验证通过，绑定残留进程根 `root_exists=false`。7244 已自行结束，TERMINATION 为 ALREADY_ENDED，C2 跳过，终止进程 0。C3 FULL 受限扫描 ok、任务创建/删除读回；C6 任务 0、包内相关进程 0、7244 不存在且未被复用。
+
+C5 回收 82 文件、2,494,843 字节，均标 REHEARSAL_NOT_ELIGIBLE；汇总 failures=[]。控制 SSH 18/32（本轮 4/6）、上传1/1、下载1/1，无重试。driver-electron/workspace/observed 等副本未回收；C4 已列出的 work/p03-chain.done 和 evidence/rehearsal-postflight/p03-chain.json 内容未下载，固定控制文件仅含 p01/p02。先子后父终止循环本次未执行，Win7 实机验证保持 NOT_PERFORMED。
+
+登记只依据派单已核事实与 `outputs/a9-39-rehearsal-2-run/df9b9b24-1efc-43d5-a1be-4207155604a7/cleanup-r1/` 原始文件。开发机只读诊断写 `outputs/a9-39-rehearsal-2-diagnosis/DIAGNOSIS.md`，列可证伪假设、支持/反驳与最小实机动作，根因 UNKNOWN，建议动作 NOT_PERFORMED。本文、STATUS 与[任务书 §11.8.14](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#11814-预演2清理回收完成登记与只读诊断2026-10-18-utc)同步；原清理、候选、源码/脚本/锁与入场任务索引字节保护。文档检查与保护核验见同诊断目录 CHECKS.json、PROTECTION_CHECK.json；本单无连接、提交/推送、安装依赖、新会话或代理。
+
+## A9-39 清理回收审核2P1修订与旧确认作废（2026-10-18 UTC）
+
+清理回收材料审核修订结论限开发机：原包 SHA `838add4d20c4964b067602e337e102393143ed1135eb880eabdc8c84191b5a39` 曾获负责人原话“确认执行预演 2 清理与回收，材料包 SHA 838add4d20c4964b067602e337e102393143ed1135eb880eabdc8c84191b5a39”，但审核未通过。本次新字节不能使用旧确认，旁侧 `VOID_CLEANUP_R1_CONFIRMATION.json` 已登记失效；原确认时间未提供，保留 null/UNKNOWN，不补造时间。旧包全部原字节在 `outputs/a9-39-rehearsal-2-cleanup-r1-r2/before/` 保留。状态为“修订包已备，待重新审核与负责人逐字确认”，未生成已批准的新回执。
+
+P1-1 已补 C2/query-common 每个终止闸门的结构合同：Get-Tree→Validate-Tree→节点数相等→逐节点 Match-Approved→逐PID新WMI记录→Match→截止→唯一 Terminate→读回。根父7040、RootCreated、MinUtc、owner_sid/name/domain/session、未知PID即throw均在真实函数块中断言，生成执行体与模板比对。按实际PS标量比较表达式实现的JS模型覆盖正控先子后父，树外PID、属主、会话、创建时间及初始树不符时Terminate调用0次。模型不是PowerShell执行，不提升目标证据等级。
+
+P1-2 已加未在扫描清单中的 work/logs 文件，必须进 omitted 而不进 items；13:50Z确认、14:20Z到期跨绝对截止的回执须 APPROVAL_WINDOW、零SSH、无执行目录；根parent_pid≠7040须ROOT_BINDING。内置审核变异 M2、M3、M7、M8、M10、M11、M12、M13、M16、M20 共10个全部被相同闸门/行为断言判FAIL；不是依靠材料SHA不符杀变异。
+
+两项澄清已固化。第一，本轮 cleanup-r1-finish-stdout/stderr 及同前缀日志完全排除扫描输入与下载；evidence/requests、work/logs、data 在新建scan-inputs副本中扫描，仍按原路径映射和原文件哈希核对。测试保持写句柄打开，断言这些文件没有被读取、扫描或清单化。C4仅在扫描任务与子进程结束后开始，可以哈希已关闭日志，但不下载。第二，vault/credential/credentials容器不读取、不哈希、不复制或下载；C4仅输出path/exists/omitted_reason，目录不下探。开发机严格拒绝携带bytes/sha256的凭据行，仅在omitted中记录存在。守卫IO与C4条件模型验证凭据内容读取/Hash调用0次。
+
+新材料包 SHA `e1c8d0c13b2eddea09cf0af78a35bd42483a50e3e1ba71627281113364737022`；总控 SHA `c645f96653ff7cbd01a8fea9713d92bdf556c62e5efe74bcb2c9eab83aa6185d`。完整模板：
+
+> 确认执行预演 2 清理与回收，材料包 SHA e1c8d0c13b2eddea09cf0af78a35bd42483a50e3e1ba71627281113364737022
+
+材料包仍位于 `.acceptance/a9-39/w46-rehearsal-2-preparation/cleanup-r1/`。28原材料/800候选文件钉不变；新的脚本/测试/任务XML、旧确认失效记录、CLEANUP_BINDING、SHA256SUMS与模板均已重钉。EncodedCommand长度28147字符，小于32767上限；新增组合Win7实机仍NOT_PERFORMED。预算不变：起点控制14/32、上传1/1、下载0/1；正常新增5SSH（根已自行结束4）、下载1；硬上限6SSH，保留只读后飞行，不重试、不新增运输额度。原绝对签发截止2026-10-18T14:01:47.000Z不延长，跨截止在SSH前拒绝。
+
+开发机Node20.17离线64/0（原37项加27项），全部10个内置变异被判FAIL；docs:check、diff --check、SHA256SUMS与print-template按本轮日志核验。原预演1/2、签发/回执、包与305项保护基线均保持原字节；实际目标SSH/SFTP、终止、注册任务、下载均0，不提交/推送/安装/新开会话或代理。预演2永久HALTED及首失败、当前PID状态UNKNOWN、WMI复核到Terminate非原子竞态均不改判。绑定本分支HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；证据与文件SHA见 `outputs/a9-39-rehearsal-2-cleanup-r1-r2/REPORT_DETAILS.json`。最短真实链路仍是重新审核新包→负责人逐字确认新SHA→另行受领执行，不由本单触发。
+
+## A9-39 预演2残留7244登记与cleanup-r1材料准备（2026-10-18 UTC）
+
+预演2实机记录（继承原时点证据）：run `df9b9b24-1efc-43d5-a1be-4207155604a7`，最终载荷 SHA `292e6006497af596eab64b0f7407b671ca8827cac69131e374a6185d80601c0d`，负责人最终确认 UTC `2026-10-18T06:06:49.703Z`。`RUN_RESULT.json` 为 HALTED / REHEARSAL_NOT_ELIGIBLE；p01-env、p02-integrity 已提交 PASS。R6-p03-chain 从 `06:09:55.112Z` 至 `06:32:56.989Z` 失败，原输出含 `TASK_DELETED_READBACK_ABSENT` 与 `BOUND_ADMIN_QUERY_OR_ACTION_FAILED`。p03 失败机制尚未诊断，不从已有现场文件推导 PASS，不重跑预演2。
+
+R7 报 `RECOVERY_SCAN_REQUIRED`，尚未下载；R8 tasks_remaining=0，残留 powershell.exe PID 7244、父 7040、创建时间 `20261018140953.566879+480`（06:09:53.566879Z）。现时是否仍存在 UNKNOWN。运输已用控制 SSH 14/32（含两次预检）、上传 1/1、下载 0/1，剩余 SSH 18 和下载 1，不新增预算、不挪用预演1额度。原 RUN_RESULT、账本、stdout、签发/回执及原材料均保留原字节。
+
+负责人原话“a”仅选择先准备准确清理与回收材料、审核后再逐字确认。本轮只新增 `.acceptance/a9-39/w46-rehearsal-2-preparation/cleanup-r1/`，状态“清理回收材料已备，待审核与负责人逐字确认”。C1 用 PS2 WMI 只读核 PID 树、创建时间/映像/命令行、GetOwner/GetOwnerSid、会话5；所有节点为 agent 且不早于本轮开始才允许 C2。根已自行结束则跳过终止。C2 先子后父，仅 C1 证明集合，每次终止前重读 PID+创建时间及身份/命令哈希，每次后读回消失；PID复用、新节点、非agent或残留即停，树外进程不动。
+
+随后 C3 只允许一次普通 agent 扫描任务，C4 无编译 TreeHash，C5 一次 SFTP 下载，外层 mark-rehearsal，C6 只读后飞行。正常新增5次SSH（根已结束4次）和下载1，硬上限6次SSH/下载1，原上传1已耗尽；正常累计19/32控制SSH、1/1上传、1/1下载。新账本按原前缀逐字续写，每次启动前记 UTC/步骤/类别/序号/STARTED，结束记退出码；首失败保存，不自动重试，后飞行仍受身份、截止和预算硬门约束。新证据只写原run下cleanup-r1子目录，已存在即拒，本轮未创建该真实执行目录。
+
+扫描使用已钉包内 scanRun/buildEvidenceManifest API 的候选外适配器，不调用产品/controller、不重跑p03。范围限定 evidence/requests、work/logs、data及固定控制文件副本，总4096文件/64MiB，扫描前后清单不变且阳性/phase2控制均通过。原清单 evidence 为116文件/231490099字节，运行时副本及未扫描路径不下载；每项缺失写 RECOVERY_PLAN。扫描启动前会话或容量不安全，只回收固定无原始日志内容的元数据并标 METADATA_ONLY；启动后失败或秘密检出则不下载，仅后飞行。不是全树备份。新PS2组合/扫描任务/终止在目标均 NOT_PERFORMED；WMI末次重读到Terminate不是原子操作，竞态仍 UNKNOWN。
+
+材料包 SHA `838add4d20c4964b067602e337e102393143ed1135eb880eabdc8c84191b5a39`；总控 SHA `7c2e56b021459bd338df5e7062cc4a76760372a7d67fdf5e74e908423dca2995`。准确SSH/stdin命令、每步SHA、停止条件、不做清单与审批回执格式见 `cleanup-r1/CLEANUP_PACKAGE.md`。负责人新模板：
+
+> 确认执行预演 2 清理与回收，材料包 SHA 838add4d20c4964b067602e337e102393143ed1135eb880eabdc8c84191b5a39
+
+仅 `--print-template` 可在开发机无连接核钉；执行入口固定 `cleanup-recover.cjs --receipt=.acceptance/a9-39/w46-rehearsal-2-preparation/cleanup-r1/OWNER_CLEANUP_RECEIPT.json`。当前只有 pending-owner 模板，未生成已批准清理回执。独立清理窗口≤1800秒，入场至少剩1500秒，且不晚于原绝对签发截止2026-10-18T14:01:47.000Z；不复活产品共同截止11:11:49.703Z。审核/精确确认未到或窗口已过即不连接，过期须另行裁决，不自动延长。
+
+开发机 Node20.17 离线桩/文件沙箱37/0；覆盖已结束、树中非agent、PID复用、终止后残留、各步首失败/只读后飞行、下载预算、原账本/载荷钉、审批/截止、扫描字节变化和受限回收。真实R8/账本夹具逐字复制并往返核对；包内真实扫描API在临时样本中检测秘密。证据、命令退出码、逐文件SHA和保护对比见 `outputs/a9-39-rehearsal-2-cleanup-r1-preparation/REPORT_DETAILS.json`。仅本地材料与桩 PASS，不代表Win7清理、恢复、产品、正式Gate或Alpha2/RC PASS。
+
+本轮基线 codex/a9-alpha2-integration-r2 / HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；已有四文档修改已留快照。当前改动不涉及产品/原生/锁/构建/冻结ZIP，未提交、推送、安装依赖、新开会话或代理；目标查询/终止/任务/下载连接均0。原预演1/2 HALTED及首失败不改判。最短真实链路仍需本包审核与负责人逐字确认后，才由另行受领的执行单按固定C1～C6取证和清理。
+
+## A9-39 预演2字段错配本地停止与r5重新准备（2026-10-18 UTC）
+
+预演2第一次签发永久作废：负责人原话“批准本次预演最终载荷SHA-256 7ff0f5c0d6f54d6ae40d8bd87b052e6931d44097619d11a449f763f100e939a0”，签入回执confirmation_utc=2026-10-18T04:59:19.757Z。总控在本地预检账本绑定处即报RUN_REHEARSAL:PREFLIGHT_LEDGER_BINDING；未activate、未SSH、未创建本地run证据目录或目标根。R1开始窗口于05:04:19.757Z过期，VOID_RUNNER_FIELD_MISMATCH.json登记原SHA/原话/时间/原因，signing-final-r4与预检四原字节保留，不以修复代码复活。
+
+根因已复现：包装器与finalize使用exit_code=0，总控误读不存在的ssh_exit_code；真实LOCAL_RESULT原字节SHA eaa8cfc6f746264eefc9173397e5f51353addcfe06f00b2d5dac990d1253fd8a。执行原绑定表达式返回false，只改这一字段返回true，其余条件均一致。修复总控为exit_code，并抽出verifyPreflightBinding纯检查；13个LOCAL_RESULT字段、6观察字段和8字段签发投影共用developer-json-contract.cjs，封闭字段集合，不接受旧别名。
+
+本轮将真实r4 LOCAL_RESULT、stdout/stderr、authority与FINALIZATION逐字复制到fixtures/preflight-r4作为负例/回归输入。真实原JSON同时通过finalize读取器和总控绑定检查；旧字段变异、13字段/6观察字段逐项缺失、非零/null/字符串退出码与别名反例均拒绝。总控夹具改为调用真实finalize写入签发/FINALIZATION，再消费该产物，真实activate落盘并由五次consumeDispatch读回锚值。相邻JSON的完整字段表、生产者/消费者、往返方式与结论见.acceptance/a9-39/w46-rehearsal-2-preparation/JSON_CONTRACTS.md。
+
+r5下一轮材料已备，待审核与负责人重新逐字确认。run保持df9b9b24-1efc-43d5-a1be-4207155604a7、根保持C:\A9-W46\run\df9b9b24，因为未建任何目标对象。预检证据新outputs/a9-39-rehearsal-2-auth/win7-preflight-r5/，签发新signing-final-r5/，已存在均拒绝。不得复用r4回执/SHA/预检或T0；新T0取r5负责人答复UTC，截止=min(T0+8小时,更早指定截止)，7200秒确认与R1的300秒窗口不变。
+
+预算预检累计2、控制SSH32（已用r4预检1+新增r5预检1+执行30）、SFTP各1、运输总34。此前实际已用仅预检四1，执行SSH/SFTP均0。旧预演1预算不挪用。运输账本导入r4为ssh序号1、新r5为2，执行从3到32号；执行额度保持30且不重试。D2更新为P1_BUDGET_REHEARSAL2_TWO_PREFLIGHTS_TOTAL34_ACCEPTED，D1=P1与D3连续全量37/67同字节/P1不计次数不变。
+
+r5包SHA `d9177956f09a78650194d5e8a5c081a37828cc10c551c219d3d966b03bc3040d`；查询脚本未改，SHA `9c14a5ac1f0f49f4ccca1b41da6f178ff6f8a806cb28ccb0f30b09008b35b266`；草案SHA `79b16639e2b22546c52ce28c9819a07521206e931aa97e4ea0f0bcaea112d0a1`（非最终签发SHA）。负责人新模板：
+
+> D1～D3 按建议，确认预演 2 预检材料包 r5 SHA d9177956f09a78650194d5e8a5c081a37828cc10c551c219d3d966b03bc3040d
+
+28项execution_tools与36项库存运输清单包含共享字段模块与作废记录，SHA256SUMS覆盖57项材料。保留Bypass/Write-Output/无声明ASCII LF XML/J无损转义/R4 900秒/父目录判据，产品/原生/锁/ZIP与Win7脚本不改。开发机Node20.17：gate358/0、finalize126/0、总控164/0、InJob36/0，共684/0；总控新增30项契约验证。首次新增字段提取静态测试漏匹配sha256中的数字而失败，修正正则为[a-z0-9_]后通过；原日志保留，生产字段集合未放宽。
+
+补核包装器SSH前脚本SHA错误的三字段JSON（ok/error/ssh_started）：finalize先按包装器非零退出停止，不进入13字段成功结果解码，不生成最终authority。现有失败锁存用例增加实际Python字面量原字节落盘/保留/不重试分支；两种失败通道均验证，测试总数不变。
+
+本轮基线为codex/a9-alpha2-integration-r2 / HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58，已有四文档修改已留快照。直接检查为本地JSON/文件沙箱，实际SSHSFTP调用0；r4普通查询成功仅按原时点INHERITED_EVIDENCE引用。r5预检/最终签发/激活/目标执行均NOT_PERFORMED，新探针及跨启动Job竞态仍NOT_PERFORMED/UNKNOWN。最短真实链路是审核r5→负责人新模板确认/授权预检→自动新字节→最终SHA批准→R1，不由本单触发。未连接目标、不提交/推送/安装/新开代理或会话，预演1HALTED和r4VOID不改判。证据及全部文件SHA/命令退出码见outputs/a9-39-rehearsal-2-materials-r2/REPORT_DETAILS.json。
+
+## A9-39 预演2独立材料r4准备记录（2026-10-18 UTC）
+
+负责人原话“A”已裁决采用方案B生成独立预演2材料；新run `df9b9b24-1efc-43d5-a1be-4207155604a7`，新根 `C:\A9-W46\run\df9b9b24`。材料位于 `.acceptance/a9-39/w46-rehearsal-2-preparation/`，状态“预演2材料已备，待审核与负责人逐字确认”。本单没有连接目标、执行预检、生成最终签发字节、激活或重跑预演1。
+
+独立预算：控制SSH31=新预检1+执行30，SFTP上传1/下载1，运输总33；旧剩余额度不挪用。D1=P1，D2=P1_BUDGET_REHEARSAL2_ONE_PREFLIGHT_TOTAL33_ACCEPTED，D3=TWO_FULL_37_67_SAME_BYTES_P1_NOT_COUNTED（两次连续全量37/67同字节，P1不计次数）。新T0取本次r4答复UTC，截止取min(T0+8小时,负责人更早截止)；确认最终SHA上限7200秒、R1开始窗口300秒不变。旧T0/console/回执不迁移，pending-owner输入保持空缺。
+
+r4预检材料包SHA `694ae189fa1afedca7f604ee36872bdead537a9f1276bbec82bba5a907defd1f`；新只读预检脚本SHA `9c14a5ac1f0f49f4ccca1b41da6f178ff6f8a806cb28ccb0f30b09008b35b266`（仅Test-Path新根绑定）。准确模板：
+
+> D1～D3 按建议，确认预演 2 预检材料包 r4 SHA 694ae189fa1afedca7f604ee36872bdead537a9f1276bbec82bba5a907defd1f
+
+本轮草案SHA `715b44425ecf37132797398f4e83ed0c71a72d504740d024edbb68ed3010d350`，不是最终签发SHA，不能作为执行批准。finalize输出新signing-final-r4/，预检证据新outputs/a9-39-rehearsal-2-auth/win7-preflight-r4/；总控证据新outputs/a9-39-rehearsal-2-run/<run-id>/，均已存在即拒。完整用法见新REHEARSAL_PLAN §2、§4～§6，当前只运行--print-template和本地测试。
+
+闭包26项execution_tools、34项草案运输清单及SHA256SUMS包含同启动方式InJob探针和测试。门禁硬钉1/31/33并硬拒预演1的run与根；单字节探针篡改、同步伪造预算元数据、旧run/根复用均有负例。总控核预检结果哈希锚/签发字段后导入本轮D4计账（序号1），执行SSH从2号开始，最多31号；首失败不覆盖，R7/R8仍独立清理。
+
+保留Bypass、Write-Output成功令牌、无声明ASCII/LF XML、J()无损TAB/JSON、R4 900秒及父目录记录。C:\A9-W46及其run由预演1创建，原R2.json哈希钉住；允许其现存普通目录并检查非reparse，新df9b9b24根必须不存在，ACL仅授新根。文件系统不能单独证明历史归属，依据原R2证据及新的只读复核。新探针/新根Win7实机NOT_PERFORMED，跨启动Job竞态UNKNOWN；冻结包内自身比较保持不变。
+
+开发机Node20.17本轮门禁355/0（16正例、339反例，r2攻击19拒绝/3设计边界）、finalize126/0、总控134/0、InJob36/0；M1/M2/M5内置负例均判FAIL。SHA256SUMS、finalize --print-template、docs:check、diff --check的实际输出与全部文件钉见outputs/a9-39-rehearsal-2-materials-r1/REPORT_DETAILS.json。总控首轮旧夹具与新增outputs预检目录冲突EEXIST，已将软链接用例限定本轮run目录，保留原失败日志，生产路径检查未放宽。
+
+当前分支codex/a9-alpha2-integration-r2、HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；实际基线四文档已有修改，已留快照。仅新增候选外材料与证据、同步四文档；不改源码/原生/锁/构建/冻结ZIP，不重建产品。预演1完整目录、签发/回执、原始实机证据、旧预检、修复draft与双ZIP逐项哈希保护。历史HALTED/UNKNOWN保持；本地SURROGATE不等于目标验证、正式Gate或Alpha2 PASS。回执真伪依赖对话记录，脚本不能证明。
+
+最短真实链路仍待审核和r4逐字确认后另行授权：新预检→最终SHA批准→一次激活→R1/R2新根→同启动探针→冻结controller自身比对→p01。当前只准备材料，不从本地测试推导目标权限。待办为审核、负责人逐字确认r4及新T0/更早截止、随后明确预检和最终SHA执行窗口；方案B/run/预算已裁决，无需重复裁决。
+
+## A9-39 预演1首失败与B修复草案（2026-10-18 UTC）
+
+预演1实机结论：HALTED / REHEARSAL_NOT_ELIGIBLE，run ce5b784f-040c-4054-ba4e-6ed1fa5d5de0，最终载荷SHA 261219f20431cf1b08048e74837f18883939a0d7c8fcdbce4515ccc520f4efe9。负责人原话“批准本次预演最终载荷SHA-256 261219f20431cf1b08048e74837f18883939a0d7c8fcdbce4515ccc520f4efe9”，回执confirmation_utc=2026-10-18T03:52:29.764Z。执行03:52:35.609Z～03:53:36.965Z；R0～R4与p01的R5通过，R6-p01在03:53:28.871Z首失败。包内controller拒绝TARGET_MISMATCH:in_job：父观察false/attempts1/error0，请求false；controller自身true/attempts2/last_error6。未进入包内consume，包内消费/完成均0，后四阶段未执行。预演1不重跑。
+
+实机已证实本轮入口链的进程级Bypass、R4/R5成功令牌Write-Output、p01无声明XML注册与回读；R4在9.094秒内展开并校验801项（上限900秒）。其余四份XML只有上传SHA核验，注册/运行仍未执行。R7的TreeHash TAB/JSON修复本次成功回收14项/121101字节，R8 tasks_remaining=0且processes=[]。控制SSH8+预检3=11/33，余22；上传1/1、下载1/1均耗尽；运输合计13/35，余SSH不能挪成SFTP或自动重试。
+
+确定的材料根因是测量对象错误：父任务的in_job不能代表新启动controller自身。Start-Process -Wait/重定向包装是Job差异的主要嫌疑，但分配Job的具体API/时序没有实机追踪，机制级根因UNKNOWN。last_error6是控制器首轮失败后保留的诊断，第二轮成功测得true，不是unknown或false。WIN7-45先例是cmd直接启动powershell；其猜bool再翻转的旧逻辑不继承。
+
+选择B：同一powershell.exe、flags及Invoke-Logged/Wait/Hidden/双路重定向先启动候选外controller-injob-probe，记录子PID/父PID、SID/Medium/非提升/session、5次交替句柄查询与UTC。issue-request在createRequest前核父PID还等于真实issuer.ppid、身份/console/30秒新鲜度及query_ok，再使用child.in_job；父观察保留，合并观察单独版本化落盘。unknown/不匹配先停，不猜另一bool；冻结包比较未改。探针与controller仍是两个实例，跨启动竞态及新PS在Win7运行保持UNKNOWN/NOT_PERFORMED，最终controller比较仍是最后一道拒绝门。
+
+修复仅在独立.acceptance/a9-39/w46-rehearsal-2-preparation-draft，预演1完整目录、签发/回执、原始运行证据、旧预检与双ZIP不改。草案新run df9b9b24-1efc-43d5-a1be-4207155604a7、新根C:\A9-W46\run\df9b9b24只是待裁决标识；建议新窗口控制SSH31（新预检1+执行30）、SFTP各1、总33，旧消耗另记。沿用r3的包逐字确认→新预检→最终SHA确认7200秒→R1开始300秒机制，但新包SHA/预算D2/T0/截止均须重新裁决，本单没有生成签发字节或预检包。
+
+开发机Node20.17：定向29/0，修复版请求生成器与原门禁/原ZIP模块文件沙箱346/0（含unknown不生成请求、父false子true实际写true并通过原verifyRequest）。PS仅静态合同，沙箱为SURROGATE，不能记成修复实机PASS。当前HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；不连接目标、不执行预检、不提交/推送/装依赖/新开会话代理。证据见outputs/a9-39-rehearsal-injob-r1/REPORT_DETAILS.json、DIAGNOSIS.md及预演2CHANGE_LIST.md。
+
+
+## A9-39 R7 TreeHash转义修复（2026-10-17）
+
+开发机修复R7 TreeHash的TAB被J替换成问号的问题。J现在先按顺序转义反斜杠、双引号、TAB/CR/LF，再将其余U+0000～001F转为\u00XX；所有PS JSON字符串共用该函数。总控测试从实际PS源码抽取有序替换表，并静态钉住其余控制字符循环；PS桩JSON也使用该规则，避免JSON.stringify绕过生产端编码。
+
+Node20.17：总控132/0（新增44项），gate344/0，finalize126/0，独立44项契约探针通过。R7编码后交真实recoveryPlan可解析并保留两处TAB；旧实现反例明确TREE_ROW；四项TAB/CR/LF/十六进制退化变异被拒。16项PS→JS输出契约逐一登记，其余15项未发现同类问题，清单与源码行见outputs/a9-39-rehearsal-control-r3/PS_JS_CONTRACTS.json及.md。
+
+run-admin.ps1 SHA f963a113cfb694e6623125cda7587d5a56c0b63f5f7e7891e4af9dd523ea1efb；草案SHA 236e5c63f12f25ed9cc6dd4d44d5de6e9942fcdfd1584cb9dbbbae2b66b5d9c7（不可执行）。24项execution_tools、32项草案传输库存与41项SHA256SUMS同步；总控运行脚本/admin-materials/五份XML原字节不改。PREFLIGHT_PACKAGE仍cbe49e9a9db2cf98dca6ee732563943f349c13497feea466d069b831a7bc60bd；OWNER_SIGNING_INPUT.r3.json仍84ae1212c4198fb2d03ac1c9c46569fbf7ca47720fac94b209a201906d592abc，T0=2026-10-18T02:16:49.000Z保持。
+
+本轮绑定codex/a9-alpha2-integration-r2 / dc8cdecbaa07008edb931c8e01024878e7ad3d58，只修材料与契约防护。实际SSH/SFTP0次，未执行预检三/总控/PowerShell/COM/产品Win7/冻结/门A门B，未提交/推送/装依赖/新开会话代理，未写其他工作树。旧预检、作废签发、双ZIP、FAIL/UNKNOWN/HALTED与KL-12保留。新PS在Win7执行仍NOT_PERFORMED；报告、命令、各新SHA及差异见outputs/a9-39-rehearsal-control-r3/REPORT_DETAILS.json。
+
+任务书§11.8.8保留J原文、16项契约清单及开发机/目标证据边界。
+
+## A9-39 总控审核修复（2026-10-17）
+
+开发机总控审核修复：成功令牌/TreeHash进入Write-Output管道；SSH仅进程级ExecutionPolicy Bypass；五份任务XML无声明、ASCII/LF，读回按原字段比较并保留原文。R4从120改900秒，按编译、ZIP双读、展开/逐项哈希与路径开销估算，max_total 18000秒不变；不足即停。R1记录两个父目录是否存在，R2记录实际新建父目录及失败原始输出，父ACL不改。
+
+总控SHA 30935b8226ab985a3f70b7ec403bb924457437a1badda411181a835276031389；草案SHA 44fe5c583fbfd62bed0c87684e60e673ee2833a484bf43ecb4a8d4de7a8dc40e（不可执行）。Node20.17总控88/0（新增25项）、gate344/0、finalize126/0，真实SSH/SFTP0次。24执行钉/32草案库存/41材料哈希同步。PREFLIGHT_PACKAGE.md仍cbe49e9a9db2cf98dca6ee732563943f349c13497feea466d069b831a7bc60bd，OWNER_SIGNING_INPUT.r3.json仍84ae1212c4198fb2d03ac1c9c46569fbf7ca47720fac94b209a201906d592abc，T0=2026-10-18T02:16:49.000Z原字节不变。
+
+本轮仅开发机材料，绑定HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；未连接目标、未执行预检三或R1～R8、未提交/推送/装依赖/新开代理。新PS2胶水与XML目标执行仍NOT_PERFORMED。旧预检/作废签发/双ZIP及FAIL/UNKNOWN/HALTED原字节保留。总控待主会话复审；证据见outputs/a9-39-rehearsal-control-r2/REPORT_DETAILS.json。
+
+任务书§11.8.7记录各新SHA、成本模型及25项新增用例。先前63项测试的开发机PASS不代表PowerShell/COM/任务注册真实接口通过。
+
+## A9-39 固定开发机总控R0～R8（2026-10-17）
+
+新增run-rehearsal.cjs/测试及run-admin.ps1，R2原文执行区间钉住。只接受固定最终载荷/回执；只写唯一run输出根，R0首次激活锚留在输出根并准确上传。R1只读核验，R3一次精确SFTP及大小SHA回核，阶段本地consumeDispatch与普通任务完整consume分层；R5/R6串行，无重试。原始ledger/phase-result与目录对账非PASS停下一阶段，R7/R8独立finally保留首失败。
+
+普通finish加data_root扫描与清单，R7扫描/正控全过才回收安全SQLite/证据，vault/credentials和编译临时文件逐件列哈希不回传；mark不改raw。R8准确任务删除读回，进程PID/创建时刻残留不猜测杀除。控制余额30/SFTP各1，正常16SSH+2SFTP；共同截止后只做有界清理，绝对签发到期不再连接而记未执行。总控KeepAlive CountMax6，已确认预检包CountMax3原字节不变。
+
+总控SHA 892414c0ed0e1a4c8acba827ef69d0cb366aab86f6396284bd36d0168c580385；草案SHA f05a08866ee54ac9e85800528755e102110d9ddcafd8076fcb3e64fa1d492941（不可执行）。总控63/0、gate344/0、finalize126/0；24执行钉/32库存/41SHA，docs/diff/SHA/template检查通过。PREFLIGHT_PACKAGE仍cbe49e9a…，OWNER_SIGNING_INPUT.r3.json SHA 84ae1212c4198fb2d03ac1c9c46569fbf7ca47720fac94b209a201906d592abc、T0=2026-10-18T02:16:49.000Z保持。实际SSH/SFTP0次，未执行预检三、最终签发或R1～R8；新增PS2胶水实际兼容性未验证。报告见任务书§11.8.6及outputs/a9-39-rehearsal-control-r1/REPORT_DETAILS.json。未提交/推送/装依赖/开代理，旧作废字节和失败证据保留。
+
+
+## A9-39 第二轮签发超时作废与选项B材料（2026-10-17，开发机）
+
+预检二于2026-10-17T23:28:58.478Z完成，console5/未锁屏/新根不存在/偏差3秒；最终载荷SHA3ed7b9e238e6e35a6d039444db898735f2c495cc2ff908e7476bdc5e626dda02截止23:38:58.478Z。负责人完整SHA批准句按派单于2026-10-18T01:46Z到达（分钟近似，精确秒数未知），故PREFLIGHT_CONFIRMATION_FRESHNESS作废。signing-final四文件及预检二原始证据保留；未激活、未执行R1，旧SHA不得复用。
+
+负责人原话“B”。新r3包SHA cbe49e9a9db2cf98dca6ee732563943f349c13497feea466d069b831a7bc60bd；确认新鲜度7200秒，R1开始窗口300秒及写入前只读复核不变；控制SSH33/SFTP各1/总35。包装器只改预检目录third，输出改signing-final-r3，查询脚本3895a64a…及SSH argv/120秒/0重试不变。新模板绑定r3完整SHA，D2更新为预算35标识；审核和负责人重新逐字确认尚待，不以“B”代填。
+
+gate340 PASS/0 FAIL、finalize126 PASS/0 FAIL，7199秒接受/7201秒拒绝、旧SHA/旧输入/旧结果拒绝及原签发字节保护通过。首轮草案漏同步预算被presign阻止，补齐33/35/三预检后通过，原失败日志保留。本单SSH0次。草案SHA 97d939bc0177fb24c448625de42437eff5bb28c253276501a1e4036294bb369c，21钉/29库存/37哈希，仍不可执行；详情任务书§11.8.5和outputs/a9-39-rehearsal-auth-r6/REPORT_DETAILS.json。未提交、推送、读私钥或新开代理；预检三/真实最终字节/activate/R1～R8/产品Win7/冻结/门A门B等NOT_PERFORMED，旧失败与KL-12保留。
+
+
+## A9-39 finalize两项P1与观察修复（2026-10-17，开发机）
+
+负责人输入改为OWNER_REPLY_TEMPLATE.txt唯一固定句，两处原文trim后精确相等，不归一字符或用词表推断；D1～D3另选先交主会话确认。运行前核包装器固定仓库路径，失败半成品由FAILED.json逐项标FAILED_NOT_ELIGIBLE且presign拒绝。r2包原字节SHA仍7d28b8e314d129d4e29b5936314a1049ed6d18227679a6e76aa46f1e747adeec，没有新的包字节变化；原r2包逐字确认/D1～D3/T0继续待答复。
+
+Node20.17 finalize119 PASS/0 FAIL、gate333 PASS/0 FAIL；91项输入类反例均SSH桩0次/无证据目录/精确错误码。审核28条否定说法及28条否定前缀全拒，6个指定存活变异全部被杀，另5防线变异全杀；默认runWrapper仅桩调用一次。首次测试错误优先级预期修正、Python快照脚手架首失败均留日志，未实际连接。
+
+finalize SHA 0533432f0761dcaf1101ec6ce646dafe118b220fc18fa3ee8b3022174b0d52a4；草案SHA f20fbab7c36114f55f2d49b893c523785d03a24cc30d51970050e421e98b3b41（不可执行），20执行钉/28库存/31材料哈希。简报D4、BINDING/INPUT_FACTS、传输清单、SHA256SUMS与四文档同步；详见任务书§11.8.4及outputs/a9-39-rehearsal-auth-r5/REPORT_DETAILS.json。预算32控制SSH/SFTP各1/总34；已过期预检一和旧证据保留。只改授权材料，未提交/推送/读凭据/开代理；真实预检二、最终签发、activate、R1～R8、产品Win7、冻结、门A门B均NOT_PERFORMED。
+
+
+## A9-39 预检一过期可行性与选项A自动签发材料（2026-10-17）
+
+预检一于16:11:58.187Z～16:12:09.264Z成功，console5/未锁屏/新根不存在/偏差3秒；LOCAL_RESULT SHA36689c6e…、stdout ba3ab032…，证明该次PS2 stdin/中文qwinsta可用。原600秒截止16:22:09.264Z已过期，不写入最终签发。负责人原话“A”，选择先答D1～D4/T0后，签发时新增一次预检+自动出字节。
+
+P1控制32/SFTP各1/总34。因旧包装器目录固定once，r2仅改为twice，须负责人重新逐字确认新包SHA 7d28b8e314d129d4e29b5936314a1049ed6d18227679a6e76aa46f1e747adeec。新增finalize-signing.cjs，先核材料/原文/新包确认，再逐字调用r2围栏包装器；只用第二次观察填最终signing.preflight，真实presign后给SHA/确认句/600秒截止。失败锁存、目录存在即拒、不重试、不代签或激活。本单只模拟：gate327 PASS、finalize38 PASS，SSH0次。
+
+新草案SHA 82dd5feb40c5c5716eb0c75fc7786b4ffebcbd00dd061902bd35d75bcec3df51，18件钉/26库存/30哈希，仍不可执行；详情见任务书§11.8.3及outputs/a9-39-rehearsal-auth-r4/REPORT_DETAILS.json。分支HEAD dc8cdecb…、产品/锁/双ZIP/原预检快照与旧FAIL/UNKNOWN/HALTED保留。第二次预检/真实字节/负责人最终SHA确认/activate/R1～R8/产品Win7/冻结/门A门B/Alpha2RC均NOT_PERFORMED；本单未连接、提交、推送、读取私钥或新开代理。
+
+
+## A9-39 预检三项加固（2026-10-17，开发机）
+
+Sonnet high审核PASS后，主会话采用的三项低成本加固已修订：PS2 stdin的UTC try/catch同行且全脚本置单外层块；stdout.raw全保留，只解析最后以{开头的非空JSON行；developer_utc毫秒Z，clock_skew_seconds向上取整整数，并逐字段映射最终signing.preflight。查询内容和SSH命令不变，不连接目标。
+
+脚本SHA `3895a64a2b9b50ebbfaac693fc6511315e0c0d0267c839d20445250b4a8cff82`；草案SHA `9c15a114c0b68058fe5fc7b2c123961d97231761839b1641b3fb0e36eb265d3b`，仍不可执行。Node20.17门禁325项、包装器片段14项、真实presign映射10项通过。17件钉/25项库存/27项哈希、BINDING/INPUT_FACTS及简报D4同步。负责人须先逐字确认更新后的预检包，预算仍1次SSH/120秒/0重试。Win7/PS2实际行为NOT_PERFORMED；未读私钥、未提交/推送/启动代理。详情与diff见outputs/a9-39-rehearsal-auth-r3d/REPORT_DETAILS.json及任务书§11.8.2，旧r3c证据保留。
+
+
+## A9-39 签发前只读预检材料续接修订（2026-10-17，开发机）
+
+仅修预检：删除Add-Type/csc临时编译，改qwinsta console读取ID并WMI交叉核归属；新增Test-Path新根检查及六字段JSON，查询失败输出error后退出非零，根存在/锁屏均先输出后停止。PREFLIGHT_PACKAGE.md列准确SSH/stdin命令、脚本钉、1次120秒/0重试、停止条件与开发机证据路径；负责人须逐字确认后才执行，本单未连接或读取私钥。
+
+脚本SHA `624be591e9e9a5e6db2d237424119d4b2a95847ac412edf6265863357f95e6a5`；新草案SHA `b2a01f56c0a453c6083f3b9dfa2f3a276cd8851a4759ea68245c230e83e65d4f`，仍不可执行。17件执行材料钉、25项传输库存；Node20.17门禁325 PASS/0 FAIL（12正控/313反例，比r3b新增3）。相关query user的旧Win7会话口径仅为设计依据，当前qwinsta/PS2 stdin/错误路径实际行为NOT_PERFORMED。分支/HEAD dc8cdecb…、P1控制31/SFTP各1/总33与其他范围不变；不提交、不推送、不冻结、不运行预检。详见[A9-39 §11.8.1](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#1181-签发前只读预检续接修订2026-10-17开发机)及outputs/a9-39-rehearsal-auth-r3c/；旧报告和首失败保留。
+
+
+## A9-39 预演材料三方审核 r2 修订 r3，续做 r3b（2026-10-17，开发机）
+
+绑定codex/a9-alpha2-integration-r2 / dc8cdecbaa07008edb931c8e01024878e7ad3d58。先读上次中断codex.log和revise-gate.py，保留四文档及已正确的包外修订，补齐测试、钉/草案/清单与文档。P1-a～P3-k逐项见[A9-39 §11.8](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#118-预演材料三方审核-r2-与修订2026-10-17开发机)。16件执行材料钉、一次激活SHA锚、严格账本对账、finish真实exec、失败日志/标记、管理员ZIP/XML/删除/树哈希、闭集回执和raw真实路径修订完成。
+
+Node20.17共322 PASS/0 FAIL（12正控/310反例，比r2新增76反例）；原r1的45行展开94反例全拒，r2的22行中19行拒绝、2行PowerShell仅静态合同、1行目标运行时NOT_PERFORMED。首次wmic脚手架名称错误日志保留，修正为原包wmic.exe后通过。草案SHA `48e28806f0216c8d5f9a7d0034b5cb77374d5579d0e04d65b68af1e52cdce5cb`，仍不可执行。D4待裁决的一次签发前只读SSH读取agent console/LogonUI/UTC，结果写最终字节；P1控制31、SFTP各1、总33。预检后600秒内确认最终SHA，确认后300秒内首次activate，绝对共同截止由签入字段计算；未获D4不连接。回执真伪依赖对话记录，脚本不能证明。
+
+报告/日志与4,796件入场哈希见outputs/a9-39-rehearsal-auth-r3b/；旧r2/r3/审核与首失败保留。未提交、推送、连接目标、安装依赖、启动代理或写其他工作树；产品/锁/ZIP/构建字节不变。目标预检、Node16/PowerShell/Win7、预演、冻结、门A/门B、Alpha2/RC均NOT_PERFORMED，KL-12/旧FAIL/UNKNOWN/HALTED不改判。
+
+
+## A9-39 预演材料三方审核 r1 修订 r2（2026-10-17，开发机）
+
+按派单只修四文档与包外材料，保留入场修改和原审核/首失败，未提交、推送、联网或启动代理。Revision r6、ADR-0252索引Accepted。新增presign/activate/consume，实际普通环境封装、R7外层REHEARSAL_NOT_ELIGIBLE、每阶段移除任务及失败后R7/R8。移除预先批准态SHA；负责人答复UTC/截止/D1～D4/session写入载荷后再算SHA，负责人二次确认，activate通过前不做R1。
+
+草案SHA `35974dc04974250a2acbb75568807cf56bf78fbcaab469a9f47462d928148d7d`；run `ce5b784f…`仍未执行。P1控制SSH30/SFTP各1/总32，仍5请求、18,000秒/8小时；P2控制60/各2/总64，门A/M6/补证闭包仍缺。Node20.17共242 PASS（8正控、234反例），r1的45条材料缺口展开94反例全拒。原ZIP校验器草案拒绝/完整内存正控/14字段反例复跑；Node16/PowerShell/Win7实际准入和所有目标动作NOT_PERFORMED，不使用Win10。详见[A9-39 §11.7](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#117-预演材料三方审核-r1-与修订2026-10-17开发机)及 `outputs/a9-39-rehearsal-auth-r2/`；旧FAIL/UNKNOWN/HALTED和产品/锁/双构建字节保留。
+
+## A9-39 双构建已复核，WIN7-46 预演 1 材料待签（2026-10-17，开发机）
+
+执行代理绑定 source `dc8cdecb…` 复算双包相等，ZIP `e1e85b67…`、manifest `d3e8de24…`、Kit `7af7892a…`，各 101,776,112 字节、37/67。原双干净构建执行记录为 `INHERITED_EVIDENCE`。预演材料在 `.acceptance/a9-39/w46-rehearsal-1-preparation/`，新 run `ce5b784f…`、新根 `C:\A9-W46\run\ce5b784f`、草案载荷 `4ae9c079…`。推荐 P1 的 5 请求/18,000 秒、回执起 8 小时；P2 的 M6 强制前置、门 A 与 M5 费用另待裁决。原校验器拒绝草案，开发机静态检查 24 项通过。详见[A9-39 §11.6](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#116-双干净构建结果与预演-1-授权材料待签2026-10-17)。负责人未签发；目标预检、预演、冻结、门 A/门 B、Win7 均 `NOT_PERFORMED`。未提交、推送或连接远端，全部旧 FAIL/UNKNOWN/HALTED 保留。
+
 
 ## A9-36 r7 作废，按 ADR-0251 改在 WIN7-46 执行；改绑见任务书 §10.12（2026-10-17 UTC）
 
@@ -2540,3 +2740,194 @@ fetch已完成；main本地/远端同c14a968…，origin/codex/a9-alpha2为f3b59
 当前对账起点013cf796…且干净。两ZIP与W42原报告SHA、当前10阶段结果SHA/run、43唯一断言核对一致；七个源码面20件变化，gateway/workspace/git-adapter包内dist/package.json合计34件同字节，但未批准行为继承。旧8类R项合并为M1 Policy/Git、M2验证/Provider/预算、M3 Diff/撤销恢复、M4继续Schema负向、M5真实模型旅程5组。已有直接证据扣除，组数不代表实机次数；所有补证组仍NOT_PERFORMED。
 
 结果写入既有[缺口表§7](plans/A9_ALPHA2_GAP_DISPOSITION.md#7-只读证据对账与最小补证清单2026-10-15-utc)、[覆盖台账§9](plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md#9-kl-12延期已接受与最小补证对账2026-10-15-utc)和[交接书§12](plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md#12-负责人明确接受-kl-12-延期2026-10-15-utc)。机器事实1d77e77a…保存于原正式run候选外preparation/alpha2-evidence-reconciliation-20261015-01。首次本地git存在性检查错误保留，修正后静态对账完成；未运行产品、native、Provider或目标机。仅文档/登记与衍生事实写入，无源码/候选/原始证据变化，无提交/推送、门B、完整Alpha2或RC签发。
+
+
+## A9-39 诊断型预演 3 材料已备，待审核与负责人逐字确认（2026-10-18 UTC，开发机）
+
+新增总控/绑定/回执模板与测试，开发机235 PASS/0 FAIL；运输及PS模型为SURROGATE，PS2.0和Win7实机NOT_PERFORMED。包SHA bfb0fa10…；新run 233079f8-a28e-457a-b688-f8eaff7e289c，正常SSH6/各1传输、硬SSH8，总硬上限1500秒，窗口≤3000秒且入口至少余1800秒。仅pending/signed:false；未连接目标、未创建生产执行目录，不签Gate/Alpha2/RC，旧HALTED保留。入场四文档修改保留，本次只追加三文档，任务索引、单1与旧材料不改。详见[任务书 §11.8.15](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#11815-诊断型预演-3-材料准备2026-10-18-utc开发机)及 outputs/a9-39-diagnostic-3-materials/REPORT_DETAILS.json。
+
+
+### 2026-10-18 UTC：A9-39 诊断预演3首次D1停止与新run材料
+
+首次尝试run 233079f8-a28e-457a-b688-f8eaff7e289c（包bfb0fa10…）停在D1：DIAGNOSTIC:REMOTE_JSON_LINE，D1/D7的SSH退出0但stdout/stderr均为空；SSH2/上传0/下载0。D1/D7均只读，未派发D2及其后写步骤，目标机本次无写入动作；D7未成功返回，目录/任务/残留读回保持UNKNOWN。证据层级为**Win7 实机（只读探测）+ 开发机**。根因仍是假设：powershell -Command -多行块缺少末尾空行；本轮未在目标机验证。
+
+修复总控统一SSH stdin末尾为恰好一个空行，argv及SFTP封装逻辑不变；外层catch新增经J转义的异常类型/脚本行/消息detail（去控制字符、ASCII可打印、其他替换?、最多300字符），原样保存在步骤JSON及FIRST_FAILURE。D*/R*.ps1字节不变，query-common仅新身份三处机械替换；冻结表更新5个实际改变的工具键。 新run `83866402-d068-4e0f-a575-798be0d89149`，根 `C:\A9-W46\run\83866402`，任务 `A9-W46-DIAG3-83866402`；原df9b9b24/ce5b784f拒绝保留，加入233079f8的run及根拒绝，新根仍要求不存在。新包SHA `ce17846e…`，binding SHA `03d6a02e…`；旧回执归档由主会话完成，与不可变执行副本逐字节一致（SHA4a6d51dd…），材料目录无OWNER_DIAG_RECEIPT.json，只保留新run signed:false占位，不复用旧批准。
+
+开发机Node20.17控制/集成265 PASS/0 FAIL，payload251 PASS/0 FAIL且字节不变；新增carrier30项，对照真实cleanup-r1的4份SSH证据，另1份SFTP按传输类别区分。去golden重放8个变异全RED，Z00为263 PASS/0 FAIL，无超时；行为桩/标量模型及静态合同均SURROGATE，PS2.0/Win7实际修复行为NOT_PERFORMED。材料已备，待审核与负责人重新逐字确认新完整SHA；本轮不连接目标/远端、不生成生产已批准回执、不提交/推送/安装依赖/新增ADR，不创建新run执行目录。完整包钉、模板、旧→新golden表和机械替换清单见 `outputs/a9-39-diagnostic-3-materials/fix1/cont3/REPORT.md`、`report.json`。 详见[任务书 §11.8.16](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#11816-诊断型预演-3-首次只读尝试与ssh封装修复2026-10-18-utc)。
+
+
+### 2026-10-19 UTC：A9-39 诊断3第二次HALTED与recover-1待审核
+
+旧Win7实机run83866402-d068-4e0f-a575-798be0d89149（包ce17846ea143296f10538738488dd049bfb5864f9681d30859c27351b1a48117）于2026-10-19T02:17Z启动。D1约5秒，D2/D2b/D3首次真实通过；console5、ACL回读、payload_exact、task_readback为真，确认前次D1静默来自缺末尾空行。D4等540秒后TASK_WORK_TIMEOUT，rescue_complete/task_deleted为真；D5/D6跳过；D7任务/相关进程/登记残留/登记外实例四项0。SSH5/上传1/下载0，用例结果未下载；旧HALTED、首失败及证据保留。
+
+回收包SHA f9b11c928f8d0b3e0bfb2f9f638b3c37e0c1ca99d537dfc8df3e16fdabe7bd87；binding SHA 64c95d855086938dd5ea01527a377dd14a0ddad32bcf461a73c865be299875ff。准确模板“确认执行诊断预演 3 回收，材料包 SHA f9b11c928f8d0b3e0bfb2f9f638b3c37e0c1ca99d537dfc8df3e16fdabe7bd87”，仅trim首尾后逐字相等；kind=A9_39_DIAGNOSTIC_RECOVERY_APPROVAL。仅signed:false占位，专用生产者为无CLI纯函数。唯一目标为83866402及其根；未来执行证据目录已存在即拒，本轮未创建。 R-probe/scan/inventory/get/postflight各120/480/180/120/120秒，总硬上限1020秒；正常及硬上限同为SSH4/下载1/上传0/救援0。窗口≤3000秒，入口剩余≥1320秒。残留任务/进程即HALTED，零终止、不删payload任务；扫描仅用准确一次性普通agent任务和新work/recover-1隔离区，注册/删除均读回。候选原scanRun/testOnlySecret阳性及phase2控制须检出、真实发现0；秘密阳性/未知零下载。109个准确路径，512文件/16MiB含32KiB预留，Chromium单件≤1MiB；raw精确集合/大小/SHA，分类在raw外。首失败只写一次，失败后仅尝试受硬门约束的只读后飞行，未知不写0。
+
+Node20.17最终177/0，去字节表18变异全KILLED；冻结payload旧run硬编码静态不一致已登记，是否触发等待UNKNOWN。只追加三文档，任务索引、冻结目录和旧证据保留。本轮仅开发机准备，待审核与负责人逐字确认。授权原话“批准选项 A：只在开发机准备回收材料，审核通过前不连接目标机。”未连接目标/远端、未生成生产批准回执、未提交/推送/安装依赖/新增ADR/启动新会话或代理。PS2/.NET/WMI/排他句柄/Scheduler/目标Node16新组合及当前回收实机全部NOT_PERFORMED；本地桩/静态合同SURROGATE，历史来源INHERITED_EVIDENCE。不签门A/门B/Alpha2/RC，不关闭KL-12/K2～K8。 详见[任务书§11.8.17](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#11817-诊断型预演-3-第二次尝试与-recover-1-材料2026-10-19-utc)及outputs/a9-39-diagnostic-3-recovery-prep/REPORT.md。
+
+
+### 2026-10-19 UTC：A9-39 诊断3第二次事实与第三次3b开发机材料登记
+
+授权“批准选项 A：放弃回收，只在开发机准备第三次尝试的材料，审核通过前不连接目标机。”基线codex/a9-alpha2-integration-r2 / dc8cdecbaa07008edb931c8e01024878e7ad3d58，已有四文档修改保留，本单仅追加三文档。第二次D1/D2/D2b/D3首次实机通过、D4等540秒超时、救援/D7干净，下载0；payload九文件旧run常量与第二次XML不一致已静态定位，任务真实启动和实际异常UNKNOWN。
+
+新增w46-diagnostic-3b-preparation，新run cc290b82-431d-487c-a4eb-f9ef1171183b；包 595e42e3bbafb801f748a2da96c2aeb9bd6e4fb5025029bdc22db4bad3ccbd16、binding 39fbfb8ce25e035329c4e6889f0cd4d01d6816128781bcc33bcde6c664b68dfa，仅pending signed:false。全树身份/逆换等字节、D4两次连续提前退出判定及整数诊断、D4安全救援后封存下载/D7、D5漏项和无登记局部修复；1500秒硬上限/1800秒入口下限，正常SSH6+各1传输/硬SSH8。开发机296+251 PASS/0 FAIL；去golden基线94/0、12变异KILLED和2等价对照94/0；I01首轮HARNESS_ERROR保留，补算变异自身清单后由身份断言检出。所有PS行为NOT_PERFORMED、模型/静态SURROGATE；不连接、不生成生产批准回执、不提交/推送/安装/新增ADR/开会话或代理；冻结包、recovery-1、旧证据和README原字节保护。任务书仅追加§11.8.18/19；审核及负责人逐字确认仍待办，旧HALTED及正式门/Alpha2/RC不改判。证据outputs/a9-39-diagnostic-3b-prep/REPORT.md、report.json。
+
+
+### 2026-10-19 UTC：A9-39诊断3b F1～F8追加修订，D4两处待裁决
+
+开发机F1～F8修订完成：参数模式、准确编译器排除、非GPU新鲜缺席UNKNOWN_EXITED、共享读取、40次/25ms有界替换及读取竞态、初始化try/done/ASCII fatal、混合100tick容差，以及原D3内逐件SHA/7份PSParser静态检查。新包 0af442754e1a1a3da7d8bec7947e3591a1e9835e85e92d4653c5141be0c25d6f，binding 9ede3dbe7f7ca32f0c2be42b1a7e39e63e66b8e069c2b2e41f16a8560616d601，run cc290b82不变；仅signed:false，旧595e…不适用本轮新字节。Node20.17控制/集成321/0、payload251/0，F1～F8各6项共48语义变异全检出，空变异18/0；PS/运输模型及静态合同SURROGATE，全部目标PS行为NOT_PERFORMED。
+
+D4保持SHA5566853686dcbdf455f6e43b8d3349ac47a46a5b245a4ab70d31529307f46733：排队/就绪从未运行超过10秒可触发提前退出；done存在但无登记走通用管理员错误，两点仅报告建议、待负责人裁决。运输6/8 SSH+上传下载各1、1500秒总限不变。只追加三文档，README/冻结材料/旧证据不动；未连接目标、未生成生产批准回执、不提交/推送/安装/开会话或代理。任务书§11.8.20及outputs/a9-39-diagnostic-3b-prep/ADDENDUM_REPORT.md、addendum.json为本轮入口；待审核与新完整SHA逐字确认，不签正式Gate/Alpha2/RC。
+
+
+### 2026-10-19 UTC：A9-39诊断3b G1～G7追加修订二，材料待审核确认
+
+G1～G7开发机修订完成：D4等待553/共同预留105/救援95（任务540+收尾13+救援95，553+95+10=658≤660−2）；PID复用按创建时间区分且含根不放行；Terminate竞态重查、仅创建时间回读、准确登记零线程残留过滤；监督进程优先且证明原降序字节不变；State2排队排除提前退出；零存活短路保留锁/最终检查/任务删除；D5立即缓存Handle。负责人裁决State3保持失败救援、done存在无登记保留通用错误。F1～F8载荷和测试字节不变。
+
+run cc290b82不变；新包SHA ad472dc2f98733164c0d5a999a1e94798cfea5b0cffb5de2910bf160971b57a3，binding SHA cf8d093952358413351925e95e5ba9a91362b64561b08f5614dcb027b41d0830，仅signed:false。Node20.17控制/集成366/0、payload251/0；空变异45/0，38语义变异全检出，0存活/等价/超时。正常SSH6/硬8/上传下载各1、总1500秒不变（1380+120=1500）。本轮只追加三文档，README及冻结材料/旧证据不变；未连接目标、未生成生产批准回执、不提交/推送/安装/开会话或代理。模型/静态SURROGATE、PS/Win7行为NOT_PERFORMED；一次性救援失败不可接手、PT780S整树效果、D5登记前异常残留及目标WMI/权限/时序/读锁限制见DIAG_PACKAGE W12和任务书§11.8.21，不签正式Gate/Alpha2/RC。证据outputs/a9-39-diagnostic-3b-prep/addendum2/ADDENDUM2_REPORT.md及addendum2.json，仍待审核与新完整SHA逐字确认。
+
+
+### 2026-10-19 UTC：A9-39诊断3b H1～H9追加修订三，材料待审核确认
+
+从ad472dc2…G完成版继续：worker准确登记零线程空字段残留过滤/回读、ack/claim完整性等待、ERROR有界回复、管理员共享读取、D5原1ms实例判据、CommonEnd−10救援循环截止、完整Framework编译器排除及空数组调用点已修订；H9所列语义缺口均补独立断言。监督观察句柄保持到finally，运行cc290b82不变，无新增原因码。新包SHA c1ee0246f0d33ed1e5a3ed1ea31dcb011d4aeb1a85366ed56e278c00e4120e98，binding SHA 4a265f0b3868befb6798ee250ca8474794902c0d5b208ed5e1cd2cb5512b8fe4；仅signed:false，待审核及新完整SHA逐字确认。
+
+Node20.17控制/集成450/0、payload251/0，共701/0；空变异84/0，72语义变异全检出、1等价变异84/0。H9-03首轮存活已保留原记录，补足净化后超300的ASCII输入后最终完整重放检出。运输6/8 SSH+各1传输、1500秒不变；有效救援窗口按min(95, CommonEnd−10−此刻)扣除前置耗时。目标WMI句柄残留、WQL创建时间过滤、Replace/Delete共享与PSParser语义覆盖等UNKNOWN，全部PS2/Win7行为NOT_PERFORMED，模型/静态SURROGATE。只追加三文档，README及冻结材料/旧证据不变；未连接、未生成生产批准回执、不提交/推送/安装/开会话或代理。任务书§11.8.22与outputs/a9-39-diagnostic-3b-prep/addendum3/ADDENDUM3_REPORT.md、addendum3.json为入口；旧HALTED/首失败及正式Gate/Alpha2/RC边界保留。
+
+
+### 2026-10-19 UTC：A9-39诊断3b I1修订四完成，其他残留窗口仅报告
+
+本单只修Terminate-One两次目标PID查询：空或准确登记残留均ALREADY_ENDED，多实例PID_AMBIGUOUS，正常实例仍走Process-Record/精确匹配/原截止。旧PID_CHANGED_BEFORE_TERMINATE失去唯一出口，原合同/扫描白名单不含该码、无需删除。两种已结束返回在task走相同证明流程，但事件outcome不同，保持原语义。F/G/H及其他运行脚本原字节保留，run cc290b82不变。
+
+新包SHA 6c03e2f6dc02e195a8725fc3f084a598380b44b078697763ed88cf5797e2f354，binding SHA a39609985482d1974b3ccad8937902e9bf4ef920c0b28449649ad6e69f4f889e，仅signed:false。Node20.17控制/集成480/0、载荷251/0，共731/0；空变异30/0，21语义变异全部检出，0等价/存活/超时。审计覆盖3处Process-Record和12处PID查询，发现Snapshot异常后fresh、管理员fresh/回读、D5 scanner残留三类条件P1，按限定只报告、不扩修，待负责人裁决；WMI列出退出残留仍UNKNOWN，PS2/Win7均NOT_PERFORMED，开发机证据SURROGATE。运输6/8 SSH+各1传输、1500秒不变。仅追加三文档，README与冻结材料/旧证据不变；未连接、未生成生产批准回执、不提交/推送/安装/开会话或代理。任务书§11.8.23与outputs/a9-39-diagnostic-3b-prep/addendum4/ADDENDUM4_REPORT.md、addendum4.json为入口；审核及逐字确认仍待办。
+
+
+- 2026-10-19 UTC｜A9-39 §11.8.24｜从I1包6c03e2f6dc02e195a8725fc3f084a598380b44b078697763ed88cf5797e2f354完成J1～J4；runtime仅worker/query-common/D5，原严格身份与错误码保持，修复8个残留/中途退出检查点。控制/集成570 PASS/0 FAIL、载荷251/0；75个去golden语义变异全检出（Z00 90/0），首轮额外提前Close存活已补断言并全量重放，原记录保留。审计另列A5-O01～03范围外P1未修改，PS2/Win7全部NOT_PERFORMED/目标残留行为UNKNOWN；总预算1500与SSH6/8、上传1/下载1不变。新包19baea99e351555fccfd19c9331b09e3bedbea9d975a5f147f6304a2d83fe792、binding 2959d4a47b7cf20043d78b6afd3d79e53bdb67509c1ed579031c29a525b2d7db，无生产批准回执、未连接目标/远端/提交/推送，三文档仅追加，README原SHA保持。报告outputs/a9-39-diagnostic-3b-prep/addendum5/ADDENDUM5_REPORT.md。
+
+
+- 2026-10-19 UTC｜A9-39 §11.8.25｜从追加五19baea99e351555fccfd19c9331b09e3bedbea9d975a5f147f6304a2d83fe792完成K1/K2，修复A5-O01/O02；A5-O03按负责人裁决POST_DOWNLOAD已知限制，不并入。运行仅task Read-Snapshot/query-common Process-Table变化；身份与全部时间/传输常量、原因/事件/JSON不变。931项开发机验证通过（控制/集成680、载荷251），专项110、44去golden语义变异全部检出。field-matrix41项最终互补25+16分批覆盖，原超时/FILE_PIN日志保留，未放宽测试字节或超时。新包559c723d258391d25ac2ad7e558dc97a7af2275bbd151c929b2d0f27d0d15b4e，binding 28ae28ad7baf7e665ebe9064f5c6289dbf11d81fbb70b64e6fb2a7d75ea9bacb，pending signed:false，PS2/Win7 NOT_PERFORMED/目标WMI残留UNKNOWN。三文档仅追加，README原SHA、冻结材料和证据保持；未连接目标/提交/推送。完整报告outputs/a9-39-diagnostic-3b-prep/addendum6/ADDENDUM6_REPORT.md。
+
+
+- 2026-10-19 UTC：A9-39第三次诊断run cc290b82实机D1～D3返回成功；D4 2.735秒REGISTRY_UNKNOWN，R1无登记无进程、R2任务已删、D7四项0，下载0，早死原因UNKNOWN。候选WIN7-46、原3b包559c723d258391d25ac2ad7e558dc97a7af2275bbd151c929b2d0f27d0d15b4e不变。只读回收包recovery-2在开发机备好：SHA a153425391a7b4ac77a71a119abf92331c91f1c8b4a3872e309db522c366a9a9，binding 7662fc5a73ffe081366c9049c227162bb0958b50a67f892bdbb11e366b3959a1；唯一cc290b82，218活动钉自包含/历史运行，44写点/114允许路径、缺登记记missing。208/0测试，Z00 25/0后28去golden语义变异全检出；SSH4/下载1/上传0/救援0、1020秒不变。只signed:false待签，审核和逐字确认前不连接目标；PS2/目标执行NOT_PERFORMED，静态与桩SURROGATE。3b/recovery-1/旧证据/README字节保留，D4只走查留下一单（已发生TOTAL_LOSS路径见RECOVERY2_D4_NOTES.md），不提交/推送。任务书§11.8.26与outputs/a9-39-diagnostic-3b-prep/recovery2/RECOVERY2_REPORT.md为入口。
+
+
+- 2026-10-19 UTC：A9-39诊断3b追加七L1已在开发机修复。第三次run cc290b82原包559c723d…实机D4 REGISTRY_UNKNOWN、下载0和HALTED保留；现在done后无登记进入TASK_DONE_WITHOUT_REGISTRY受控失败，Related/准确任务删除/回读均成功才带两项true继续D5/D6/D7；登记损坏/读失败仍闭锁。控制/集成709/0、载荷251/0，Z00 29/0后18去golden变异全检出，载荷不变。新中间包SHA 3f14fa53fc1848cc08efe3d958417111d0c8ea07d6ea702337e356dfcfb9dd40，binding b6ed1709360cb07176da09f8ef1ad4c5e839b0accc226c94ef085f50f04aa79a；cc290b82已用，换run前禁止请求确认或执行。旧已签回执原字节归档attempt-3-receipt（SHA fce216afe31aa6a5bdd3d8091f00d99f580875ead2e0749dbb7169f202a19b46），包内仅pending signed:false。D5/D6无Win7实机执行，Electron-as-Node/PS2句柄/WMI残留/sftp get等12项UNKNOWN；9步控制流审计只报告NARROW_WINDOW/POST_DOWNLOAD。传输6/8 SSH+上传/下载各1、1500秒不变；仅SURROGATE，未连接/提交/推送。recovery-1/2、payload和旧证据/README字节保留，任务书§11.8.27及outputs/a9-39-diagnostic-3b-prep/addendum7/ADDENDUM7_REPORT.md为入口。
+
+
+- 2026-10-19 UTC：A9-39 §11.8.28，recovery-2实机RECOVERY_COMPLETE取回第三次13文件；runtime后64ms INITIALIZATION_OR_IO_FAILED，六例未执行，具体抛错调用UNKNOWN。M1为任务外层失败补最内层编码及两处可选ASCII detail；M2换run 7fd961d6-1612-4937-868d-4737fd030d07；M3自包含recovery-3已备。3c包SHA 245a99c4c2f2090afc6ca883af009189f047fc3831705789ea6fd0c1dc5b5787；recovery-3包SHA 023303adbc68f32334c9f4679567979953d05ffd35680cf0327904d7d25d5cf0，仅signed:false待签，待审核及各自新完整SHA逐字确认。控制/集成729/0、载荷251/0、回收218/0，共1198项；两套Z00绿后34去golden语义变异全检出。诊断SSH6/8+上传/下载各1、1500秒及回收SSH4/下载1、1020秒不变；D5/D6与新包目标行为UNKNOWN/NOT_PERFORMED，桩/静态合同SURROGATE。79807受保护文件前后哈希一致，三文档只追加、README原SHA保持；本轮未连接/提交/推送，无生产批准回执。报告outputs/a9-39-diagnostic-3b-prep/addendum8/ADDENDUM8_REPORT.md。
+
+
+### A9-39 追加十：3e令牌诊断与第五次材料（2026-10-19 UTC）
+
+仅开发机备料完成，待审核与负责人逐字确认。WIN7-46旧包245a99c4…、同run 7fd961d6…在14:24Z D1 AGENT_NOT_CONSOLE、15:03Z D1 LOGONUI_PRESENT，15:20Z完整D1～D7后仍HALTED/REHEARSAL_NOT_ELIGIBLE；SSH6/上传1/下载1，取回11+1文件，D4 TASK_DONE_WITHOUT_REGISTRY受控失败、D5/D6/D7小文件失败路径首次走通。task失败TOKEN_QUERY，detail System.Exception:240:TOKEN_QUERY；kind/Win32错误UNKNOWN，六例NOT_PERFORMED。
+
+N1只加TokenInt错误码与token_probe，不改准入；N2新run 74d45a59-7743-431c-bb00-3ddf473f9e92，N4 recovery-4自包含兜底。3e SHA c38d566d8ed6d229b98134d873ba208b5e5248c61dc5b09a6faa3d30fb9c4551；recovery-4 SHA 82d01bab48a093fe9b19a5644c0cae4d514c7749088a9f0b37296301d810e22b。仅signed:false待签。控制/集成769、载荷251、回收225共1245 PASS/0 FAIL；30变异29检出/1等价，Z00先绿，全部本机SURROGATE，新增PS/Win32与完整用例NOT_PERFORMED。运输/时间常量不变，受保护目录和README字节保持；无目标/远端连接、提交/推送/新依赖/代理。任务书§11.8.29与outputs/a9-39-diagnostic-3b-prep/addendum10/ADDENDUM10_REPORT.md、addendum10.json记录完整边界。
+
+
+### A9-39 追加十一：3f目标地址改为192.168.1.5（2026-10-20 UTC）
+
+仅开发机备料完成，待审核与负责人逐字确认。WIN7-46第五次尝试首次执行（2026-10-20T00:40Z，3e包c38d566d…、run74d45a59…）D1因192.168.1.3 SSH超时停止，D7 Host is down；SSH2/上传0/下载0/救援0，无命令到目标，保持HALTED/REHEARSAL_NOT_ELIGIBLE。旧回执/停止证据由负责人归档后本轮只读；新根/任务不存在仅推断，D1门下次核实。
+
+负责人告知新IP为192.168.1.5，本轮不探测。只改两个包固定HOST/独立字面/文档并重钉，HostKeyAlias192.168.1.11与严格核键/路径、同run、payload全部字节和预算保持。3f SHA d611bd8bc1ca67f6587aa88a10880c5dcd8ca99ae33dd1f76c627ccfb9a3d3b8；recovery-4 SHA 8e01803bb0866c3ae3392850a1cacea2d08135b6114e639ae4849376457a288e。仅signed:false待签；34份诊断冻结副本一致，history不改。控制/集成779、载荷251、回收235共1265 PASS/0 FAIL，Z00先绿、22变异全检出；15组真实总控桩argv旧IP0/新主机15。保护目录/README与文档原前缀保持；新地址及目标行为NOT_PERFORMED，本机SURROGATE。任务书§11.8.30和outputs/a9-39-diagnostic-3b-prep/addendum11/ADDENDUM11_REPORT.md、addendum11.json记录完整SHA/确认句/未知项。无网络探测、提交、推送、依赖或代理。
+
+
+### A9-39 追加十二：3g令牌查询长度修复与recovery-5（2026-10-20 UTC）
+
+仅开发机备料完成，待审核与负责人逐字确认。WIN7-46旧3f包d611bd8b…、run74d45a59…于01:33Z执行D1～D7，SSH6/上传1/下载1/救援0，取回11+1文件，D7全0；运行仍HALTED/REHEARSAL_NOT_ELIGIBLE。实机token_probe定位kind20传256返回err24/need4，FIRST_FAILURE为TOKEN_QUERY_K20_E24，detail System.Exception:246:TOKEN_QUERY_K20_E24，分类MAIN_PATH_DETERMINISTIC；kind25/18的256均成功，不泛化超长拒绝规则。
+
+N1只把TokenInt/Probe的20/18长度改4（25仍256，分配仍256）并在need/value间加入size；原准入与Self-Job后字节保持。N2新run991f82e2-546e-4365-b854-c8cbe86ccb3f，HOST.5/别名.11/预算不变，拒绝集合增旧74。3g SHA c62e155b83f41af236864764c15c86fd78ed8fe3afab74d845c8448e7a91bd62；recovery-5 SHA 120bb1db45718cd7eddbd8e34c2118b521cd08ab5837751379eb9f1533b4889c；仅signed:false待签。回收新scan RECOVER5、唯一work/recover-5，114允许文件不变，保护recovery-4原字节，测试输出只写addendum12。控制/集成788、载荷251、回收242共1281 PASS/0 FAIL；Z00先绿，28语义变异全检出。本机SURROGATE，新4字节请求/准入后目标行为NOT_PERFORMED。任务书§11.8.31和outputs/a9-39-diagnostic-3b-prep/addendum12/ADDENDUM12_REPORT.md、addendum12.json记录完整SHA/确认句/审计/未知项。无网络探测、提交/推送/依赖或代理，旧证据与README保持。
+
+
+### 2026-10-20 UTC：A9-39追加十三，3g实机HALTED/recovery-6只读备料
+
+结论：负责人“批准选项 A：先在开发机准备回收包 6（容忍任务残留、只读取证），审核通过前不连接目标机”范围内备料完成，待审核与新完整SHA逐字确认。当前codex/a9-alpha2-integration-r2、HEAD dc8cdecbaa07008edb931c8e01024878e7ad3d58；未连接目标/远端（含ping/ssh/sftp/网络探测），未提交/推送/安装依赖/启动新会话或代理；没有生产已批准回执，包内仅signed:false待签。
+
+Win7实机原文件（WIN7-46，REHEARSAL_NOT_ELIGIBLE）：3g包c62e155b83f41af236864764c15c86fd78ed8fe3afab74d845c8448e7a91bd62、run991f82e2-546e-4365-b854-c8cbe86ccb3f于2026-10-20T02:30Z执行D1/D2/D3成功；D4在4.718秒后ADMIN_QUERY_OR_ACTION_FAILED，detail System.Management.Automation.RuntimeException:305:NEW_NODE_DURING_CLEANUP，R1相同；D7 detail System.Management.Automation.RuntimeException:399:TASK_REMAINS。账本7次传输=6次SSH+上传1，下载0，D5/D6 NOT_PERFORMED；原run保持HALTED。305行是Bound-Live对未登记根相关进程的拒绝；登记当时存在只属源码推断，内容、当前任务/根文件/进程状态UNKNOWN。worker启动/登记/Bind-Observer次序只作静态推断，不下根因结论。3g已用完，不得再签，同run诊断回执已由负责人归档attempt-8-receipt。
+
+recovery-6自包含冻结3g副本，冻结payload/tools/candidate/history逐SHA保持；recovery-5因全零探测不兼容任务/进程残留而不再使用，原字节保留历史包不删除。M1扫描任务RECOVER6-SCAN、work/recover-6、内存recover-6-scan.cjs、证据outputs/a9-39-diagnostic-3-recovery-6/<run>/唯一改绑，新增拒绝旧RECOVER5-SCAN/区域。M2只读容忍精确且未运行的任务0～1/相关进程0～64；非残留owner不符或UNKNOWN、残留具体他人SID、扫描/其它run任务残留等HALTED，已退出残留owner UNKNOWN允许，不终止/不删载荷任务；登记≤2MiB宽松解析失败PARSE_UNKNOWN，原字节仍须扫描。M4按可信基线比较任务数量/精确性、PID+创建时间子集，保留残留与差异；无基线/查询异常/超时UNKNOWN，不猜0。
+
+M3重审全部文件写入，44→71分类写点（增加目录、流写入与开发机工具写入分类），114允许文件集合不变，包含work/query/task-instance.tsv与管理员/任务全部产物。实际扫描器只有原字节秘密门，没有事件/字段形状白名单；69调用/61事件名、63良性样本（真实3f token_probe原文、3g size及新增事件）原扫描API零发现，秘密阳性仍拒绝，冻结扫描器无需修改。TASK_CREATE/严格读回/仅停止无实例才删扫描任务、前后集合/大小/SHA一致和整批零下载保持；清空扫描子进程环境改用同进程.NET环境API，渲染载体无Remove-Item。按文件拒绝、后续精确清理、首次登记失败状态及D4丢失证据的p7四类/最小改动面仅评估，不实现。
+
+Node20.17 recovery-6修复轮1全部397 PASS/0 FAIL；变异Z00 78 PASS/0 FAIL（字节等价检查不参与）后，原18容忍+12身份命名及新增9个F1～F4共39个去golden/去inverse语义变异全部检出，每个重算自身清单/绑定并记录材料SHA。首包354/0与其350/3初始日志保留为历史证据，本轮先396/0，再补跨行路径脱敏用例后397/0。无等价或golden-only检出；本机均SURROGATE，当前包Win7/PS2/WMI/计划任务/文件共享/回收NOT_PERFORMED，不形成Win7/Gate A/B/Alpha2/RC通过结论。
+
+包SHA 66d133c641b6ca913f8dc30585e8c95fa0077e78ab9e65fb6d8c9bc9dfcea7bd，binding afcc8fbac098a433e16eb07e8c6d19ca2812206ed6160206e01f01dba4cde34e；确认句“确认执行诊断预演 3 回收，材料包 SHA 66d133c641b6ca913f8dc30585e8c95fa0077e78ab9e65fb6d8c9bc9dfcea7bd”。预算SSH4/下载1/上传0/救援0、120+480+180+120+120=1020秒，窗口≤3000/入口≥1320、共同截止min(到期,入口+1020)保持。15受保护目录及README前后按原算法核验；README原SHA4a4590881c162b8379fda14212ce50566b03ddcca775d6156146f021d903bf3e保持，三文档仅追加。本树无docs/OUTPUT_STYLE.md，沿用W01～W12。完整材料与只报告项见outputs/a9-39-diagnostic-3b-prep/addendum13/ADDENDUM13_REPORT.md、addendum13.json及矩阵/身份/变异/黄金表。
+
+
+#### 修复轮 1：F1～F4误停风险修正（开发机）
+
+F1删除TASK_SETTING_SET，完全沿用原D3/D4的声明Setting逐项存在/值相等（ExecutionTimeLimit按时长）语义；容忍额外IdleSettings、AllowStartOnDemand、RunOnlyIfIdle、WakeToRun、Priority，保留Triggers=0、一个Action/Principal、无RestartOnFailure及主体/动作/Description检查。F2仅is_exited_residual:true可接受owner UNKNOWN，其他具体SID仍HALTED；非残留UNKNOWN仍HALTED。F3在Recovery-State内先Recovery-Table/Get-WmiObject再Recovery-Registry，新registry_parse_error固定紧随registry_status，PARSE_UNKNOWN为异常类型全名+ASCII清洗消息前120字符（引号值和路径先脱敏，含跨行），PARSED/missing为null。F4全局powershell/electron实例采集按有效CreationDate及结构性残留直接跳过，不依赖登记表；存活空命令行、空路径等仍HALTED。
+
+Node20.17 recovery-6修复轮1全部397 PASS/0 FAIL；变异Z00 78 PASS/0 FAIL（字节等价检查不参与）后，原18容忍+12身份命名及新增9个F1～F4共39个去golden/去inverse语义变异全部检出，每个重算自身清单/绑定并记录材料SHA。首包354/0与其350/3初始日志保留为历史证据，本轮先396/0，再补跨行路径脱敏用例后397/0。无等价或golden-only检出；本机均SURROGATE，当前包Win7/PS2/WMI/计划任务/文件共享/回收NOT_PERFORMED，不形成Win7/Gate A/B/Alpha2/RC通过结论。
+
+旧包SHA 8cc135a9ac564894ff83876059f2e1736618874315499364a3bc5be567c99230作废，不再用于活动确认句。新包SHA 66d133c641b6ca913f8dc30585e8c95fa0077e78ab9e65fb6d8c9bc9dfcea7bd，binding afcc8fbac098a433e16eb07e8c6d19ca2812206ed6160206e01f01dba4cde34e；确认句“确认执行诊断预演 3 回收，材料包 SHA 66d133c641b6ca913f8dc30585e8c95fa0077e78ab9e65fb6d8c9bc9dfcea7bd”。包内仍仅signed:false待签，原话与时间均null。原3g实机HALTED和已有证据不改判；不连接目标、不提交/推送、不改载荷/冻结副本/预算。71写点/114文件和WRITE_SITES原字节不变。修复前后15受保护目录树与README均按原算法核验；开工前的三文档前缀逐字节保持。
+
+UNKNOWN：Win7 Task.Xml是否补默认节点仍UNKNOWN（现在已容忍）；ManagementDateTimeConverter在未做WMI调用前是否可解析UNKNOWN（现以State内先查WMI规避并留出解析诊断字段）。本轮Win7目标执行全部NOT_PERFORMED。修复轮1旧新SHA、新合同与39变异证据见outputs/a9-39-diagnostic-3b-prep/addendum13/ADDENDUM13_REPORT.md和addendum13.json的修复轮1记录。
+
+
+### 2026-10-20 — A9-39追加十四：3h第二次请求与只等自然退出取证
+
+结论：追加十四N1～N4开发机备料完成，诊断包3h与兜底recovery-7待审核及负责人新完整SHA逐字确认。基线codex/a9-alpha2-integration-r2 / dc8cdecbaa07008edb931c8e01024878e7ad3d58，入场三文档及README已有修改保留。本轮不连接目标/远端（包括ping、ssh、sftp、ssh-keyscan及网络探测）、不提交/推送/安装/启动新会话或代理，不生成生产已批准回执。候选WIN7-46、REHEARSAL_NOT_ELIGIBLE；3h/recovery-7当前Win7全部NOT_PERFORMED。
+
+3g包c62e155b83f41af236864764c15c86fd78ed8fe3afab74d845c8448e7a91bd62（已用完）、run991f82e2-546e-4365-b854-c8cbe86ccb3f于2026-10-20T02:30Z在Win7实机执行：令牌queries为kind25 ok/err0/need28/size256/value8192，kind20 ok/err0/need4/size4/value0，kind18 ok/err0/need4/size4/value1；admission为integrity8192/elevated false/type1/in_job false/session2。五次Self-Job、worker6424启动、首次SNAPSHOT、task/query两条observer_bound（ManagementDateTimeConverter在此调用可用）、四个profile目录、case_start、wrapper7804、首poll均有原事件。worker_spawn至query_return约1.34秒，query_start_ticks至返回约0.988秒，两个口径保留。poll101713777711至failure101713895323/f2343916约50.18ms；failure只有SUPERVISOR_OPERATION_FAILED/hard true，无detail。
+
+现场request.tmp为序号2、SNAPSHOT/task/0/截止02:30:53.9204002Z，request.tsv仍序号1/截止52.4104002Z，response仍OK1。推断第二次Publish-File进入目标已存在的Replace分支且快速抛非IO/非Unauthorized异常；具体类型、消息及根因UNKNOWN，不将N2写成已证实修复。task约02:30:49写HALTED_CLEANUP_INCOMPLETE并退出，账本538字节仅task/query两行；wrapper7804与稍后创建的controller7452均未登记。controller约02:30:55.86握手timeout自然退出，wrapper约57.16以1返回。D4/R1在Bound-Live行305 NEW_NODE_DURING_CLEANUP，D7行399 TASK_REMAINS，D5封存/D6下载NOT_PERFORMED；原HALTED不改判，分类MAIN_PATH_DETERMINISTIC与TOTAL_LOSS。
+
+recovery-6包66d133c641b6ca913f8dc30585e8c95fa0077e78ab9e65fb6d8c9bc9dfcea7bd（已用完）于05:21Z在Win7实机RECOVERY_COMPLETE，SSH4/上传0/下载1，取回23文件。R-probe/POSTFLIGHT原文确认精确载荷任务A9-W46-DIAG3-991f82e2仍注册、State3/LastTaskResult126，根相关进程0，登记两行PARSED。该任务与C:\A9-W46\run\991f82e2待负责人另行清理裁决；更早根目录是否残留UNKNOWN。本轮只读原3g/recovery-6证据，回收成功不提升诊断或候选结论。
+
+N1：case非编码异常向既有FIRST_FAILURE.json与failure事件追加尾字段detail，类型全名:脚本行号:消息，消息200/总300字符，控制/非ASCII清洗，继承秘密模式与引号/路径脱敏。worker终末catch先记录failure detail、ERROR协议不变；WMI映射保留原code+inner；common Event失败沿同一bound失败文件追加detail。Publish非IO抛PUBLISH_FILE_FAILED并保留原异常与已清洗A9Detail；case/worker仍映射原SUPERVISOR_OPERATION_FAILED/QUERY_OPERATION_FAILED。准入保留原240诊断格式并加秘密屏蔽。完整24项catch/无catch文件清单说明无法安全再写的final兜底，未新增载荷文件/事件名。扫描器和contract无事件/字段白名单；真实已钉D5 scanRun/collect接受新detail，秘密阳性仍拒绝。
+
+N2：目标存在先Delete再Move；不存在直接Move，40次/25ms/每轮deadline和IO/Unauthorized重试保持。读方缺文件/共享读IO返回空并继续；删除成功而Move失败后下轮Exists=false直接Move；竞态及失败终态保留，真实Win7共享/错误映射UNKNOWN。N3：Bound-Live/Rescue-Bound与D4/R1/R2/D7直接Related检查只等待未登记根相关进程自然退出；每轮重查，绝对20秒/250ms，不按新到进程重置，不登记、不终止、不删除这些进程。共同截止前保留D4原105秒救援、其它步骤10秒，外层cutoff取更小值，时间不足缩短等待，原错误码/已登记身份终止门保持。渲染后既有终止/删除站点与3g逐行相同。
+
+N4：新run ab1620b7-a701-4549-a9f3-341796a96530，根C:\A9-W46\run\ab1620b7，任务A9-W46-DIAG3-ab1620b7；旧991及原全部拒绝项保留。全仓初搜只有ID文件与p17派单备份，新运行未使用；后续全树/执行位置/15运输载体复核，执行旧值0。HOST dccs-chaizl@192.168.1.5、HostKeyAlias192.168.1.11保持。recovery-7绑定RECOVER7-SCAN/work/recover-7/recover-7-scan.cjs，冻结新3h，71写点逐项比较、114允许文件集合不变；23个运行工具在身份命名逆变换后逻辑字节相等，仅拒绝集与冻结来源派生重钉单列。保留recovery-6全部397项既有检查；当前406项绿。
+
+最终Node20.17控制/集成850、载荷251、recovery-7 406，共1507 PASS/0 FAIL（下述37条为原始第一轮历史变异）；Z00 26/0、Z00-R 1/0先绿，37个去golden/去inverse、逐个重算自身载荷清单/绑定的变异：36检出、1等价（移除消息上的提前ASCII替换，最终detail仍执行同一替换；5000向量及交换性证明），无golden-only检出。初轮字段名变异暴露断言缺口，已补断言后检出；原失败日志保留。备料还修正拒绝项顺序导致候选从REJECT_ROOTS[0]派生错误、复制测试输出根仍指addendum13两项本地问题；仅新建测试目录迁回addendum14，addendum13按原算法恢复5128d939b41353a2f4a51b939e332fa0d5fd4bce57dfe835598701829e4639cc。所有本机证据均SURROGATE；PS/.NET/Win7运行行为NOT_PERFORMED。
+
+3h包SHA 9d80f6dd3d6691749b05bcef4884da56a48fe88a2bff423e87e830de06f9dff7，binding 838fa067140148b5549449027d0c6c8288c6f865ead822da224cf1caa33e55bf；确认句“确认执行诊断预演 3，材料包 SHA 9d80f6dd3d6691749b05bcef4884da56a48fe88a2bff423e87e830de06f9dff7”。recovery-7包SHA 2602b60b94b8abb5787aa7f2d85a625b2a0defdafb6042d2ad46500457d5d104，binding e276e3eb2f34b3bf2b9183a6595c1081254a95b339abd11214d1119a47716ab0；确认句“确认执行诊断预演 3 回收，材料包 SHA 2602b60b94b8abb5787aa7f2d85a625b2a0defdafb6042d2ad46500457d5d104”。仅signed:false待签，原话/确认UTC/到期UTC均null。诊断SSH正常6/硬8、上传1/下载1、120+60+180+60+660+120+120+60+60+60=1500秒、入口≥1800/回执窗口≤3000和D4工作常量保持；回收SSH4/上传0/下载1/救援0、1020秒/入口≥1320保持。
+
+只报告审计见REPORT_ONLY.md：5秒握手是否足够UNKNOWN，样本1.34秒与controller相对wrapper晚1.091秒不能给出真实最坏上界；源码可等待一次甚至两次5秒请求，另有登记/observer/ack开销。controller in_job true、wrapper false符合观察入口差异的设计，具体Job成因UNKNOWN。首次路径、后续Request/Reply分支及旧任务/目录安全清理仅评估，未实现。docs/OUTPUT_STYLE.md本树不存在，按既有W01～W12样式记录。17受保护树、README原SHA4a4590881c162b8379fda14212ce50566b03ddcca775d6156146f021d903bf3e与三文档开工前前缀逐字节核验；完整证据outputs/a9-39-diagnostic-3b-prep/addendum14/ADDENDUM14_REPORT.md、addendum14.json。
+
+#### 修复轮 1（追加十四；遗留项已由修复轮2关闭）
+
+R1 已在 Wait-Unregistered 仅捕获 PROCESS_FIELDS_UNKNOWN，成功轮清零，末轮未知字段到期保留该码；Bound-Live 仅对该码与 NEW_NODE_DURING_CLEANUP 等待。20秒共享预算、latest/outerCutoff、终止/删除/登记语义及D4/D7/R1/R2紧邻Related复查保持。R2 将worker failure Event隔离在try/catch，ERROR Reply与exit126不受事件写入失败阻断；Reply发布失败仍原样传播。R3 补记Publish-File的File.Delete(dest)仅删除work/query/request.tsv或response.tsv（WRITE_SITES第12项，已有work/query目录，无新路径），并纠正recovery-7 W01：3g run991f82e2与recovery-6是已用完的历史Win7事实，本包仅服务尚未实机执行的3h run ab1620b7。
+
+修复轮1历史诊断控制/集成/载荷1085/0，recovery-7为406/0；37条旧变异加R1七条/R2三条共47条：46检出、1等价（5000向量与交换性证明），Z00先绿，无golden-only。render-controller 15载体、static-audit四关键载体的可达终止/删除集合相等，recovery-7的31个tools/reuse逻辑文件本轮字节全同。首失败与重钉中间失败日志均保留。
+
+修复轮1发现的最坏交替反例现已关闭：S1按批准原样应用，Bound-Live在Wait返回后核共享截止并休眠250毫秒，原必需交替门现为2/2。原始失败模型与日志保留在fix-round1/；当前总上界见STATIC_WAIT_PROOF.json。
+
+F-03/F-04仅记录：20秒只能覆盖几秒级残留，leaf约40秒/Electron约68～80秒可再次丢D5/D6证据；R2开头等待最多消耗20秒救援时间，常量不改。紧邻Related重复枚举失败窗口与改前相同，概率数字UNKNOWN。未登记已退出僵尸行的Win7实际持续时间/WMI字段仍UNKNOWN（等待现已容忍）；N2第二次发布是否真正修复仍UNKNOWN；本轮Win7全部NOT_PERFORMED。
+
+新3h包SHA `9d80f6dd3d6691749b05bcef4884da56a48fe88a2bff423e87e830de06f9dff7`，binding `838fa067140148b5549449027d0c6c8288c6f865ead822da224cf1caa33e55bf`；新recovery-7包SHA `2602b60b94b8abb5787aa7f2d85a625b2a0defdafb6042d2ad46500457d5d104`，binding `e276e3eb2f34b3bf2b9183a6595c1081254a95b339abd11214d1119a47716ab0`。仅signed:false待签，原话/确认/到期null；旧新SHA对照及完整64位确认句模板见追加十四报告修复轮2。17受保护树、README字节及三文档原开工前前缀核验见fix-round1/保护证据；不提交、不推送、不连接目标。
+
+#### 修复轮 2（追加十四；开发机 SURROGATE，PASS）
+
+S1按主会话（项目经理）裁决原样应用fix-round1/PROPOSED_BOUND_GUARD.patch；负责人未就该补法单独批准，负责人只对最终包 SHA 逐字确认，仅Bound-Live catch保存本次原错误码，Wait返回后核共享截止，未到期休眠250毫秒再重跑；其它异常立即重抛。Wait、终止、删除、登记、预算及常量不变。每次重试要么截止抛原码，要么至少休眠250毫秒，共享截止≤20秒，所以重试次数≤ceil(20000/250)+1=81；证明范围为可控非倒退时钟SURROGATE，实际Win7枚举耗时未知。
+
+最终Node20.17控制/集成850/0、载荷251/0（诊断1101/0）、recovery-7 406/0，共1507/0。原必需交替门已纳入包内，2/2通过且包含在850项中；新增有限恢复、持续交替、已过期Wait成功、原码保留及其它异常不休眠测试。47旧变异+6新守卫变异=53，52检出/1等价/0 golden-only，Z00 62/0、Z00-R 1/0先绿。15载体均本地stub，四关键载体Bound守卫字面存在，可达终止/删除与3g逐行相同；回收31个tools/reuse逻辑文件本轮字节相同，冻结3h及派生绑定同步。
+
+当前3h包SHA `9d80f6dd3d6691749b05bcef4884da56a48fe88a2bff423e87e830de06f9dff7`，binding `838fa067140148b5549449027d0c6c8288c6f865ead822da224cf1caa33e55bf`；recovery-7包SHA `2602b60b94b8abb5787aa7f2d85a625b2a0defdafb6042d2ad46500457d5d104`，binding `e276e3eb2f34b3bf2b9183a6595c1081254a95b339abd11214d1119a47716ab0`。两句完整确认句及原始第一轮/修复轮1作废SHA对照见ADDENDUM14_REPORT.md修复轮2；旧值仅历史对照，待签signed:false，原话/确认/到期均null。17受保护树、README及原开工三文档前缀保持，详见fix-round2/FILE_MANIFESTS.json、CHANGED_FILES.json与保护证明。S1～S3本地完成，材料待审核与新完整SHA逐字确认。
+
+F-03/F-04、紧邻Related重复枚举窗口保持；概率、未登记僵尸行Win7实际持续时间/WMI字段、N2是否真正修复第二次发布均UNKNOWN；当前Win7全部NOT_PERFORMED。不提交、不推送、不连接目标或远端、不安装依赖、不生成已批准回执。
+
+
+### 2026-10-20 — A9-39追加十四收口：3h 实机运行结果与诊断分析
+
+结论：WIN7-46 的 3h 于 2026-10-20 在 Win7 实机执行完毕，D1～D7 全部完成，60 个封存文件全部回收，D7 四项为 0；诊断保留 HALTED/REHEARSAL_NOT_ELIGIBLE，不是正式门 A、门 B、Alpha 2 或 RC 通过。本轮只在开发机分析既有实机证据，不重新执行目标验收。
+
+3h 材料包 SHA 9d80f6dd3d6691749b05bcef4884da56a48fe88a2bff423e87e830de06f9dff7 与 run ab1620b7-a701-4549-a9f3-341796a96530 的回执已于 2026-10-20T07:45:01.199Z 确认并执行用完，归档 outputs/a9-39-diagnostic-3b-prep/archive/attempt-9-receipt/，不得复用。包内只剩 signed:false 待签文件，永不签署；recovery-7 未使用，保持 signed:false，不签署。任务书 §11.8.34 取代 §11.8.33 修复轮 2 的待审核确认当前状态，旧文、旧失败与原证据保留。
+
+运输 SSH 6/8、上传 1、下载 1；D4 182.257 秒，退出 1/PAYLOAD_HALTED，运输 result.error=false。D4 内部收尾已执行，外层 R1/R2 未派发，故 rescue_attempted=false。六例为 J1/J2 OBSERVED（AS_DESIGNED）、G1/G2 INVALID_CASE/GRANDCHILD_EVIDENCE_INCOMPLETE（DEVIATES）、X1 HALTED/QUERY_OPERATION_FAILED、timed_out=true（DEVIATES）、X2 NOT_PERFORMED/HARD_GATE_LATCHED（UNKNOWN）。完整运输表与分析边界见 §11.8.34。
+
+N1 保存 `System.Management.ManagementException:157:??? `，定位 query-worker.ps1:157 的 Terminate(1)；进程自然退出竞态仅为候选推断，原始消息与错误码 UNKNOWN。N2 序号 2 及以后成功；N3 是否实际等待 UNKNOWN。3g 第二次发布失败与整批丢证据本次未复现，不代表未来不会发生。GPU 同族关联不证明同因，产品既有 app.disableHardwareAcceleration() 决定不变。15 项 UNKNOWN 与三处 Win7 残留边界沿用 §11.8.34；当前存在性 UNKNOWN，未清理。
+
+负责人原话：“批准选项 A：按现有数据收口 3h 诊断分析，不备 3i；C（Win7 残留清理包）另行提交方案再裁决。”按选项 A 收口，不备 3i；C 清理包方案待执行代理另行起草、负责人裁决。A9-39 其余工作项按任务书与负责人排序。清理方案获准前相关目标机动作均 NOT_PERFORMED。
+
+本轮仅末尾追加 STATUS、STATUS_LOG 与任务书，新增 outputs/a9-39-diagnostic-3b-prep/addendum14/closure-3h/ 核验记录；未连接目标/远端、未读取 .acceptance/ssh/、未改包与既有证据、未生成回执或材料包、未安装依赖、未启动会话或代理、未新增 ADR、未改任务索引、未提交或推送。分析 outputs/a9-39-diagnostic-3b-prep/addendum14/analysis-3h/，原始证据 outputs/a9-39-diagnostic-3b-run/ab1620b7-a701-4549-a9f3-341796a96530/；追加行数、原文前缀、保护哈希和文档检查见 outputs/a9-39-diagnostic-3b-prep/addendum14/closure-3h/CLOSURE_REPORT.md。
+
+
+### 2026-10-20 — A9-39 Win7 残留清理方案裁决
+
+结论：负责人裁决 C 暂不清理，不备料。清理方案由执行代理在开发机起草，位置 outputs/a9-39-diagnostic-3b-prep/addendum14/cleanup-plan/；执行代理推荐的“三个字面目标加先取回压缩包”未采用。证据层级为开发机文档与历史 Win7 实机数据，候选 WIN7-46。
+
+负责人裁决原话：“选择选项 1：C 暂不清理，不备料；等到要做 3i 或验收收尾时再启动。”
+
+主会话依据：推断 3h 的 D1 在旧残留最后已知仍在时通过，D1 只检查新根与新任务名；3g 任务 XML 的 Triggers 为空，任务不会自行启动。重提条件为决定做 3i（先处理计划任务 991f82e2，否则未来回收包会因 OTHER_RUN_TASK_REMAINS 拒绝，属推断）、验收收尾或负责人另行要求。df9b9b24 根不得清理。详见任务书 §11.8.35。
+
+未连接目标机，未备料，未执行清理，未改包与证据，未提交，未推送。
