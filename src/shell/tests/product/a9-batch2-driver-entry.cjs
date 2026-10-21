@@ -1073,6 +1073,11 @@ function phase2Fixtures() {
     ? path.join(process.env.A9_BATCH2_CANDIDATE_ROOT, 'validation', 'a9-batch2-fixtures.cjs')
     : path.resolve(__dirname, '../../../../release/win7-product-v3/a9-batch2-fixtures.cjs')));
 }
+function phase2ExampleProjection(sample) {
+  // ADR-0246/0248 L2/0253: conservative log projection may consume the source's closing brace.
+  return { header: 'Authorization: ***redacted***', source: 'const headers = { authorization: ***redacted***;',
+    url: 'https://***redacted***@example.invalid/api', unregistered: 'Proxy-Authorization: ***redacted***', 'unregistered-base64': 'Authorization: ***redacted***', documentation: 'Authorization: ***redacted***' }[sample.example];
+}
 const p2Object = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const p2Text = (v) => typeof v === 'string' && v.length > 0;
 const p2Count = (v) => Number.isSafeInteger(v) && v >= 0;
@@ -3415,8 +3420,7 @@ async function runDriver() {
     const b1 = p2File('sample.txt'); const diff = await p2Call('getDiff', turn.turnId);
     const recovery = p2Files(path.join(workspaceRoot, '.agent_recovery')); const checkpoints = await p2Call('listCheckpoints', {});
     const undo = await p2Call('undoTurn', turn.turnId); const surfaces = await p2Surfaces();
-    const expected = { header: 'Authorization: ***redacted***', source: 'const headers = { authorization: ***redacted*** };',
-      url: 'https://***redacted***@example.invalid/api', unregistered: 'Proxy-Authorization: ***redacted***', 'unregistered-base64': 'Authorization: ***redacted***', documentation: 'Authorization: ***redacted***' }[sample.example];
+    const expected = phase2ExampleProjection(sample);
     // File-only examples use the fixture's final response for the conservative log projection.
     const expectedProjection = fileOnly ? expected : `b2:fixed-${sample.id} ${expected}`;
     const checkpoint = p2Array(checkpoints.checkpoints).find((r) => r.turnId === turn.turnId);
@@ -3747,7 +3751,7 @@ async function runDriver() {
 }
 
 module.exports = {
-  createPhase2OutputObserver, evaluatePhase2Case, phase2Identity, phase2Scan, phase2Zero, phase2Restore, phase2Exact, phase2Restart, phase2Fixtures,
+  createPhase2OutputObserver, evaluatePhase2Case, phase2Identity, phase2Scan, phase2Zero, phase2Restore, phase2Exact, phase2Restart, phase2Fixtures, phase2ExampleProjection,
   continuationSchemaCases, continuationRequestFacts, evaluateContinuationSchema, supplementalRowsFacts, supplementalWorkspaceFacts, supplementalReadOnlyFacts, journeyToolFacts, journeyShellChecks, journeyReadCitations,
   assertionId, eventData, framesFromEvents, classifyFailedStart, evaluateBg03Facts, evaluateReleaseSequence, exitDialogFacts, BAD_CWD_PATHS, RELEASE_SEQUENCE, evaluateStreamOrder, textsPerStream, evaluateDomAfterDb, evaluateLiveTick, backgroundObservationDone, evaluateBackgroundOutput, evaluateSecretCheck, evaluateStreamedOnce, managedResidueItems, managedFactSummary, toolEndResult, secretLeak,
   descendantsOf, wmiStampMicros, stillAlive, newProcesses, toolEndsFor, summarizeToolEnd, toolEndFailed, normalizeCrlf, combineStatus, evaluatePaging, sha256, EXIT_BUTTONS,

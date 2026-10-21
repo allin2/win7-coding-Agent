@@ -839,3 +839,119 @@ SSH 6/8、上传 1、下载 1；D4 182.257 秒、退出 1/PAYLOAD_HALTED，运�
 重提条件：决定做 3i 前先处理计划任务 991f82e2，或验收收尾，或负责人另行要求。本条未连接目标机、未改包与证据、未提交、未推送。
 
 下一步：3i 不备；C 暂不启动；A9-39 其余工作项按任务书与负责人排序。
+
+
+### A9-39 预演 3 材料备料完成，待预检确认（2026-10-20 UTC）
+
+当前事实：负责人批准选项 R 后，预演 3 材料已在开发机备好，位置 .acceptance/a9-39/w46-rehearsal-3-preparation/，包 SHA256SUMS 的 SHA 为 b337dec2…，预检材料包 SHA 为 76922581…。新 run b8a87766-f43d-4d20-ae6a-fe6e2704dcfc，入口 E1 改 E2，新增 120 秒 gpu-entry-gate，预算为控制 SSH 34、上传 1、下载 1、总 19800 秒。经三轮独立静态审核与一轮修复复核，主会话独立重跑八个测试文件，208 通过、0 失败；变异 134 条由 codex 报告全部检出，主会话未逐条复跑。证据层级为开发机，候选 WIN7-46；Win7 实机 NOT_PERFORMED，UNKNOWN 32 项。预演 3 即使通过仍是 REHEARSAL_NOT_ELIGIBLE。
+
+负责人批准原话：“批准按 R 备预演 3 材料：接受入口 E1 改 E2 与严格父链绑定、新增 gpu-entry-gate（120 秒）、预算控制 SSH 34/上传 1/下载 1/总 19800 秒（停派 18000、收尾 1800）、保留 scanRun 全范围仅计时。只在开发机备料，审核通过前不连接目标机。”
+
+本轮未连接目标机，未执行预检，未写入负责人确认，未生成已签回执，未提交，未推送，未改任务索引与 ADR。门粒度 B 的 ADR 与 DRAFT 任务书按负责人裁决暂不起草，待预演 3 材料核验后再确认。
+
+下一步：负责人逐字确认预检材料包后，主会话才可连接目标机执行只读预检（最多 2 次，每次 120 秒）；预检通过后再提交预演 3 签发材料。
+
+入口：任务书 §11.8.36；outputs/a9-39-rehearsal-3-prep/REHEARSAL3_PREP_REPORT.md；outputs/a9-39-rehearsal-3-prep/FIX_R3.diff。
+
+
+### A9-39 预演 3 首次预检通过但未经 finalizer，待负责人再次确认（2026-10-20 UTC）
+
+当前事实：负责人逐字确认预检材料包 76922581… 后，主会话执行了一次 Win7 只读预检：机器 DCCS-CHAIZL-PC，SID 以 -1001 结尾，控制台会话 2，无 LogonUI，新根 C:\A9-W46\run\b8a87766 不存在，时钟偏差 5 秒，ok=true。证据层级为 Win7 实机只读预检，候选 WIN7-46；预演 3 本体 NOT_PERFORMED。
+
+偏差：主会话直接运行了包装器，未经 tools/finalize-signing.cjs，所以该结果不能生成 release-authority.json（证据目录已存在，且预检早于 finalizer 开始时间）。已消耗预检额度 1 次，另有 1 次未用；经 finalizer 重新预检会用尽额度，且 finalizer 写入的 ordinal=1、already_consumed=0 须在记录中更正。详见任务书 §11.8.37。
+
+下一步：负责人再次逐字确认同一句后，主会话将现有证据目录原样改名保留，再经 finalizer 预检并生成最终载荷；之后仍需负责人对最终载荷 SHA 做第二段确认，才能启动预演 3。未获确认前不连接目标机。
+
+入口：任务书 §11.8.37；outputs/a9-39-rehearsal-3-auth/win7-preflight-r1/LOCAL_RESULT.json。
+
+
+### A9-39 预演 3 最终载荷已生成，待负责人第二段确认（2026-10-20 UTC）
+
+当前事实：负责人再次逐字确认预检材料包 76922581… 后，主会话经 finalizer 完成第二次预检（Win7 只读，ok=true，控制台会话 2，无 LogonUI，新根不存在，时钟偏差 5 秒），生成最终载荷 release-authority.json，SHA aef10661…，signed:false。预检额度 2 次均已用尽，第一次为主会话绕过 finalizer 的直接运行，不被采用，详见任务书 §11.8.37、§11.8.38。证据层级为 Win7 实机只读预检，候选 WIN7-46；预演 3 本体 NOT_PERFORMED。
+
+下一步：负责人在 2026-10-21T01:33:21Z 前逐字回复第二段确认句（批准本次预演最终载荷SHA-256 加完整 SHA），主会话才可在其后 300 秒内启动 R1。逾期则没有预检额度重做，须另行裁决。启动后预演 3 最长约 5.5 小时，期间 Win7 控制台须保持登录，不得锁屏或重启。
+
+入口：任务书 §11.8.38；outputs/a9-39-rehearsal-3-auth/；.acceptance/a9-39/w46-rehearsal-3-preparation/signing-final-r1/FINALIZATION.json。
+
+
+### A9-39 预演 3 执行 HALTED：R3 上传缺陷，已派重试备料（2026-10-20 UTC）
+
+当前事实：负责人批准最终载荷后，预演 3（run b8a87766…）在 Win7 实机启动，R0、R1、R2 通过，R3-upload 因包缺陷失败：R2 建目录表缺 work\preparation\payload 与 payload\diag-app，第 41 条 put 失败。产品阶段、GPU gate、控制器链路 NOT_PERFORMED，E2 与 GPU 问题没有新证据。证据层级为 Win7 实机，候选 WIN7-46，REHEARSAL_NOT_ELIGIBLE。目标机留有新根 C:\A9-W46\run\b8a87766 与 40 个已上传文件，计划任务 0 个、进程 0 个，未清理。实际控制 SSH 6 次、传输会话 7 次。详见任务书 §11.8.39。
+
+下一步：codex 在开发机修复并重绑新 run，主会话核验并安排聚焦审核；新 run 需要负责人重新做两段逐字确认。负责人是否继续预演 3 路线由负责人裁决。
+
+入口：任务书 §11.8.39；outputs/a9-39-rehearsal-3-run/b8a87766-f43d-4d20-ae6a-fe6e2704dcfc/RUN_RESULT.json。
+
+
+### A9-39 预演 3 重试备料完成，待预检材料包确认（2026-10-21 UTC）
+
+当前事实：旧 run b8a87766 因 R2 建目录表缺陷 HALTED 后，重试包已在开发机修复：补 R2 目录表，新 run d35a55d2…，旧 run 进拒绝集合，新增远端目录一致性测试与全链路路径审计（新缺口 0），R3 上传超时放宽到 240 秒且总预算 19800 秒不变。Sonnet 审核 B 通过，审核 A 的 1 条 P1 已在修复轮 5 修复。主会话重跑九个测试文件 215/0，保护目录 34 项 0 差异。包 SHA256SUMS 为 5a12bf15…，预检材料包 SHA 为 4308245e…。证据层级为开发机，候选 WIN7-46；新 run 在 Win7 NOT_PERFORMED，UNKNOWN 34 项。详见任务书 §11.8.40。
+
+下一步：负责人逐字确认新预检材料包后，主会话经 finalizer（--owner-input 路径）完成预检并生成最终载荷；之后还需负责人对最终载荷 SHA 做第二段确认，才能启动新 run。目标机上旧 run 的残留（新根、ZIP、40 个文件）未清理。
+
+入口：任务书 §11.8.40；outputs/a9-39-rehearsal-3-retry1-prep/REHEARSAL3_PREP_REPORT.md。
+
+
+### A9-39 预演 3 重试预检通过，待负责人确认最终载荷 SHA（2026-10-21 UTC）
+
+当前事实：负责人逐字确认重试预检材料包 4308245e… 后，主会话经 finalizer 完成一次 Win7 只读预检并生成最终载荷：机器 DCCS-CHAIZL-PC，SID 以 -1001 结尾，控制台会话 2，无 LogonUI，新根 C:\A9-W46\run\d35a55d2 不存在，时钟偏差 5 秒，ok=true，ssh_sessions=1。最终载荷 SHA 为 e6b64c88…，signed:false。证据层级为 Win7 实机只读预检，候选 WIN7-46；新 run 本体 NOT_PERFORMED。
+
+下一步：负责人在 2026-10-21T02:53:17Z 前逐字发送第二段确认句“批准本次预演最终载荷SHA-256 e6b64c882515e4e06091d8d834149c8bca6a0b910e50fb4427a7b25b937a39be”；主会话收到后写入已签回执并在 300 秒内启动 R1。过期则本 run 须重新预检（额度还剩 1 次）。目标机旧 run 残留未清理。
+
+入口：任务书 §11.8.41；outputs/a9-39-rehearsal-3-retry1-auth/win7-preflight-r1/LOCAL_RESULT.json。
+
+
+### A9-39 预演 3 重试已执行，HALTED（2026-10-21 UTC）
+
+当前事实：run d35a55d2… 在 Win7 实机执行 11 分 44 秒后 HALTED。R0～R4、p01、p02、gpu-entry-gate（PASS）、p03、p04 的计划任务全部退出码 0；p07-safe 的 B2-A37-01 失败（failure_class DRIVER_SECRETS_A37_01_FAILED，根因 UNKNOWN）。恢复下载 120 秒超时，只取回 109/461 项，缺 a37-01.json 与 p01、p03、p04 的 phase-result。R8 读回：计划任务 0、进程 0。证据层级为 Win7 实机，候选 WIN7-46，REHEARSAL_NOT_ELIGIBLE，不计入验收。
+
+下一步：开发机分析 B2-A37-01（用已取回的 secrets/a37-01 数据与验证包源码），同时修复恢复下载的超时与排序缺陷；是否再取证、是否再跑下一个 run 待分析后由负责人裁决。目标机残留（run d35a55d2 与旧 run b8a87766）未清理。
+
+入口：任务书 §11.8.42；outputs/a9-39-rehearsal-3-retry1-run/d35a55d2-d124-4d8b-8735-a0beadf297ec/RUN_RESULT.json。
+
+
+### A9-39 B2-A37-01 开发机分析完成，待负责人裁决修复路线（2026-10-21 UTC）
+
+当前事实：失败归属在 Win7 原始数据证实前为 UNKNOWN。开发机静态复算发现确定性不一致：驱动对源码样本写死的期望投影 `…authorization: ***redacted*** };`，与候选日志脱敏的实际输出 `…authorization: ***redacted***;` 不同（候选把 `}` 当作凭据吞掉）；header、URL 样本一致。ADR-0246 允许日志脱敏改变源码中的 `authorization: token`。若这是根因，源码样本三个编码都会失败，且与 Win7 无关。证据层级为开发机只读分析，候选 WIN7-46；a37-01.json（27,749 字节）未取回，s001～s003 的 Win7 结果 UNKNOWN。
+
+下一步：负责人裁决修复路线（改驱动期望还是改产品正则）、是否授权一次 1 个文件的定向取证、是否采用新的恢复下载设计；修复驱动会改变包内套件，需新候选。目标机残留未清理。
+
+入口：任务书 §11.8.43；outputs/a9-39-rehearsal-3-retry1-analysis/A37_01_ANALYSIS.md。
+
+
+### A9-39 负责人批准路线 A，新建候选 WIN7-47（2026-10-21 UTC）
+
+当前事实：负责人批准“改驱动期望，不改产品，新建候选 WIN7-47”，登记为 ADR-0253（Accepted），任务书修订 r22。WIN7-46 的预演 3 重试结果（HALTED，B2-A37-01 失败）与冻结包原样保留。证据层级为开发机，Win7 为 NOT_PERFORMED。
+
+下一步：执行代理先备定向取证包（4 个文件、42,705 字节），经负责人逐字确认后取回 a37-01.json 等；随后修驱动期望并改绑 WIN7-47；本地提交与双干净构建须负责人另行批准。
+
+入口：任务书 §11.8.44；docs/DECISIONS.md ADR-0253。
+
+
+### A9-39 允许路径增补；定向取证包备料完成，待核验与逐字确认（2026-10-21 UTC）
+
+当前事实：负责人批准把 A9-36 的两个文件（`a9-alpha2-supplement-request.cjs`、`A9_ALPHA2_SUPPLEMENT_VALIDATION.md`）加入 A9-39 允许路径，只改候选号为 WIN7-47。定向取证包备料完成（材料 SHA 0bb32d71…，11 个文件，测试 37/0，变异 10/10），主会话核验中；未连接目标机。证据层级为开发机。
+
+下一步：主会话核验取证包并向负责人取包 SHA 的逐字确认句；执行代理修驱动期望并改绑 WIN7-47；本地提交与双干净构建须负责人另行批准。
+
+入口：任务书 §11.8.45；.acceptance/a9-39/w46-recovery-a37-retrieval/RETRIEVAL_PACKAGE.md。
+
+
+### A9-39 定向取证完成，B2-A37-01 归属驱动期望缺陷（2026-10-21 UTC）
+
+当前事实：负责人逐字确认后，定向取证 1 次 SFTP 取回 4 个文件，全部校验通过。Win7 实机（WIN7-46，run d35a55d2…，REHEARSAL_NOT_ELIGIBLE）：p01、p03、p04 为 PASS；B2-A37-01 的 s001～s003 完整通过，s004 的恢复、Diff、撤销、扫描均正常，只是投影与驱动写死的期望不符，归属驱动期望缺陷。
+
+下一步：执行代理完成驱动期望修复与 WIN7-47 改绑后，主会话核验；本地提交与双干净构建须负责人另行批准；随后备预演 4 材料（新 run、恢复下载改进）。
+
+入口：任务书 §11.8.46；outputs/a9-39-rehearsal-3-retry1-recovery/LOCAL_RESULT.json。
+
+
+### A9-39 驱动期望修复与 WIN7-47 改绑核验通过，待负责人批准本地提交（2026-10-21 UTC）
+
+当前事实：执行代理修了驱动对源码样本的投影期望，并把候选号 WIN7-46 改为 WIN7-47（11 个文件，+138/−47）；产品代码未改。主会话开发机核验：全量合同 541/541，包测试 9/9，脱敏正则 46/46，Provider persistence 26/26，`check_docs` 通过。lifecycle 3 项失败在未改动的 HEAD 上同样失败，记为既有问题（根因 UNKNOWN）。证据层级为开发机，候选 WIN7-47（tentative），基线 HEAD 3997df16…。
+
+未做：提交、构建、预演 4 材料、Win7 执行均为 NOT_PERFORMED；Win7 残留（`C:\A9-W46\run\d35a55d2` 等）未清理。
+
+下一步：负责人批准本地提交后，主会话做双干净构建与比对，再备预演 4 材料；预检与最终载荷须另行逐字确认。
+
+入口：任务书 §11.8.47；`outputs/a9-39-rehearsal-4-prep/REPORT.md`。

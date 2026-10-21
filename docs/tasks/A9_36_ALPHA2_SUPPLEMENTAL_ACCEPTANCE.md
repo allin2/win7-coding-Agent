@@ -715,3 +715,21 @@ ADR 编号：整合分支已用到 ADR-0250，ADR-0251 由整合分支登记。�
 负责人 2026-10-17 原话：“批准 D1～D3：接受 ADR-0252；a9-36 分支本地提交；整合分支先本地提交 ADR-0250/0251 与 A9-39 第 1 阶段，再合入 a9-36 分支。不推送。”
 
 ADR-0252 状态改为 Accepted。执行代理在本分支本地提交全部未提交内容，随后合入 `codex/a9-alpha2-integration-r2`。不推送；Win7、Electron 与新门 A 仍为 `NOT_PERFORMED`。
+
+
+### 10.14 ADR-0253 候选号改绑 WIN7-47 的字节登记（2026-10-21 UTC，开发机）
+
+ADR-0253 与负责人 2026-10-21 的路径增补批准（见 A9-39 任务书 §11.8.45），允许 A9-39 的执行改 `a9-alpha2-supplement-request.cjs` 与 `A9_ALPHA2_SUPPLEMENT_VALIDATION.md` 中的候选号 WIN7-46 为 WIN7-47，不改其它内容。请求模块第 77 行改为 `a.candidate !== 'WIN7-47'`；验证说明只改表示当前候选的号码，M6 回退目标 WIN7-42 不变。`a9-alpha2-supplement.cjs` 未改，其第 314 行注释仍含 WIN7-46。
+
+下表为 WIN7-47 改绑后的六路径字节，取代 §10.12 末表作为 A9-36 在 WIN7-47 上的当前输入。字节数不变的两个文件只是候选号字符 6 变 7。A9-36 在 WIN7-47 上的执行授权、门 A 与 Win7 运行均为 `NOT_PERFORMED`。
+
+| 路径 | 字节数 | SHA-256 |
+|---|---:|---|
+| `src/shell/tests/product/a9-batch2-driver-entry.cjs` | 324777 | `9d6ffba6ee1cac107b76ef2d7ea9fe854d4a13a219f3105e77d0a91185d12ffa` |
+| `src/shell/tests/product/a9-batch2-contract.test.ts` | 565927 | `0e707eef98fa6d9685df1212e327abc7168040f49a6bc3f7cc422c0a1cbb34e0` |
+| `release/win7-product-v3/a9-alpha2-supplement.cjs` | 77076 | `3c32f6194f862a2d80cf81ae66818af08af3a8ae70955d59ce6f0b11f1952e0d` |
+| `release/win7-product-v3/a9-alpha2-supplement-request.cjs` | 13147 | `f13cc12dbc3e4044b61c0e0096969a0a1ac91c9d91ea4c80e153a9ea1db6e3f3` |
+| `release/win7-product-v3/a9-alpha2-supplement-desktop.ps1` | 6259 | `cd78d5475b7512164ca154bad06f64b7a8c589e3233fdac69ed70d4e20d5ed3b` |
+| `release/win7-product-v3/A9_ALPHA2_SUPPLEMENT_VALIDATION.md` | 32182 | `92887cc8fc5a3f86a8fae16bd51218f661de45af930b04f861a8b9ef59381f99` |
+
+驱动入口与合同测试两个共用文件的其余改动属于 A9-39 的驱动期望修复（ADR-0253，见 A9-39 任务书 §11.8.47）。本节不批准提交、构建、门 A 或 Win7 执行。

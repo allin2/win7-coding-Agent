@@ -30,8 +30,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-46', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-46', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-46.zip',
+    candidate: 'WIN7-47', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-47', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-47.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -56,10 +56,10 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-46 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-47 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
-  test.each(['WIN7-42', 'WIN7-45', 'WIN7-47', 'win7-46', '', null, undefined])('candidate label %s is refused', (value) => {
+  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-48', 'win7-47', '', null, undefined])('candidate label %s is refused', (value) => {
     expect(() => req.validateAuthority(changedAuthority('candidate', value), now)).toThrow();
   });
   test.each([
@@ -127,7 +127,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-46');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-47');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -148,7 +148,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-46\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-47\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -1438,7 +1438,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-46', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-47', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -6198,6 +6198,89 @@ describe('A9-33 batch-2 evaluators of fix round 6', () => {
 
 // A9-39: synthetic observations test the actual packaged evaluators; they are not Win7 product evidence.
 describe('A9-39 phase 2 fixed secrets contract', () => {
+  const ordinaryProjectionSamples: any[] = fixtures.SECRET_SAMPLES['B2-A37-01'];
+  const projectionActual = new Map<string, string>();
+  const decodeSample = (sample: any) => new util.TextDecoder(sample.encoding === 'gbk' ? 'gbk' : sample.encoding === 'utf16le' ? 'utf-16le' : 'utf-8', { fatal: true })
+    .decode(fixtures.secretInputBytes(fixtures.secretExample(sample.example), sample.encoding));
+  function ordinaryProjection(caseId: string, sample: any) {
+    const expected = driver.phase2ExampleProjection(sample);
+    if (caseId === 'B2-A37-01') return { input: `b2:fixed-${sample.id} ${fixtures.secretExample(sample.example)}`, expected: `b2:fixed-${sample.id} ${expected}` };
+    const final = fixtures.phase2ProviderStep({ messages: [{ role: 'user', content: `b2:fixed-${sample.id}` }, { role: 'tool', content: 'changed' }] },
+      { phase2Case: caseId, phase2Sample: sample.id, shellKind: 'cmd' });
+    return { input: final.content, expected };
+  }
+  function authCommand(caseId: string, sample: any, shellKind: string) {
+    const auth = fixtures.phase2AuthInput(sample); const lines = auth.expected.split('\n');
+    return { input: fixtures.phase2ProviderStep({ messages: [{ role: 'user', content: auth.input }] },
+      { phase2Case: caseId, phase2Sample: sample.id, shellKind }).tool.args.command,
+    expected: shellKind === 'powershell' ? `Write-Output 'A939-COMMAND'; # ${lines[0]}\n# ${lines[1]}` : `echo A939-COMMAND & rem ${lines[0]}\nrem ${lines[1]}` };
+  }
+  const observed = (input: string) => {
+    if (!projectionActual.has(input)) throw new Error('ADR_0253_UNOBSERVED_PROJECTION');
+    return projectionActual.get(input);
+  };
+  const projections = (input: string, expected: string) => ['snapshot', 'events', 'sqlite'].map((surface) => ({ surface, expected, actual: observed(input) }));
+  beforeAll(async () => {
+    const root = temp('projection-runtime'); const workspaceRoot = path.join(root, 'ws');
+    fs.mkdirSync(workspaceRoot); let input = '';
+    // Public gitStatus() runs the candidate's real redactForProjection/redactSecrets chain.
+    // Only the adapter's text input is controlled; SQLite and every redactor are the real implementation.
+    // No private-function extraction, Electron, Shell, Git process or network request is involved.
+    const runtime = createA9AgentRuntime({ workspaceRoot, dataRoot: path.join(root, 'data'),
+      openDatabase: (file: string, options?: { readonly?: boolean }) => new Database(file, options && options.readonly ? { readonly: true } : {}),
+      modules: { core: require('../../../core/dist'), gateway: require('../../../gateway/dist'), state: require('../../../state/dist'),
+        workspace: require('../../../workspace/dist'), runner: require('../../../runner/dist'),
+        gitAdapter: { projectTrustedGit: async () => ({ text: input }) } } });
+    try {
+      expect(runtime.status).toBe('ready');
+      const inputs = new Set<string>();
+      for (const sample of ordinaryProjectionSamples) inputs.add(decodeSample(sample));
+      for (const caseId of ['B2-A37-01', 'B2-A38-06']) for (const sample of fixtures.SECRET_SAMPLES[caseId]) inputs.add(ordinaryProjection(caseId, sample).input);
+      for (const caseId of ['B2-A38-04', 'B2-A38-08']) for (const sample of fixtures.SECRET_SAMPLES[caseId]) {
+        const auth = fixtures.phase2AuthInput(sample); inputs.add(auth.input); inputs.add(auth.input.split('\n')[0]);
+        for (const kind of ['cmd', 'powershell']) inputs.add(authCommand(caseId, sample, kind).input);
+      }
+      for (input of inputs) {
+        const result = await runtime.gitStatus(); expect(result.ok).toBe(true);
+        expect(typeof result.projection.text).toBe('string'); projectionActual.set(input, result.projection.text);
+      }
+    } finally { await runtime.shutdown(); fs.rmSync(root, { recursive: true, force: true }); }
+  });
+  test('ADR-0253: projection coverage is exactly header/source/url in all three encodings', () => {
+    expect(ordinaryProjectionSamples.map((s: any) => `${s.example}/${s.encoding}`)).toEqual([
+      'header/utf8', 'header/utf16le', 'header/gbk', 'source/utf8', 'source/utf16le', 'source/gbk', 'url/utf8', 'url/utf16le', 'url/gbk',
+    ]);
+  });
+  test.each(ordinaryProjectionSamples)('ADR-0253: candidate output matches driver expectation for $example/$encoding', (sample: any) => {
+    const prefix = sample.encoding === 'gbk' ? '中文\n' : '';
+    expect(decodeSample(sample)).toBe(prefix + fixtures.secretExample(sample.example));
+    expect(observed(decodeSample(sample))).toBe(prefix + driver.phase2ExampleProjection(sample));
+    const p = ordinaryProjection('B2-A37-01', sample); expect(observed(p.input)).toBe(p.expected);
+  });
+  test.each(fixtures.SECRET_SAMPLES['B2-A38-06'] as any[])('ADR-0253: file-only final projection matches $example', (sample: any) => {
+    const p = ordinaryProjection('B2-A38-06', sample); expect(observed(p.input)).toBe(p.expected);
+  });
+  test.each(['B2-A38-04', 'B2-A38-08'].flatMap((caseId) => fixtures.SECRET_SAMPLES[caseId].map((sample: any) => ({ caseId, ...sample }))))(
+    'ADR-0253: candidate auth projections match $caseId/$id', (sample: any) => {
+      const auth = fixtures.phase2AuthInput(sample);
+      expect(observed(auth.input)).toBe(auth.expected);
+      expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
+      for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
+    });
+  test('ADR-0253: WIN7-47 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-47', candidate_tentative: true });
+    const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
+    expect(lock.provenance.candidate).toBe('WIN7-47'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_47');
+    const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-47', candidateTentative: true, batch2: true");
+    const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
+    expect(request).toContain("a.candidate !== 'WIN7-47'");
+    for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
+      const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
+      expect(text).toContain('WIN7-47'); expect(text).not.toMatch(/WIN7[-_]46/);
+    }
+    expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
+  });
   const H = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
   const digest = (s: string) => ({ size: Buffer.byteLength(s), sha256: H(s) });
   const scan = () => ({ surfaces: ['snapshot', 'events', 'sqlite', 'recovery', 'product-files'].map((name) => ({ name, ...digest(name), hits: 0 })),
@@ -6212,15 +6295,19 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
         ...(caseId === 'B2-A37-01' || caseId === 'B2-A38-06' ? { b0: digest('original'), b1: digest('changed'), b2: digest('original'), turn_id: 'turn-1',
           runner_dispatches: 1, tool_starts: 1, shell_ends: 1, shell_exit: 0, diff_ok: true, diff_paths: ['sample.txt'], checkpoint_turn: 'turn-1',
           undo_ok: true, undo_errors: 0, restored: ['sample.txt'], recovery_hashes: [H('original')],
-          projections: ['snapshot', 'events', 'sqlite'].map((surface) => ({ surface, expected: 'Authorization: ***redacted***', actual: 'Authorization: ***redacted***' })) } : {}),
+          projections: projections(ordinaryProjection(caseId, sample).input, ordinaryProjection(caseId, sample).expected) } : {}),
         ...(caseId === 'B2-A37-03' ? { ...restart(), config_error: 'A9_CHECKPOINT_SECRET_BLOCKED', undo_ok: false, undo_errors: 1, undo_restored: 0, full_restore_reported: false,
           modified_sha256: H('modified'), after_sha256: H('modified'), new_unsafe_artifacts: [], recovery_files_before: 2, checkpoint_index_sha256: H('index'), key_source: 'dpapi' } : {}),
         ...(caseId === 'B2-A37-04' ? { load_status: sample.expected, provider_requests: 1, instruction_body_hits: 0, provider_body_sha256: H('request body') } : {}),
         ...(caseId === 'B2-A38-02' ? { config_steps: 2, config_sequence_sha256: H('clear/username/password') } : {}),
         ...(caseId === 'B2-A38-03' ? { error: 'A9_ENV_OVERLAY_REJECTED', setting_ok: false, stage: sample.stage, saved_before_registration: true,
           diagnostic: 'A9_ENV_OVERLAY_REJECTED', runner_overlay_hits: 0, automatic_overlay_hits: 0 } : {}),
-        ...(caseId === 'B2-A38-04' || caseId === 'B2-A38-08' ? { projections: ['snapshot', 'events', 'sqlite'].map((surface) => ({ surface,
-          expected: 'Authorization: ***redacted***\nNEXT-LINE-KEPT', actual: 'Authorization: ***redacted***\nNEXT-LINE-KEPT' })), surfaces_complete: true, runner_dispatches: 1, tool_starts: 1, shell_exit: 0, projection_kinds: ['prompt', 'title', 'command', 'final'].map((kind) => ({ kind, expected: 'Authorization: ***redacted***', actual: 'Authorization: ***redacted***' })) } : {}),
+        ...(caseId === 'B2-A38-04' || caseId === 'B2-A38-08' ? { projections: projections(fixtures.phase2AuthInput(sample).input, fixtures.phase2AuthInput(sample).expected),
+          surfaces_complete: true, runner_dispatches: 1, tool_starts: 1, shell_exit: 0, projection_kinds: ['prompt', 'title', 'command', 'final'].map((kind) => {
+            const auth = fixtures.phase2AuthInput(sample); const command = authCommand(caseId, sample, 'cmd');
+            const input = kind === 'command' ? command.input : kind === 'title' ? auth.input.split('\n')[0] : auth.input;
+            return { kind, expected: kind === 'command' ? command.expected : kind === 'title' ? auth.expected.split('\n')[0] : auth.expected, actual: observed(input) };
+          }) } : {}),
         ...(caseId === 'B2-A38-05' ? { ...restart(), first_chunk_at: 1, preview_at: 2, second_chunk_at: 3, terminal_at: 4, preview_reads: 1,
           preview: digest('live preview'), preview_hits: 0, final_hits: 0, restart_hits: 0, restart_sha256: H('restart'),
           preview_kind: sample.surface === 'model' ? 'liveModelPreview' : 'shell_snapshot', runner_dispatches: sample.surface === 'shell' ? 1 : 0, shell_exit: 0 } : {}),
@@ -6430,7 +6517,7 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       fs: { writeFileSync: jest.fn() }, p2File: () => digest('file'), p2Turn: jest.fn(async () => ({ turnId: 'turn-1' })),
       p2Call: async () => ({}), p2Files: () => [], p2Surfaces: async () => ({}), p2Projections: () => [], p2Array: (v: any) => Array.isArray(v) ? v : [],
       p2Bytes: (b: Buffer) => ({ size: b.length, sha256: H(b.toString()) }), p2Scan: async () => scan(), p2Materials: (v: any) => v,
-      p2Observe: (r: any) => r, phase2Restore: () => true, phase2Scan: () => true, phase2Exact: () => true, Buffer };
+      p2Observe: (r: any) => r, phase2Restore: () => true, phase2Scan: () => true, phase2Exact: () => true, phase2ExampleProjection: driver.phase2ExampleProjection, Buffer };
     vm.runInNewContext(body + '\nglobalThis.restore = p2RestoreSample;', context);
     return context.restore(sample).then(() => {
       expect(context.p2Turn).toHaveBeenCalledWith(`b2:fixed-${sample.id}`);
