@@ -210,3 +210,5 @@
 | ADR-0251 | Alpha 2 补证采用方案 R2：A9-36 改在 WIN7-46 执行，WIN7-45 的 A9-36 r7 门 A 不签发 | Accepted |
 | ADR-0252 | A9-36 候选身份改由负责人签发的门 A 授权提供，代码不钉最终候选 | Accepted |
 | ADR-0253 | B2-A37-01 源码样本期望改由驱动对齐候选脱敏；新建候选 WIN7-47 取代 WIN7-46 | Accepted |
+| ADR-0254 | 预演改走 Win7 开发通道；正式门 A 不变（ADR-0253 补充） | Accepted |
+| ADR-0255 | 产品 IPC 对异步方法的拒绝按结构化错误返回；新建候选 WIN7-48 取代 WIN7-47 | Accepted |

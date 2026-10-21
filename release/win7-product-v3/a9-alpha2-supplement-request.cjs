@@ -74,7 +74,7 @@ function validateM6(a) {
 }
 function validateAuthority(a, now = Date.now()) {
   exact(a, ['schema_version', 'task', 'status', 'run_id', 'candidate', 'source', 'runtime_sha256', 'package_sha256', 'manifest_sha256', 'candidate_root', 'run_root', 'zip_path', 'target', 'inputs', 'phases', 'max_requests', 'max_wall_seconds', 'expires_at', 'provider', 'credential_source', 'tools', 'm6']);
-  if (a.schema_version !== 1 || a.task !== 'A9-36' || a.status !== 'OWNER_APPROVED' || a.candidate !== 'WIN7-47') fail('AUTHORITY');
+  if (a.schema_version !== 1 || a.task !== 'A9-36' || a.status !== 'OWNER_APPROVED' || a.candidate !== 'WIN7-48') fail('AUTHORITY');
   for (const key of ['source', 'package_sha256', 'manifest_sha256']) {
     if (!identityHash(a[key], key === 'source' ? 40 : 64)) fail('CANDIDATE_HASH');
     if (a[key] === RETIRED_W45[key]) fail('RETIRED_CANDIDATE');

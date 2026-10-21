@@ -102,17 +102,17 @@ function createA9ProductRequestHandler(options) {
               throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid cursor'), { code: 'A9_PAYLOAD_INVALID' });
             }
           }
-          return runtime.queryConversation(payload);
+          return await runtime.queryConversation(payload);
         case A9_ACTIONS.MODE_SET: {
           exactObject(payload, ['mode'], 'A9_PAYLOAD_INVALID');
-          return runtime.setMode(payload.mode);
+          return await runtime.setMode(payload.mode);
         }
         case A9_ACTIONS.PROVIDER_CONFIGURE: {
           const allowed = ['baseUrl', 'model', 'apiKey', 'rememberApiKey', 'customHeaders', 'caBundle', 'proxy'];
           for (const key of Object.keys(payload)) {
             if (!allowed.includes(key)) throw Object.assign(new Error(`A9_PAYLOAD_INVALID: unknown '${key}'`), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.configureProvider(payload);
+          return await runtime.configureProvider(payload);
         }
         case A9_ACTIONS.PROVIDER_PROBE:
           return { ok: true, probe: await runtime.probeProvider() };
@@ -120,7 +120,7 @@ function createA9ProductRequestHandler(options) {
           // The Renderer cannot name an executable. For an explicit kind the
           // main process opens a native file picker and supplies the path.
           exactObject(payload, ['kind', 'envOverlay'], 'A9_PAYLOAD_INVALID');
-          return runtime.configureShell(payload);
+          return await runtime.configureShell(payload);
         }
         case A9_ACTIONS.TASK_CONTINUE:
           exactObject(payload, ['conversationId', 'taskId', 'interruptedTurnId', 'recoveryRevision'], 'A9_PAYLOAD_INVALID');
@@ -128,38 +128,38 @@ function createA9ProductRequestHandler(options) {
               typeof payload.recoveryRevision !== 'string' || !/^[a-f0-9]{64}$/.test(payload.recoveryRevision)) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid continuation identity'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.continueTask(payload);
+          return await runtime.continueTask(payload);
         case A9_ACTIONS.TURN_SUBMIT: {
           exactObject(payload, ['prompt'], 'A9_PAYLOAD_INVALID');
-          return runtime.submitTurn(payload.prompt);
+          return await runtime.submitTurn(payload.prompt);
         }
         case A9_ACTIONS.TURN_RESUME_APPROVAL: {
           exactObject(payload, ['approvalId', 'decision', 'bindingDigest', 'conversationId', 'taskId', 'turnId'], 'A9_PAYLOAD_INVALID');
           if (payload.decision !== 'approved' && payload.decision !== 'denied') {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: decision must be approved|denied'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.resumeApproval(payload);
+          return await runtime.resumeApproval(payload);
         }
         case A9_ACTIONS.TURN_STOP:
-          return runtime.stop();
+          return await runtime.stop();
         case A9_ACTIONS.CONVERSATION_CREATE:
           exactObject(payload, [], 'A9_PAYLOAD_INVALID');
-          return runtime.createConversation();
+          return await runtime.createConversation();
         case A9_ACTIONS.CONVERSATION_ACTIVATE:
           exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
-          return runtime.activateConversation(payload.conversationId);
+          return await runtime.activateConversation(payload.conversationId);
         case A9_ACTIONS.CONVERSATION_RENAME:
           exactObject(payload, ['conversationId', 'title'], 'A9_PAYLOAD_INVALID');
-          return runtime.renameConversation(payload.conversationId, payload.title);
+          return await runtime.renameConversation(payload.conversationId, payload.title);
         case A9_ACTIONS.CONVERSATION_ARCHIVE:
           exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
-          return runtime.archiveConversation(payload.conversationId);
+          return await runtime.archiveConversation(payload.conversationId);
         case A9_ACTIONS.CONVERSATION_RESTORE:
           exactObject(payload, ['conversationId'], 'A9_PAYLOAD_INVALID');
-          return runtime.restoreConversation(payload.conversationId);
+          return await runtime.restoreConversation(payload.conversationId);
         case A9_ACTIONS.DRAFT_SAVE:
           exactObject(payload, ['text'], 'A9_PAYLOAD_INVALID');
-          return runtime.saveDraft(payload.text);
+          return await runtime.saveDraft(payload.text);
         case A9_ACTIONS.CHECKPOINT_LIST:
           exactObject(request.payload, [], 'A9_PAYLOAD_INVALID', ['conversationId', 'before', 'limit']);
           if (payload.conversationId !== undefined &&
@@ -176,14 +176,14 @@ function createA9ProductRequestHandler(options) {
           if (payload.limit !== undefined && (!Number.isSafeInteger(payload.limit) || payload.limit < 1 || payload.limit > 100)) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid checkpoint limit'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.listCheckpoints(payload);
+          return await runtime.listCheckpoints(payload);
         case A9_ACTIONS.CHECKPOINT_UNDO_TURN: {
           exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID', ['confirmationId']);
           if (typeof payload.turnId !== 'string' || payload.turnId.length === 0 ||
               (payload.confirmationId !== undefined && (typeof payload.confirmationId !== 'string' || payload.confirmationId.length === 0))) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: turnId is required and confirmationId must be a non-empty string when supplied'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.undoTurn(payload.turnId, payload.confirmationId);
+          return await runtime.undoTurn(payload.turnId, payload.confirmationId);
         }
         case A9_ACTIONS.CHECKPOINT_UNDO_FILE: {
           exactObject(payload, ['turnId', 'path'], 'A9_PAYLOAD_INVALID', ['confirmationId']);
@@ -192,14 +192,14 @@ function createA9ProductRequestHandler(options) {
               (payload.confirmationId !== undefined && (typeof payload.confirmationId !== 'string' || payload.confirmationId.length === 0))) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: turnId/path are required and confirmationId must be a non-empty string when supplied'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.undoFile(payload.turnId, payload.path, payload.confirmationId);
+          return await runtime.undoFile(payload.turnId, payload.path, payload.confirmationId);
         }
         case A9_ACTIONS.DIFF_GET: {
           exactObject(payload, ['turnId'], 'A9_PAYLOAD_INVALID');
-          return runtime.getDiff(payload.turnId);
+          return await runtime.getDiff(payload.turnId);
         }
         case A9_ACTIONS.GIT_STATUS:
-          return runtime.gitStatus();
+          return await runtime.gitStatus();
         case A9_ACTIONS.WORKSPACE_READ: {
           const allowed = ['path', 'startLine', 'maxLines', 'encoding'];
           for (const key of Object.keys(payload)) {
@@ -212,7 +212,7 @@ function createA9ProductRequestHandler(options) {
           if (payload.encoding !== undefined && !['utf-8', 'gbk', 'utf-16le'].includes(payload.encoding)) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: unsupported encoding'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.readWorkspaceFile(payload);
+          return await runtime.readWorkspaceFile(payload);
         }
         case A9_ACTIONS.EVENTS_QUERY: {
           // ADR-0114：有界事件查询。conversationId 必填（runtime 绑定当前会话并
@@ -231,7 +231,7 @@ function createA9ProductRequestHandler(options) {
               (!Number.isSafeInteger(payload.limit) || payload.limit < 1 || payload.limit > 1000)) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: limit must be an integer between 1 and 1000 when supplied'), { code: 'A9_PAYLOAD_INVALID' });
           }
-          return runtime.queryEvents(payload);
+          return await runtime.queryEvents(payload);
         }
         default:
           throw Object.assign(new Error('A9_ACTION_UNAVAILABLE'), { code: 'A9_ACTION_UNAVAILABLE' });

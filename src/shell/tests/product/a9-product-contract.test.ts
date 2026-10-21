@@ -681,6 +681,40 @@ describe('A9-06: a9 product IPC schema validation', () => {
     isValidRendererSender: validSender,
   });
 
+  const runtimeErrorCases = [
+    { action: 'a9.provider.configure', method: 'configureProvider', payload: { model: 'm' }, args: [{ model: 'm' }] },
+    { action: 'a9.checkpoint.undoTurn', method: 'undoTurn', payload: { turnId: 'turn-1' }, args: ['turn-1', undefined] },
+  ];
+  it.each(runtimeErrorCases)('A9-39 IPC serializes asynchronous runtime rejection for $action', async ({ action, method, payload, args }) => {
+    const runtimeMethod = jest.fn(async () => {
+      await Promise.resolve();
+      throw Object.assign(new Error('checkpoint secret blocked'), { code: 'A9_CHECKPOINT_SECRET_BLOCKED' });
+    });
+    const errorHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ [method]: runtimeMethod }),
+      isValidRendererSender: validSender,
+    });
+    await expect(errorHandler({}, { schemaVersion: A9_IPC_SCHEMA_VERSION, action, payload })).resolves.toMatchObject({
+      ok: false, error: { code: 'A9_CHECKPOINT_SECRET_BLOCKED' },
+    });
+    expect(runtimeMethod).toHaveBeenCalledTimes(1);
+    expect(runtimeMethod).toHaveBeenCalledWith(...args);
+  });
+  it.each(runtimeErrorCases)('A9-39 IPC preserves synchronous runtime errors for $action', async ({ action, method, payload, args }) => {
+    const runtimeMethod = jest.fn(() => {
+      throw Object.assign(new Error('checkpoint secret blocked'), { code: 'A9_CHECKPOINT_SECRET_BLOCKED' });
+    });
+    const errorHandler = createA9ProductRequestHandler({
+      getA9Runtime: () => ({ [method]: runtimeMethod }),
+      isValidRendererSender: validSender,
+    });
+    await expect(errorHandler({}, { schemaVersion: A9_IPC_SCHEMA_VERSION, action, payload })).resolves.toMatchObject({
+      ok: false, error: { code: 'A9_CHECKPOINT_SECRET_BLOCKED' },
+    });
+    expect(runtimeMethod).toHaveBeenCalledTimes(1);
+    expect(runtimeMethod).toHaveBeenCalledWith(...args);
+  });
+
   it('rejects unknown actions, extra fields, and unsupported schema versions', async () => {
     const unknownAction = await handler({}, { schemaVersion: A9_IPC_SCHEMA_VERSION, action: 'a9.nope', payload: {} });
     expect(unknownAction.ok).toBe(false);

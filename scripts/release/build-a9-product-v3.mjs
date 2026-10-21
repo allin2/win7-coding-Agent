@@ -30,9 +30,9 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
-  // A9-39 §3：正式 batch2 候选 Profile。候选号 WIN7-47 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
+  // A9-39 §3：正式 batch2 候选 Profile。候选号 WIN7-48 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
   'A9-BATCH2-INPUTS-D013-V26-MANAGED': {
-    task: 'A9-39', candidate: 'WIN7-47', candidateTentative: true, batch2: true,
+    task: 'A9-39', candidate: 'WIN7-48', candidateTentative: true, batch2: true,
     lockFile: 'a9-batch2-input-lock.json', kitFile: 'A9_BATCH2_VALIDATION_KIT.json',
     validationDoc: 'A9_BATCH2_WIN7_VALIDATION.md',
     integrityCommand: 'RUN_A9_BATCH2_INTEGRITY.cmd', smokeCommand: 'RUN_A9_BATCH2_SMOKE.cmd',
@@ -842,7 +842,7 @@ function createValidationKit(root, sourceCommit, lock, profile) {
   return createWin22ValidationKit(root, sourceCommit, lock);
 }
 
-// ---- A9-39 正式 batch2 候选（WIN7-47 暂定）-------------------------------------------------------
+// ---- A9-39 正式 batch2 候选（WIN7-48 暂定）-------------------------------------------------------
 // 套件文件清单与 kit 由 a9-batch2-fixtures.cjs 的合同定义；生产者只搬运、校验编码并绑定哈希。
 
 function batch2Closure(profile) {
