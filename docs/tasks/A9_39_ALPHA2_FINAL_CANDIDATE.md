@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-48 (proposed; recheck before freeze)
+Candidate: WIN7-49 (proposed; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255
-Revision: r33 (2026-10-21 UTC; WIN7-48 IPC fix and rebind implemented by executor, main-session verified, independent review PASS (§11.8.58); local commit pending owner approval; earlier: §11.8.57 ADR-0255 approved, §11.8.56 WIN7-47 dev-channel results)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259
+Revision: r46 (2026-10-21 UTC; ADR-0259 implemented: driver refresh after resumeApproval, postflight ImageSource condition, WIN7-48 to WIN7-49 rebind; contract 612/612, package 9/9, independent review PASS (§11.8.67); local commit and double clean build approved; earlier: §11.8.66 m1 root cause, ADR-0257/0258 orchestrator fixes)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -2232,3 +2232,220 @@ run `972964d2…` 的 p07-safe 用时 4 分 30 秒，全部用例 PASS。
 执行代理沙箱禁止回环监听，其全量 jest 有 17 个 EPERM 失败；以主会话复跑结果为准。审核另记：回归测试只覆盖 21 处中的配置与撤销两个动作，其余路径由 d2 的 Win7 开发通道 p03～p10 覆盖。
 
 本节没有做的事：未提交，未构建，未推送，未连接目标机。
+
+
+#### 11.8.59 本地提交、WIN7-48 双干净构建与开发通道全阶段通过（2026-10-21 UTC，开发机与 Win7 实机 DEV_CHANNEL）
+
+结论：两次本地提交已完成；WIN7-48 双干净构建逐字节一致；WIN7-48 原字节在开发通道一次运行内 GPU 入口门与 p01～p10 全部 PASS。证据层级：构建为开发机，阶段运行为 Win7 实机，证据类别 `DEV_CHANNEL`，候选 WIN7-48（tentative），不计入验收。冻结、门 A、门 B 均为 NOT_PERFORMED。
+
+负责人原话：“批准本地提交：第一次提交 ENGINEERING_03 任务书与 scripts/win7-dev/；第二次提交 WIN7-48 的 12 个代码文件与其余 docs 改动。提交后做 WIN7-48 双干净构建与比对，并在开发通道重跑全部阶段。不推送。”
+
+提交（分支 `codex/a9-alpha2-integration-r2`，未推送）：
+
+| 提交 | 内容 |
+|---|---|
+| `c6928be…` | ENGINEERING_03 任务书与 `scripts/win7-dev/`（12 个文件） |
+| `5b837419…` | WIN7-48 的 12 个代码文件与 docs（18 个文件，+672/−78）；提交后工作树干净 |
+
+双干净构建（主会话执行，脚本 `.acceptance/a9-39/w48-build-preparation/RUN_DOUBLE_BUILD.py`，沿用 §11.8.48 做法，源 `5b837419…`）：
+
+| 项目 | 结果 |
+|---|---|
+| 两次构建 | 退出码 0 / 0，各 16 秒，构建前后状态为空 |
+| ZIP | 101,873,973 字节，SHA-256 `cb1fe89b…`，801 条目，两份逐字节相同 |
+| manifest / Kit | `429a5bd6…` / `0d1cf3cb…`；`kit_id` A9-39-WIN7-48-BATCH2-1，37 用例/67 断言 |
+| 包内校验器静态绑定 | PASS（`LOCAL_STATIC_BINDING_ONLY`） |
+| 锁定输入与受保护候选 | 前后不变 |
+| WIN7-47→WIN7-48 | 801→801；变化 11 项，含 `resources/app/product/a9-product-ipc.js`，其余为身份、Kit、清单与内嵌任务书；原生与 Electron 条目未变 |
+
+开发通道运行（run `830baa6b…`，10:33Z～10:46Z；`cand` 上传并解包 801 个文件，目标机复算 SHA 一致；适配脚本改指向 WIN7-48 后未改其他逻辑）：
+
+| 阶段 | 结果 |
+|---|---|
+| p01-env、p02-integrity、gpu-entry-gate | PASS |
+| p03-chain～p06-continue | PASS |
+| p07-safe | PASS（B2-A37-01～04、A38-01～08 全部执行），用时约 5 分钟 |
+| p08-ui、p09-report、p10-postflight | PASS |
+
+产品请求 10 次，上限 16 次；无重试。
+
+限度：开发通道使用主会话生成的开发用授权文件（`signed:false`），不代表负责人签发；A9-36 补证 M1～M6 未在开发通道运行；总控 R0～R8 彩排 NOT_PERFORMED；lifecycle 3 项既有失败根因仍为 UNKNOWN。
+
+本节没有做的事：未冻结，未推送，未运行总控彩排，未生成门 A 材料。
+
+
+#### 11.8.60 负责人批准 WIN7-48 全量执行包与开发通道彩排（2026-10-21 UTC，开发机文档）
+
+结论：负责人批准选项 A。执行代理 codex 从重试 1 包改出 WIN7-48 全量正式执行包，并加开发模式；主会话用开发模式在开发通道彩排 R0～R8，再预跑 M1～M6，然后按 §7 准备门 A 材料。证据层级为开发机，Win7 为 NOT_PERFORMED。
+
+负责人原话：“批准选项 A：新增候选外路径 .acceptance/a9-39/w48-gate-a-package/**，由 codex 从重试 1 包改出 WIN7-48 全量（gate+p01～p10）正式执行包并加开发模式；主会话在开发通道彩排 R0～R8，再预跑 M1～M6（含 M5 真实模型请求，受 200 次/日上限），然后按 §7 准备门 A 材料。不推送。”
+
+允许路径增补：
+
+| 路径 | 范围 |
+|---|---|
+| `.acceptance/a9-39/w48-gate-a-package/**` | 候选外、被 Git 忽略；WIN7-48 全量正式执行包（GPU 入口门加 p01～p10）及其开发模式；不改候选、产品与驱动 |
+
+规则：
+1. 开发模式只在 `C:\A9-DEV\` 下运行，不校验签名、回执与预检，结果强制 `DEV_CHANNEL`，`formal_gate_a`、`formal_gate_b` 为 false。
+2. 正式模式保留两段逐字确认与 §8 停止条件；开发模式的授权文件不能用于正式模式。
+3. 开发模式代码以 Win7 跑通为验证（ENGINEERING_03 §5.4）；门 A 材料生成后、交负责人签发前，派独立审核一次。
+4. 重试 1 包与全部已消耗包原字节不变。
+
+本节没有做的事：未派单，未连接目标机，未提交，未推送。
+
+
+#### 11.8.61 WIN7-48 开发模式彩排三轮与第三方输入法进程（2026-10-21 UTC，Win7 实机 DEV_CHANNEL）
+
+结论：WIN7-48 全量执行包的开发模式彩排共三轮，均 HALTED。前两轮是包改造缺陷，已由执行代理修复；第三轮停在 p03 收尾的写者静止门，阻塞进程是搜狗输入法的 `SGTool.exe`，不是候选或包缺陷。写者静止门如何处理第三方输入法进程，待负责人裁决。证据层级为 Win7 实机，证据类别 `DEV_CHANNEL`，候选 WIN7-48，不计入验收。
+
+| run | 到达 | 停止原因 | 处置 |
+|---|---|---|---|
+| `d435ede7…` | R0～R4、p01、p02 PASS | GPU 入口门：`payload/event-log.js`、`capturer.js` 仍写死重试 1 的根与 run | 修复轮 1：载荷按运行描述取值，新增上传字节不含历史 run 的测试 |
+| `3806bcef…` | 至 p04 全部 PASS；R7 完整回收 377 件 PASS | p05：`controller-injob-probe.ps1` 仍是 P1 五阶段表 | 修复轮 2：先穷举审计 470 个文件的阶段字面量，19 处改为由计划推导，剩余独立阶段集合 0 |
+| `df78b459…` | p01、p02、GPU 入口门 PASS；p03 产品结果 PASS | p03 收尾 `WRITERS_NOT_QUIESCENT`；R8 同样报写者未静止 | 待裁决，见下 |
+
+三轮 R8 后开发通道 `status` 均为开发根内进程 0、`A9-DEV-` 任务 0。修复轮 2 未改写者登记与静止判定逻辑（主会话比对 `writer-registry.ps1` 与 `rehearsal-task.ps1` 改前改后）。
+
+第三轮阻塞进程（写者登记 `p03-chain-registry.jsonl` 与等待轨迹比对）：唯一未观测到退出的已登记写者是 PID 3652，映像 `C:\Program Files (x86)\SogouInput\16.7.0.4673\SGTool.exe`，父进程 4424 是 p03 的驱动 Electron GUI。它于 12:20:04 启动，p03 收尾 20 秒窗口（12:20:31～12:20:51）与 R8（12:21:11）时仍存活，12:25:40 主会话只读查询时已不存在。前两轮与此前预演的 p03 未见该进程，出现与否 UNKNOWN。
+
+本节没有做的事：未改包，未改目标机系统设置或输入法，未提交，未推送。
+
+##### 11.8.61 裁决：SGTool.exe 记为环境进程（2026-10-21 UTC，开发机文档）
+
+负责人批准选项 A，登记 ADR-0256（Accepted）。执行代理 codex 修改执行包的写者登记并加测试，主会话随后继续开发模式彩排。负责人原话见 ADR-0256。
+
+
+#### 11.8.62 WIN7-48 开发模式总控彩排 R0～R8 通过（2026-10-21 UTC，Win7 实机 DEV_CHANNEL）
+
+结论：修复轮 3（ADR-0256）后，WIN7-48 全量执行包的开发模式彩排 run `6ef29d3c…` 一次通过 R0～R8：GPU 入口门与 p01～p10 共 11 个派发阶段全部 PASS，R7 完整回收，R8 零残留。证据层级为 Win7 实机，证据类别 `DEV_CHANNEL`，候选 WIN7-48（ZIP `cb1fe89b…`），执行包 `SHA256SUMS` 的 SHA `4e30b2bd…`；不计入验收，不计入门 A 要求的两次连续成功。
+
+执行者：主会话经终端面板运行 `run-rehearsal.cjs --dev-channel`；远端根 `C:\A9-DEV\formal\6ef29d3c`，任务前缀 `A9-DEV-W48-6ef29d3c-`；开发通道锁持有者 `w47-dev`，无并发动作。
+
+| 步骤 | 结果 | 用时 |
+|---|---|---|
+| R1 只读核对、R2 建目录 | PASS | 11 秒 |
+| R3 上传 | PASS，101.9 MB 加工具 | 132 秒（上限 600 秒） |
+| R3 核验、R4 解包 | PASS | 12 秒 |
+| p01、p02、GPU 入口门 | PASS；GPU：ready、窗口加载、GPU 启动失败 0、三个退出码均 0 | 约 1 分钟 |
+| p03～p06 | PASS | 约 8 分钟 |
+| p07-safe | PASS | 6 分 16 秒 |
+| p08～p10 | PASS | 约 6 分钟 |
+| R7 恢复 | PASS：1546 件全部 VERIFIED，部分 0，缺失 0；明确排除 233 件 | 下载 339 秒（上限 600 秒） |
+| R8 收尾 | PASS：任务 0，进程 0，环境进程 0 | 1.5 秒 |
+
+总墙钟 29 分 37 秒；控制 SSH 28 次，SFTP 上传 1、下载 1，无重试。本轮未出现 `SGTool.exe`，ADR-0256 的放行分支在 Win7 上未被触发，实机行为 NOT_PERFORMED。
+
+彩排前的三轮 HALTED 与修复见 §11.8.61。执行包本地检查（执行代理 codex）：1051 项测试通过、0 失败，包校验 249 项通过。
+
+限度：R7 下载用时占上限 57%，正式运行的证据量可能更大，余量 UNKNOWN；开发模式跳过签名、回执、预检与 owner 窗口，这些正式模式路径未在 Win7 执行；A9-36 补证 M1～M6 未运行。
+
+下一步：在开发通道预跑 M1～M6；随后 `close` 开发根，按 §7 准备正式门 A 材料。
+
+本节没有做的事：未冻结，未生成签发载荷，未提交，未推送。
+
+
+#### 11.8.63 负责人批准 WIN7-48 补证 M1～M6 执行包路径（2026-10-21 UTC，开发机文档）
+
+负责人原话：“批准新增候选外路径 .acceptance/a9-39/w48-supplement-package/**：由 codex 以 A9-36 gate-a-r7 生成器为基础，备 WIN7-48 的 M1～M6 执行包（正式模式加开发模式），主会话在开发通道预跑，M5 真实模型请求每次运行不超过 40 次。不推送。”
+
+| 路径 | 范围 |
+|---|---|
+| `.acceptance/a9-39/w48-supplement-package/**` | 候选外、被 Git 忽略；WIN7-48 的 A9-36 补证 M1～M6 执行包（正式模式加开发模式）；不改候选、产品、驱动与 `release/` 下的 A9-36 编排器 |
+
+规则：开发模式只在 `C:\A9-DEV\` 下运行，结果 `DEV_CHANNEL`；开发用授权不能用于正式模式；M5 每次运行真实模型请求不超过 40 次，且计入常设授权 r1 的每 UTC 日 200 次；不读取、复制或下载 agent 的凭据与模型配置文件（常设授权 r1 第四条）。
+
+本节没有做的事：未派单，未连接目标机，未提交，未推送。
+
+
+#### 11.8.64 补证 M1～M6 开发通道预跑与编排器机器名比较缺陷（2026-10-21 UTC，Win7 实机 DEV_CHANNEL）
+
+结论：补证执行包在开发通道预跑 5 轮，均 HALTED。前 4 轮是包缺陷，已由执行代理当轮修复；第 5 轮首次进入 m4，m4 因编排器的机器名大小写比较失败。该编排器位于 `release/win7-product-v3/`，不在 A9-39 允许路径内，修复待负责人裁决。证据层级为 Win7 实机，证据类别 `DEV_CHANNEL`，候选 WIN7-48，不计入验收。
+
+| run | 停止点 | 原因 | 处置 |
+|---|---|---|---|
+| `81e3249c…` | R1 | 加载器等待 stdin EOF，Bitvise 下 240 秒超时 | 修复轮 1：改用 `-Command -` 加空行结尾的 ASCII 载体 |
+| `19d08cff…` | R2 | `icacls /grant` 缺 SID 前缀 `*` | 修复轮 2：先审计 51 项系统调用再修 |
+| `53c574a5…` | R4 | Electron 检查以命令行内联 JS 传入，引号被改写 | 修复轮 3：改为文件入口，完整 stderr 落日志 |
+| `546fd582…` | R4 | 探针期望文件数写死 801，正确值为 manifest 的 800 | 修复轮 4：数量由 manifest 推导 |
+| `a33144b9…` | m4 | 编排器执行身份检查 `A9_36_EXECUTOR_IDENTITY` | 待裁决，见下；包内另三项缺陷派修复轮 5 |
+
+第 5 轮其余事实：R1～R5 PASS；m4 内候选完整树经 original-fs 核验 800 个文件、0 不符；R6 外层另报 `DESCENDANT_IDENTITY_UNKNOWN`；R7 读 `logs\m4.stderr.bin` 遇共享冲突（期间出现的 `SGTool.exe` 继承了该句柄）；R7 失败后未执行 R8，5 个 `A9-DEV-SUP-` 任务残留，主会话用开发通道 `stop` 删除，复核任务 0、开发根进程 0。
+
+m4 根因（主会话在开发通道以 agent 身份运行最小复现 `diag-identity.cjs`，逐项重放编排器 `assertActualRuntime`）：SID、Medium 完整性、WMIC 会话号 2、Electron 22.3.27/Node 16.17.1/ABI 110、Python 3.8.10 与 Git 2.46.2 的 SHA 和版本全部符合；唯一不符是 `os.hostname()` 返回 `dccs-chaizl-PC`，而编排器 `a9-alpha2-supplement.cjs:353` 用 `!==` 与授权的 `target.machine` 比较，请求模块 `a9-alpha2-supplement-request.cjs:91` 又把 `target.machine` 钉为 `DCCS-CHAIZL-PC`。两处约束不能同时满足，授权数据无法绕过。该编排器不在候选 ZIP 内，修改它不需要换发候选。
+
+本节没有做的事：未改编排器，未改候选，未提交，未推送；M5 在开发模式仍为 `BLOCKED_BY_STANDING_AUTHORIZATION`。
+
+##### 11.8.64 裁决：编排器机器名比较改为不区分大小写（2026-10-21 UTC，开发机文档）
+
+负责人批准选项 A，登记 ADR-0257（Accepted），原话见 ADR-0257。允许路径增补：
+
+| 路径 | 范围 |
+|---|---|
+| `release/win7-product-v3/a9-alpha2-supplement.cjs` | 只改第 353 行机器名比较为不区分大小写 |
+
+回归测试写入已在 §3 允许路径内的 `src/shell/tests/product/a9-batch2-contract.test.ts`。执行代理 codex 实现，独立审核 Sonnet 审一次；提交另行批准。
+
+
+#### 11.8.65 ADR-0257 实现核验与补证预跑第 6 轮：m4 断言全过，组内 postflight 因输入法进程判 FAIL（2026-10-21 UTC，开发机与 Win7 实机 DEV_CHANNEL）
+
+结论：ADR-0257 的编排器修改已实现并核验；补证预跑第 6 轮（run `df8593e1…`）首次跑完 m4，三条断言全部 PASS，但该组记 FAIL，唯一原因是编排器组内 postflight 把搜狗输入法 `SGTool.exe` 计为残留。ADR-0256 只覆盖执行包外层，不覆盖编排器组内检查；是否扩展待负责人裁决。证据层级：实现核验为开发机，预跑为 Win7 实机 `DEV_CHANNEL`，候选 WIN7-48。
+
+ADR-0257 实现（执行代理 codex，`adr0257-orchestrator`）：`a9-alpha2-supplement.cjs` 只改第 353 行，两侧 `toUpperCase()` 比较；`a9-batch2-contract.test.ts` 新增 3 项回归（原代码 1 败 2 过，改后 3 过）。主会话沙箱外复跑整文件 544/544；独立审核 Sonnet（high）PASS，0 P0/P1。编排器文件 SHA-256 为 `f5be0b99…`（修改前 `3c32f619…`）。未提交。
+
+补证包修复轮 5、6（执行代理）：后代进程身份瞬时为空时单 PID 复查；R7 以共享方式读取被占用文件；R6/R7 失败后 R8 独立执行；接入新编排器并重生成材料（包测试 112/0，两模式校验各 80/0）。
+
+预跑第 6 轮：R1～R5 PASS；m4 组内候选完整树 800/0，执行身份检查通过（ADR-0257 在 Win7 生效），A2-M4-CONTINUE-SCHEMA-A01～A03 全部 PASS；组内 postflight 的 `related` 只有 `SGTool.exe`（父进程为该组产品进程），按 `postflightClean` 判 FAIL，外层报 `PHASE_PASS_m4` 并停止后续组；R7 完整回收 25 件；R8 按登记删除全部任务，剩余 0，`SGTool.exe` 记为环境进程。
+
+本节没有做的事：未改编排器 postflight，未提交，未推送；M5 在开发模式仍为 `BLOCKED_BY_STANDING_AUTHORIZATION`。
+
+##### 11.8.65 裁决：编排器组内 postflight 按 ADR-0256 规则处理 SGTool.exe（2026-10-21 UTC，开发机文档）
+
+负责人批准，登记 ADR-0258（Accepted），原话见 ADR-0258。允许范围增补：`release/win7-product-v3/a9-alpha2-supplement.cjs` 的 `postflight` 函数（§11.8.64 裁决的第 353 行之外）。执行代理 codex 实现并加回归测试，独立审核 Sonnet 审一次，提交另行批准。
+
+
+#### 11.8.66 补证 m1 失败根因：驱动绕过界面批准处理器（2026-10-21 UTC，Win7 实机 DEV_CHANNEL）
+
+结论：m1 失败的根因是驱动缺陷，不是产品缺陷。驱动 `a9-batch2-driver-entry.cjs` 直接调用 `window.win7Agent.a9.resumeApproval`，绕过界面的 `decideApproval`；后端已终态，但界面缓存仍停在待批准，输入框保持禁用。证据层级为 Win7 实机，证据类别 `DEV_CHANNEL`（定向诊断，不计 m1 PASS），候选 WIN7-48。驱动在候选 ZIP 内，修复须换发候选，待负责人裁决。
+
+经过：
+1. ADR-0258 实现（执行代理 codex）：`postflight` 把 SogouInput 下的 `SGTool.exe` 记入 `environment`；回归 17 项（原代码 3 个正例失败）。主会话沙箱外复跑整文件 561/561；独立审核 Sonnet PASS，0 P0/P1，另提一条低于 P1 的加固建议：`ImagePath` 回退为命令行首段时也会被分类，可要求 `ImageSource` 不为 `command_line`。
+2. 补证预跑第 7 轮（run `dcc2ddf0…`）：m4 PASS（ADR-0257/0258 在 Win7 生效）；m1 FAIL，驱动在第一条 Git 命令被拒后等待输入框 30 秒超时。
+3. 执行代理只读分析（`outputs/a9-39-m1-analysis/`）给出首选候选 H1，并在 Node VM 复现机制（SURROGATE）。
+4. 定向诊断 run `4c4cc2b6…`（诊断驱动副本只增加 33 行日志，源码不改，加载 SHA `f0febcef…` 读回一致）：
+
+| 时点 | 后端 | 页面 |
+|---|---|---|
+| 拒绝 API 返回 | `outcome:blocked`；`agentStatus:blocked`；无待批 | — |
+| 终态与空闲 | 事件 12 `turn_completed`（blocked）；`canStop:false`；无托管进程 | 批准卡可见；代理标签 `needs_approval`；输入框禁用 |
+| 30 秒超时 | 同上 | 同上 |
+| 一次 `refreshSnapshot()` 后 | 同上 | 批准卡隐藏；输入框可用；发送键因空输入禁用（正常） |
+
+判定：H1 成立。真实用户经界面按钮走 `decideApproval`，该处理器会刷新快照，产品路径不受影响。驱动内 `approvalReply`（第 2661 行，6 处调用）与 `oldApprovalResult`（第 1706 行）均直接调用该接口。
+
+本节没有做的事：未改驱动，未换发候选，未提交，未推送；M5 在开发模式仍为 `BLOCKED_BY_STANDING_AUTHORIZATION`。
+
+##### 11.8.66 裁决：驱动修复与换发 WIN7-49（2026-10-21 UTC，开发机文档）
+
+负责人批准选项 A，登记 ADR-0259（Accepted），原话见 ADR-0259；头部候选改为 WIN7-49。候选号核对：refs、`.acceptance/candidates/`、构建目录与发布文件中无 WIN7-49 占用。
+
+范围：驱动 `a9-batch2-driver-entry.cjs` 与合同测试 `a9-batch2-contract.test.ts`（§3 允许路径）；编排器 `postflight` 的 `ImageSource` 条件（ADR-0258 已批范围内）；WIN7-48→WIN7-49 改绑沿用 §11.8.57 的文件集合。执行代理 codex 实现，独立审核 Sonnet 审一次；审核通过后本地提交（含 ADR-0257/0258 编排器修改）并双干净构建。
+
+
+#### 11.8.67 ADR-0259 实现、核验与独立审核（2026-10-21 UTC，开发机）
+
+结论：驱动刷新修复、编排器 `ImageSource` 条件与 WIN7-48→WIN7-49 改绑已完成，主会话核验通过，独立审核 PASS（0 P0/P1）。证据层级为开发机，基线 HEAD `5b837419…`；Win7 为 NOT_PERFORMED。
+
+执行代理 codex（`w49-driver-fix`）：驱动两处直接调用 `resumeApproval` 的位置（`oldApprovalResult`、`approvalReply`）改为在同一次 renderer 执行内调用后刷新 `refreshSnapshot()`，原返回值原样交还；刷新抛错或返回空时写 `approval-refresh-error.json` 并使驱动失败。编排器 `postflight` 的环境进程分类增加 `ImageSource !== 'command_line'`。改绑沿用 §11.8.57 的文件集合。连同 ADR-0257/0258 的编排器改动，代码共 12 个文件，+236/−53；产品 `src/shell/product/` 无改动。
+
+| 检查 | 结果 |
+|---|---|
+| 新回归（原代码） | 3 过 / 11 败（执行代理证据） |
+| 新回归（修改后） | 32 过 / 0 败 |
+| 主会话沙箱外复跑 `a9-batch2-contract` 与 `a9-product-contract` | 612 过 / 0 败 |
+| 包测试 | 9 过 / 0 败 |
+| 独立审核（Sonnet 5.5，high，静态） | PASS；两处调用点完整，`ImageSource` 字段名与 smoke 一致，改绑完整，WIN7-48 只出现在被拒旧标签 |
+
+审核另记：p06 的 `oldApprovalResult` 调用在刷新后 continuation 卡的出现方式只能由 Win7 预跑确认。
+
+本节没有做的事：提交与构建见下一节；未推送。

@@ -19,6 +19,70 @@ const smoke = require(path.join(releaseDir, 'a9-batch2-smoke.cjs')) as any;
 const driver = require(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs')) as any;
 const { createA9AgentRuntime } = require('../../product/a9-agent-runtime') as any;
 
+describe('ADR-0259 driver approval refresh', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const ts = require('typescript');
+  const tree = ts.createSourceFile('driver.cjs', source, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+  const sites: { name: string; code: string }[] = [];
+  let resultHandler = '';
+  const visit = (node: any) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'approvalRefreshResult') resultHandler = `const ${node.getText(tree)};`;
+    if (ts.isCallExpression(node) && node.expression.getText(tree) === 'exec'
+      && node.arguments[0]?.getText(tree).includes('window.win7Agent.a9.resumeApproval(')) {
+      let declaration = node.parent;
+      while (declaration && !ts.isVariableDeclaration(declaration)) declaration = declaration.parent;
+      if (!declaration) throw new Error('approval exec must have a testable declaration');
+      sites.push({ name: declaration.name.getText(tree), code: `const ${declaration.getText(tree)};` });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  const approval = { approvalId: 'approval-"1', bindingDigest: 'digest-1', conversationId: 'conversation-1', taskId: 'task-1', turnId: 'turn-1' };
+  const harness = (site: { name: string; code: string }, resumeApproval: any, refreshSnapshot: any) => {
+    const out = jest.fn();
+    const exec = jest.fn((code: string) => vm.runInNewContext(code, { window: { win7Agent: { a9: { resumeApproval } }, win7AgentA9Workbench: { refreshSnapshot } } }));
+    const box: any = { exec, out };
+    vm.runInNewContext(`${resultHandler}\n${site.code}\nthis.reply = ${site.name};`, box);
+    const args = site.name === 'oldApprovalResult' ? [{ ...approval, approval }] : [approval, 'denied', { digest: 'override-digest', conversation: 'override-conversation' }];
+    const expected = [approval.approvalId, site.name === 'oldApprovalResult' ? 'approved' : 'denied',
+      site.name === 'oldApprovalResult' ? approval.bindingDigest : 'override-digest',
+      site.name === 'oldApprovalResult' ? approval.conversationId : 'override-conversation', approval.taskId, approval.turnId];
+    return { invoke: () => box.reply(...args), exec, out, expected };
+  };
+  test('every direct resumeApproval call is covered by a renderer execution regression', () => {
+    expect(sites.map((site) => site.name).sort()).toEqual(['approvalReply', 'oldApprovalResult']);
+    expect(sites).toHaveLength((source.match(/window\.win7Agent\.a9\.resumeApproval\s*\(/g) || []).length);
+  });
+  describe.each(sites)('$name', (site) => {
+    test.each([true, false])('returns the original ok=%s reply only after one refresh in the same execution', async (ok) => {
+      const calls: string[] = []; const result = { ok, error: ok ? undefined : { code: 'A9_APPROVAL_STALE' } };
+      const resume = jest.fn(async () => { calls.push('resume'); await Promise.resolve(); calls.push('returned'); return result; });
+      const refresh = jest.fn(async () => { calls.push('refresh'); await Promise.resolve(); calls.push('refreshed'); return { status: 'ready' }; });
+      const run = harness(site, resume, refresh);
+      expect(await run.invoke()).toBe(result);
+      expect(resume).toHaveBeenCalledTimes(1); expect(resume).toHaveBeenCalledWith(...run.expected);
+      expect(refresh).toHaveBeenCalledTimes(1); expect(refresh).toHaveBeenCalledWith();
+      expect(calls).toEqual(['resume', 'returned', 'refresh', 'refreshed']); expect(run.exec).toHaveBeenCalledTimes(1); expect(run.out).not.toHaveBeenCalled();
+    });
+    test.each(['throw', 'null', 'undefined'])('a %s refresh failure preserves the reply in evidence and rejects the driver', async (kind) => {
+      const result = { ok: true, result: { outcome: 'blocked', turnId: approval.turnId } };
+      const resume = jest.fn(async () => result);
+      const refresh = jest.fn(async () => { if (kind === 'throw') throw new Error('snapshot transport failed'); return kind === 'null' ? null : undefined; });
+      const run = harness(site, resume, refresh);
+      await expect(run.invoke()).rejects.toThrow('A9_BATCH2_DRIVER_APPROVAL_REFRESH_FAILED');
+      expect(run.out).toHaveBeenCalledTimes(1);
+      expect(run.out).toHaveBeenCalledWith('approval-refresh-error.json', { result, refresh_error: kind === 'throw' ? 'snapshot transport failed' : 'A9_BATCH2_DRIVER_APPROVAL_REFRESH_EMPTY' });
+      expect(resume).toHaveBeenCalledTimes(1); expect(refresh).toHaveBeenCalledTimes(1); expect(run.exec).toHaveBeenCalledTimes(1);
+    });
+    test('a rejected API call propagates without a refresh or replay', async () => {
+      const error = new Error('resume transport failed'); const resume = jest.fn(async () => { throw error; }); const refresh = jest.fn();
+      const run = harness(site, resume, refresh);
+      await expect(run.invoke()).rejects.toBe(error);
+      expect(resume).toHaveBeenCalledTimes(1); expect(refresh).not.toHaveBeenCalled(); expect(run.out).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe('A9-36 independent supplemental request and inputs', () => {
   const req = require(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'));
   const supplement = require(path.join(releaseDir, 'a9-alpha2-supplement.cjs'));
@@ -30,8 +94,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-48', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-48', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-48.zip',
+    candidate: 'WIN7-49', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-49', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-49.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -56,10 +120,10 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-48 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-49 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
-  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'win7-48', '', null, undefined])('candidate label %s is refused', (value) => {
+  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'win7-49', '', null, undefined])('candidate label %s is refused', (value) => {
     expect(() => req.validateAuthority(changedAuthority('candidate', value), now)).toThrow();
   });
   test.each([
@@ -127,7 +191,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-48');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-49');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -148,7 +212,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-48\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-49\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -718,6 +782,97 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const source = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8');
     const body = source.slice(source.indexOf('function assertActualRuntime('), source.indexOf('// Closed Stage plan.'));
     expect(body).toContain('sessionIdOf(self) !== a.target.session_id'); expect(body).not.toContain("self.includes('SessionId='");
+  });
+  test.each([
+    ['dccs-chaizl-PC', true], ['DCCS-CHAIZL-PC', true], ['OTHER-PC', false],
+  ])('executor machine comparison ignores hostname case but refuses another machine: %s', (machine, accepted) => {
+    const a = baseAuthority();
+    const spawnSync = jest.fn((file: string, args: string[]) => {
+      if (file === a.tools.python.path) return { status: 0, stdout: 'Python 3.8.10\r\n' };
+      if (file === a.tools.git.path) return { status: 0, stdout: 'git version 2.46.2.windows.1\r\n' };
+      if (args[0] === '/user') return { status: 0, stdout: `"agent","${a.target.sid}"\r\n` };
+      if (args[0] === '/groups') return { status: 0, stdout: '"Mandatory Label\\Medium Mandatory Level","S-1-16-8192"\r\n' };
+      if (args[0] === 'process') return { status: 0, stdout: `\r\nSessionId=${a.target.session_id}\r\n` };
+      throw new Error('unexpected identity command');
+    });
+    const context: any = { module: { exports: {} }, Buffer,
+      process: { platform: 'win32', arch: 'x64', pid: 1234, env: { SystemRoot: 'C:\\Windows' },
+        versions: { electron: '22.3.27', node: '16.17.1', modules: '110' } },
+      require: (name: string) => name === 'os' ? { ...os, release: () => '6.1.7601', hostname: () => machine }
+        : name === 'child_process' ? { spawnSync }
+        : name === './a9-alpha2-supplement-request.cjs' ? { ...req, fileHash: (file: string) => {
+          const tool = Object.values(a.tools).find((value) => value.path === file);
+          if (!tool) throw new Error('unexpected tool hash'); return tool.sha256;
+        } } : require(name) };
+    vm.runInNewContext(fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8'), context);
+    const check = () => context.module.exports.assertActualRuntime(a);
+    if (accepted) expect(check()).toEqual({ electron: '22.3.27', node: '16.17.1', abi: '110', python: 'Python 3.8.10', git: 'git version 2.46.2.windows.1' });
+    else expect(check).toThrow('A9_36_EXECUTOR_IDENTITY');
+    expect(spawnSync).toHaveBeenCalledTimes(accepted ? 5 : 3);
+  });
+  const postflightFor = (rows: any[], failed = false) => {
+    const context: any = { module: { exports: {} }, Buffer, process: { pid: 9000 },
+      require: (name: string) => name === './a9-alpha2-supplement-request.cjs' ? req : require(name) };
+    vm.runInNewContext(fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8') + '\nmodule.exports.postflight = postflight;', context);
+    const realExec = jest.fn(() => { throw new Error('must not execute processes'); });
+    const listProcesses = jest.fn(() => ({ failed, rows }));
+    const result = context.module.exports.postflight({ listProcesses, realExec }, {}, [5644], ['C:\\A9-DEV\\']);
+    expect(listProcesses).toHaveBeenCalledWith(realExec); expect(realExec).not.toHaveBeenCalled();
+    return result;
+  };
+  test.each([
+    'C:\\Program Files (x86)\\SogouInput\\SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe',
+    'c:\\pRoGrAm FiLeS (X86)\\sOgOuInPuT\\16.7.0.4673\\sGtOoL.ExE',
+  ])('ADR-0258 postflight records an environment process without residue: %s', (image) => {
+    const row = { ProcessId: '7080', ParentProcessId: '5644', Name: 'SGTool.exe', SessionId: '2', ImagePath: image, ImageSource: 'executable_path' };
+    for (const failed of [false, true]) {
+      const result = postflightFor([row], failed);
+      expect(result).toEqual({ failed, related: [], environment: [{ pid: 7080, parent: 5644, name: 'SGTool.exe', session: 2, image }] });
+      expect(supplement.postflightClean(result)).toBe(!failed);
+    }
+  });
+  test('ADR-0259 postflight keeps a command-line-derived SGTool image related', () => {
+    const row = { ProcessId: '7080', ParentProcessId: '5644', Name: 'SGTool.exe', SessionId: '2',
+      ImagePath: 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', ImageSource: 'command_line' };
+    const result = postflightFor([row]);
+    expect(result).toEqual({ failed: false, related: [{ pid: 7080, parent: 5644, name: 'SGTool.exe', session: 2 }], environment: [] });
+    expect(supplement.postflightClean(result)).toBe(false);
+  });
+  test.each([
+    'C:\\Program Files (x86)\\SogouInputX\\SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\Other.exe',
+    'C:\\Temp\\SGTool.exe', '', undefined, null,
+    'C:\\Program Files (x86)\\SogouInput\\..\\SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\.\\SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\16.7\\..\\SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\SGTool.exe:stream',
+    '\\\\?\\C:\\Program Files (x86)\\SogouInput\\SGTool.exe',
+    'C:/Program Files (x86)/SogouInput/SGTool.exe',
+    'C:\\Program Files (x86)\\SogouInput\\SGTool.exe\n',
+  ])('ADR-0258 postflight keeps an unapproved or unknown image related: %s', (image) => {
+    const result = postflightFor([{ ProcessId: 7080, ParentProcessId: 5644, Name: 'SGTool.exe', SessionId: 2, ImagePath: image }]);
+    expect(result.related).toEqual([{ pid: 7080, parent: 5644, name: 'SGTool.exe', session: 2 }]);
+    expect(result.environment || []).toEqual([]); expect(result.failed).toBe(false);
+    expect(supplement.postflightClean(result)).toBe(false);
+  });
+  test('ADR-0258 postflight preserves candidate selection and still tracks children of environment processes', () => {
+    const image = 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe';
+    const result = postflightFor([
+      { ProcessId: 7081, ParentProcessId: 7080, Name: 'child.exe', SessionId: 2, ImagePath: 'C:\\Temp\\child.exe' },
+      { ProcessId: 7080, ParentProcessId: 5644, Name: 'SGTool.exe', SessionId: 2, ImagePath: image },
+      { ProcessId: 8000, ParentProcessId: 1, Name: 'product.exe', SessionId: 2, ImagePath: 'C:\\A9-DEV\\product.exe' },
+      { ProcessId: 8001, ParentProcessId: 1, Name: 'spike02_helper.exe', SessionId: 2, ImagePath: '' },
+      { ProcessId: 8002, ParentProcessId: 1, Name: 'SGTool.exe', SessionId: 2, ImagePath: image },
+      { ProcessId: 9000, ParentProcessId: 5644, Name: 'SGTool.exe', SessionId: 2, ImagePath: image },
+    ]);
+    expect(result.related).toEqual([
+      { pid: 7081, parent: 7080, name: 'child.exe', session: 2 },
+      { pid: 8000, parent: 1, name: 'product.exe', session: 2 },
+      { pid: 8001, parent: 1, name: 'spike02_helper.exe', session: 2 },
+    ]);
+    expect(result.environment).toEqual([{ pid: 7080, parent: 5644, name: 'SGTool.exe', session: 2, image }]);
+    expect(supplement.postflightClean(result)).toBe(false);
   });
   test('actual real-model network seam retains TLS verification, enforces limits and keeps only hashes of the system message', () => {
     const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
@@ -1438,7 +1593,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-48', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-49', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -6267,17 +6422,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0253: WIN7-48 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-48', candidate_tentative: true });
+  test('ADR-0259: WIN7-49 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-49', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-48'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_48');
+    expect(lock.provenance.candidate).toBe('WIN7-49'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_49');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-48', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-49', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-48'");
+    expect(request).toContain("a.candidate !== 'WIN7-49'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-48'); expect(text).not.toMatch(/WIN7[-_]46/);
+      expect(text).toContain('WIN7-49'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });

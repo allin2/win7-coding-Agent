@@ -1703,7 +1703,22 @@ async function runDriver() {
     const pending = (await snapshot()).pendingApproval || null;
     return { baseline, afterBoot, afterRefresh, recovery, card, state1, state2, pending };
   }
-  const oldApprovalResult = (pre) => exec(`window.win7Agent.a9.resumeApproval(${JSON.stringify(pre.approval.approvalId)}, 'approved', ${JSON.stringify(pre.approval.bindingDigest)}, ${JSON.stringify(pre.conversationId)}, ${JSON.stringify(pre.taskId)}, ${JSON.stringify(pre.turnId)})`);
+  // Keep the original API reply even when the workbench refresh fails, then fail the driver with evidence.
+  const approvalRefreshResult = (reply) => {
+    if (reply.refresh_error !== null) {
+      out('approval-refresh-error.json', reply);
+      throw new Error(`A9_BATCH2_DRIVER_APPROVAL_REFRESH_FAILED:${reply.refresh_error}`);
+    }
+    return reply.result;
+  };
+  const oldApprovalResult = async (pre) => approvalRefreshResult(await exec(`(async () => {
+    const result = await window.win7Agent.a9.resumeApproval(${JSON.stringify(pre.approval.approvalId)}, 'approved', ${JSON.stringify(pre.approval.bindingDigest)}, ${JSON.stringify(pre.conversationId)}, ${JSON.stringify(pre.taskId)}, ${JSON.stringify(pre.turnId)});
+    try {
+      const snapshot = await window.win7AgentA9Workbench.refreshSnapshot();
+      if (!snapshot) throw new Error('A9_BATCH2_DRIVER_APPROVAL_REFRESH_EMPTY');
+      return { result, refresh_error: null };
+    } catch (error) { return { result, refresh_error: String(error && error.message ? error.message : error).slice(0, 240) }; }
+  })()`));
 
   // ---- Modes: chain (p03) ------------------------------------------------------------------------------------------------
 
@@ -2658,7 +2673,14 @@ async function runDriver() {
     await waitIdle(30000, 'supplement terminal idle');
     return { turnId: ended.turnId, ended, data: eventData(ended), events: proof.events.filter((e) => e.turnId === ended.turnId), dom: proof.dom };
   }
-  const approvalReply = (p, decision, overrides = {}) => exec(`window.win7Agent.a9.resumeApproval(${JSON.stringify(p.approvalId)},${JSON.stringify(decision)},${JSON.stringify(overrides.digest || p.bindingDigest)},${JSON.stringify(overrides.conversation || p.conversationId)},${JSON.stringify(p.taskId)},${JSON.stringify(p.turnId)})`);
+  const approvalReply = async (p, decision, overrides = {}) => approvalRefreshResult(await exec(`(async () => {
+    const result = await window.win7Agent.a9.resumeApproval(${JSON.stringify(p.approvalId)},${JSON.stringify(decision)},${JSON.stringify(overrides.digest || p.bindingDigest)},${JSON.stringify(overrides.conversation || p.conversationId)},${JSON.stringify(p.taskId)},${JSON.stringify(p.turnId)});
+    try {
+      const snapshot = await window.win7AgentA9Workbench.refreshSnapshot();
+      if (!snapshot) throw new Error('A9_BATCH2_DRIVER_APPROVAL_REFRESH_EMPTY');
+      return { result, refresh_error: null };
+    } catch (error) { return { result, refresh_error: String(error && error.message ? error.message : error).slice(0, 240) }; }
+  })()`));
   const turnCount = (conv) => dbAll('SELECT count(*) AS n FROM a9_turns WHERE session_id = ?', conv)[0].n;
   const toolStartCount = (conv) => dbAll("SELECT count(*) AS n FROM a9_events WHERE session_id = ? AND event_type = 'tool_start'", conv)[0].n;
   const reviewCounts = (conv) => ({ turns: turnCount(conv), tool_starts: toolStartCount(conv), approvals: dbAll('SELECT count(*) AS n FROM a9_approvals')[0].n,

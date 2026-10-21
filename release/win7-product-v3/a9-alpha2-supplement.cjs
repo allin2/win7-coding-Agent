@@ -350,7 +350,7 @@ function assertActualRuntime(a) {
   const groups = command(path.join(system, 'whoami.exe'), ['/groups', '/fo', 'csv', '/nh']);
   const self = command(path.join(system, 'wbem', 'WMIC.exe'), ['process', 'where', `ProcessId=${process.pid}`, 'get', 'SessionId', '/value']);
   if (!sid.includes('"' + a.target.sid + '"') || !groups.includes('S-1-16-8192') || /S-1-16-(12288|16384|4096)/.test(groups)
-    || sessionIdOf(self) !== a.target.session_id || require('os').hostname() !== a.target.machine) throw new Error('A9_36_EXECUTOR_IDENTITY');
+    || sessionIdOf(self) !== a.target.session_id || require('os').hostname().toUpperCase() !== a.target.machine.toUpperCase()) throw new Error('A9_36_EXECUTOR_IDENTITY');
   for (const name of ['python', 'git']) if (contract.fileHash(a.tools[name].path) !== a.tools[name].sha256) throw new Error('A9_36_TOOL_CHANGED');
   const python = command(a.tools.python.path, ['--version']); const git = command(a.tools.git.path, ['--version']);
   if (!/^Python 3\.8\./.test(python.trim()) || !/^git version 2\.46\.2/.test(git.trim())) throw new Error('A9_36_TOOL_VERSION');
@@ -423,10 +423,16 @@ function postflight(smoke, a, rootPids, imageRoots) {
   const roots = new Set(rootPids.filter((pid) => Number.isSafeInteger(pid)));
   for (let round = 0; round < listing.rows.length; round++) for (const p of listing.rows) if (roots.has(Number(p.ParentProcessId))) roots.add(Number(p.ProcessId));
   const prefixes = imageRoots.map((v) => v.toLowerCase());
-  return { failed: listing.failed, related: listing.rows.filter((p) => {
+  const related = []; const environment = [];
+  for (const p of listing.rows) {
     const image = String(p.ImagePath || '').toLowerCase();
-    return Number(p.ProcessId) !== process.pid && (roots.has(Number(p.ProcessId)) || prefixes.some((prefix) => image.startsWith(prefix)) || /^spike02_helper\.exe$/i.test(p.Name));
-  }).map((p) => ({ pid: Number(p.ProcessId), parent: Number(p.ParentProcessId), name: p.Name, session: Number(p.SessionId) })) };
+    if (Number(p.ProcessId) === process.pid || !(roots.has(Number(p.ProcessId)) || prefixes.some((prefix) => image.startsWith(prefix)) || /^spike02_helper\.exe$/i.test(p.Name))) continue;
+    const row = { pid: Number(p.ProcessId), parent: Number(p.ParentProcessId), name: p.Name, session: Number(p.SessionId) };
+    // ADR-0256/0258/0259: exact path and a non-command-line image source; no traversal/device/alternate-stream aliases or trailing characters.
+    if (p.ImageSource !== 'command_line' && /^C:\\Program Files \(x86\)\\SogouInput\\(?:(?!\.{1,2}\\)[^\\/:*?"<>|\x00-\x1f]+\\)*SGTool\.exe(?![\s\S])/i.test(image)) environment.push({ ...row, image: String(p.ImagePath) });
+    else related.push(row);
+  }
+  return { failed: listing.failed, related, environment };
 }
 const postflightClean = (value) => Boolean(value) && !value.failed && Array.isArray(value.related) && value.related.length === 0;
 // Milliseconds left until the first of the two limits: the authority's expiry and the total wall-clock limit counted from the first request.

@@ -3104,3 +3104,35 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定：（1）`a9-product-ipc.js` 对 runtime 方法的返回改为 `return await`，使同步与异步错误都经同一 `serializeError` 返回；不改动作集合、Schema、权限、持久化格式或错误码。（2）新增开发机回归测试，覆盖异步拒绝返回 `{ok:false,error.code}`。（3）A9-39 允许路径增加 `src/shell/product/a9-product-ipc.js` 与回归测试文件 `src/shell/tests/product/a9-product-contract.test.ts`。（4）产品字节改变，必须新建候选 WIN7-48，取代 WIN7-47 成为 Alpha 2 最终候选提案；WIN7-47 的构建、证据与首失败原样保留。
 - 放弃的保证：渲染进程不再以 Promise 拒绝感知产品异步错误；依赖拒绝的调用方改为检查 `ok`。
 - 边界：本条不批准提交、构建、门 A/门 B，不改既有 Accepted ADR，不产生 Win7 证据。提交须负责人另行批准。
+
+## ADR-0256 写者静止门把搜狗输入法 SGTool.exe 记为环境进程，不阻塞静止门与 R8
+
+- 状态：Accepted（2026-10-21）。负责人原话：“批准选项 A：写者登记对映像位于 C:\Program Files (x86)\SogouInput\ 下、名为 SGTool.exe 的进程记为环境进程，写入证据但不阻塞静止门与 R8；登记 ADR-0256，由 codex 修改并加测试，然后继续彩排。”
+- 事实：WIN7-48 开发模式彩排 run `df78b459…`（Win7 实机，`DEV_CHANNEL`）中，p03 产品结果 PASS，收尾写者静止门与 R8 报 `WRITERS_NOT_QUIESCENT`。唯一未退出的已登记写者是 `C:\Program Files (x86)\SogouInput\16.7.0.4673\SGTool.exe`，父进程为 p03 的驱动 Electron GUI，存活超过 60 秒后自行退出（A9-39 任务书 §11.8.61）。常设授权 r1 禁止修改目标机系统设置与输入法。
+- 决定：（1）A9-39 执行包的写者登记把同时满足“映像路径位于 `C:\Program Files (x86)\SogouInput\` 之下”与“映像文件名为 `SGTool.exe`”（不区分大小写）的进程记为环境进程。（2）环境进程照常登记 PID、创建时间、映像、父进程与退出观测，写入证据，但不计入写者静止判定与 R8 残留判定。（3）不满足两项条件的任何进程，判定不变。（4）适用于开发模式与正式模式。
+- 放弃的保证：不再证明该进程在封存期间没有写入证据根；其映像位于运行根之外。
+- 边界：本条只改候选外执行包，不改候选、产品与驱动，不批准门 A/门 B、提交或推送。
+
+## ADR-0257 A9-36 补证编排器的机器名比较改为不区分大小写
+
+- 状态：Accepted（2026-10-21）。负责人原话：“批准选项 A：A9-39 允许路径增加 release/win7-product-v3/a9-alpha2-supplement.cjs，只把第 353 行机器名比较改为不区分大小写，并在 a9-batch2-contract.test.ts 加回归测试；登记 ADR-0257；codex 实现，Sonnet 审核，提交另行批准。不推送。”
+- 事实：WIN7-48 补证开发通道预跑 run `a33144b9…`（Win7 实机，`DEV_CHANNEL`）中，m4 以 `A9_36_EXECUTOR_IDENTITY` 失败。主会话在开发通道以 agent 身份逐项重放编排器 `assertActualRuntime`：其余各项符合，唯一不符是 `os.hostname()` 返回 `dccs-chaizl-PC`，而编排器第 353 行严格比较授权的 `target.machine`，请求模块第 91 行又把它钉为 `DCCS-CHAIZL-PC`（A9-39 任务书 §11.8.64）。
+- 决定：（1）A9-39 允许路径增加 `release/win7-product-v3/a9-alpha2-supplement.cjs`，只改第 353 行：机器名按不区分大小写比较。（2）`src/shell/tests/product/a9-batch2-contract.test.ts` 增加回归测试。（3）请求模块对 `target.machine` 的钉值不变。（4）编排器不在候选 ZIP 内，不换发候选；补证授权按新的编排器 SHA 绑定。
+- 放弃的保证：机器名不再按字节区分大小写；Windows 计算机名本身不区分大小写。
+- 边界：不改 SID、会话、完整性、工具钉与其他身份检查；不批准提交、推送、门 A/门 B。
+
+## ADR-0258 A9-36 补证编排器组内 postflight 按 ADR-0256 规则把 SGTool.exe 记为环境进程
+
+- 状态：Accepted（2026-10-21）。负责人原话：“批准：A9-39 允许范围扩展到 a9-alpha2-supplement.cjs 的 postflight 函数，对映像为 C:\Program Files (x86)\SogouInput\ 下 SGTool.exe 的进程按 ADR-0256 同一规则记为环境进程、写入证据但不计入 related；登记 ADR-0258，codex 实现并加回归测试，Sonnet 审核，提交另行批准。不推送。”
+- 事实：WIN7-48 补证开发通道预跑 run `df8593e1…`（Win7 实机，`DEV_CHANNEL`）中，m4 三条断言全部 PASS，组状态 FAIL；编排器 `postflight` 的 `related` 只有 `SGTool.exe`，父进程为该组产品进程（A9-39 任务书 §11.8.65）。ADR-0256 只覆盖执行包外层。
+- 决定：（1）A9-39 允许范围扩展到 `release/win7-product-v3/a9-alpha2-supplement.cjs` 的 `postflight` 函数。（2）映像路径位于 `C:\Program Files (x86)\SogouInput\` 之下（按路径段判定）且文件名为 `SGTool.exe`（均不区分大小写）的进程，记入环境进程列表并写入证据，不计入 `related`。（3）其余进程判定不变；映像未知的进程仍计入 `related`。（4）回归测试写入 `src/shell/tests/product/a9-batch2-contract.test.ts`。（5）编排器不在候选 ZIP 内，不换发候选。
+- 放弃的保证：与 ADR-0256 相同，不再证明该进程未写入证据根。
+- 边界：不改 `postflightClean` 对其他进程与 `failed` 的判据；不批准提交、推送、门 A/门 B。
+
+## ADR-0259 驱动经界面刷新同步批准结果；编排器环境进程分类拒绝命令行推断的映像；新建候选 WIN7-49 取代 WIN7-48
+
+- 状态：Accepted（2026-10-21）。负责人原话：“批准选项 A：驱动所有直接调用 resumeApproval 的位置在返回后调用一次 window.win7AgentA9Workbench.refreshSnapshot() 并加回归测试；顺带按审核建议要求 postflight 的 ImageSource 不为 command_line；登记 ADR-0259，换发 WIN7-49；codex 实现，Sonnet 审核。审核通过后批准本地提交（含 ADR-0257/0258 编排器修改）与双干净构建。不推送。”
+- 事实：WIN7-48 补证开发通道定向诊断 run `4c4cc2b6…`（Win7 实机，`DEV_CHANNEL`）证实：驱动直接调用 `window.win7Agent.a9.resumeApproval`，后端已终态且无待批，界面缓存仍停在待批准，输入框禁用；一次 `refreshSnapshot()` 后恢复（A9-39 任务书 §11.8.66）。ADR-0258 的独立审核另指出：编排器 `postflight` 的映像在 `ExecutablePath` 为空时回退为命令行首段，可能被误分类为环境进程。
+- 决定：（1）驱动 `src/shell/tests/product/a9-batch2-driver-entry.cjs` 中所有直接调用 `resumeApproval` 的位置，在调用返回后调用一次 `window.win7AgentA9Workbench.refreshSnapshot()`；不改断言判据与超时。（2）`a9-batch2-contract.test.ts` 增加回归测试。（3）编排器 `postflight` 的环境进程分类额外要求映像来源 `ImageSource` 不为 `command_line`。（4）驱动在候选 ZIP 内，新建候选 WIN7-49，取代 WIN7-48 成为 Alpha 2 最终候选提案；WIN7-48 的构建、证据与首失败原样保留；产品代码不变。（5）审核通过后批准本地提交（含 ADR-0257、ADR-0258 的编排器修改）与双干净构建。
+- 放弃的保证：驱动不再逐字模拟“只调接口、不经界面”的路径；真实用户路径仍经界面处理器。
+- 边界：不改产品代码、脱敏、权限、持久化格式；不批准推送、冻结、门 A/门 B。
