@@ -217,3 +217,4 @@
 | ADR-0258 | A9-36 补证编排器组内 postflight 按 ADR-0256 规则把 SGTool.exe 记为环境进程 | Accepted |
 | ADR-0259 | 驱动经界面刷新同步批准结果；编排器环境进程分类拒绝命令行推断的映像；新建候选 WIN7-49 取代 WIN7-48 | Accepted |
 | ADR-0260 | 驱动在后台进程状态变化后经界面刷新；页面滞后登记为 KL-13 并延期到 RC；新建候选 WIN7-50 取代 WIN7-49 | Accepted |
+| ADR-0261 | M2 Provider 完整性断言读取同 turn 持久化结果；新建 WIN7-51 | Accepted |

@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 if "%~6"=="" (
-  echo Usage: RUN_A9_BATCH2_INTEGRITY.cmd ^<original-WIN7-50-zip^> ^<external-a9-batch2-input-lock.json^> ^<external-a9-v26-approved-build-kits.json^> ^<external-release-authority.json^> ^<independently-approved-authority-sha256^> ^<run-id^>
+  echo Usage: RUN_A9_BATCH2_INTEGRITY.cmd ^<original-WIN7-51-zip^> ^<external-a9-batch2-input-lock.json^> ^<external-a9-v26-approved-build-kits.json^> ^<external-release-authority.json^> ^<independently-approved-authority-sha256^> ^<run-id^>
   exit /b 2
 )
 if not exist "..\a9-batch2-evidence" mkdir "..\a9-batch2-evidence"

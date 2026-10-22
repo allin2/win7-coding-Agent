@@ -191,8 +191,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-50', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-50', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-50.zip',
+    candidate: 'WIN7-51', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-51', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-51.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -217,10 +217,10 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-50 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-51 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
-  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'win7-50', '', null, undefined])('candidate label %s is refused', (value) => {
+  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'win7-51', '', null, undefined])('candidate label %s is refused', (value) => {
     expect(() => req.validateAuthority(changedAuthority('candidate', value), now)).toThrow();
   });
   test.each([
@@ -288,7 +288,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-50');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-51');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -309,7 +309,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-50\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-51\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -1084,6 +1084,57 @@ describe('A9-36 supplement judgement functions', () => {
     judge(driver.evaluateBudgetChanged, { before: { requests: 4, continue_events: 2 }, after: { requests: 5, continue_events: 3 }, chars: 3000, configured_budget: 16000, turn_status: 'completed' },
       [['after.requests', 4], ['after.continue_events', 2], ['chars', 16001], ['chars', 0], ['chars', undefined], ['turn_status', 'failed'], ['configured_budget', 2000]]);
   });
+  // M2-02 (ADR-0261): the failure outcome of an abnormal Provider answer is the persisted record of that same Turn, not the terminal event's data.
+  // A real turn_failed carries only `error` or `code`/`finishReason`; the two shapes below are the ones the WIN7-50 run captured.
+  test('M2 Provider outcomes: the same Turn\'s persisted status/outcome decides, the event data is recorded but never read as the outcome', () => {
+    const persisted = (turn: string, status: string, outcome: string) => [{ turn_id: turn, status, outcome_json: JSON.stringify({ schemaVersion: 1, outcome, verification: 'not_applicable' }) }];
+    const row = (reason: string, turn: string, written: any, starts: number, eventType: string, data: any, status = 'failed', outcome = 'failed') =>
+      ({ reason, written, starts, terminal: { turnId: turn, eventType, data }, persisted: persisted(turn, status, outcome) });
+    const errorShape = { error: 'Gateway stream ended without a finish_reason' };
+    const codeShape = { code: 'A9_PROVIDER_RESPONSE_INCOMPLETE', finishReason: 'length' };
+    const good = { rows: [
+      row('tool_calls', 'T0', 'tool_calls', 1, 'turn_completed', { finalMessage: 'A2 fixture complete', outcome: 'completed_with_warnings', verification: 'unverified' }, 'completed_with_warnings', 'completed_with_warnings'),
+      row('missing', 'T1', null, 0, 'turn_failed', errorShape),
+      row('length', 'T2', null, 0, 'turn_failed', codeShape),
+      row('content_filter', 'T3', null, 0, 'turn_failed', { code: 'A9_PROVIDER_RESPONSE_INCOMPLETE', finishReason: 'content_filter' }),
+      row('stop', 'T4', null, 0, 'turn_failed', { error: 'Gateway stream returned tool calls with stop finish_reason' }),
+      row('empty', 'T5', null, 0, 'turn_failed', errorShape),
+      row('invalid_json', 'T6', null, 0, 'turn_failed', { code: 'A9_PROVIDER_RESPONSE_INCOMPLETE', finishReason: 'tool_calls' }),
+    ] };
+    expect(driver.PROVIDER_REASONS).toEqual(['tool_calls', 'missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']);
+    expect(driver.PROVIDER_FAILURE_REASONS).toEqual(['missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']);
+    // No product change is needed: both captured shapes pass on the persisted record alone, even though neither data carries an outcome.
+    expect(good.rows[1].terminal.data.outcome).toBeUndefined(); expect(good.rows[2].terminal.data.outcome).toBeUndefined();
+    expect(driver.evaluateProviderOutcomes(good).ok).toBe(true);
+    expect(driver.evaluateProviderOutcomes({ rows: good.rows.map((r) => ({ ...r, terminal: { ...r.terminal, data: { ...r.terminal.data, outcome: 'failed' } } })) }).ok).toBe(true);
+    const mutations: Array<[string, any]> = [
+      // the closed reason set: one fewer, one more, a duplicate, a renamed reason, an unobserved reason
+      ['rows', good.rows.slice(0, 6)], ['rows', good.rows.concat(row('other', 'T7', null, 0, 'turn_failed', errorShape))],
+      ['rows.6.reason', 'missing'], ['rows.3.reason', 'tool_calls'], ['rows.2.reason', undefined], ['rows', []],
+      // the terminal event and its Turn identity
+      ['rows.1.terminal.turnId', 'T9'], ['rows.1.terminal.turnId', undefined], ['rows.2.terminal.eventType', 'turn_completed'], ['rows.2.terminal.eventType', undefined],
+      ['rows.2.terminal', undefined], ['rows.2.terminal.data', undefined], ['rows.1.terminal.data', null],
+      // the persisted record: absent, duplicated, wrong Turn, unparsable, missing outcome, successful or contradictory
+      ['rows.1.persisted', []], ['rows.1.persisted', undefined], ['rows.1.persisted', good.rows[1].persisted.concat(good.rows[2].persisted)],
+      ['rows.1.persisted.0.turn_id', 'T2'], ['rows.1.persisted.0.turn_id', undefined], ['rows.1.persisted.0.status', 'completed'], ['rows.1.persisted.0.status', 'completed_with_warnings'],
+      ['rows.1.persisted.0.status', undefined], ['rows.1.persisted.0.outcome_json', '{not json'], ['rows.1.persisted.0.outcome_json', '{"schemaVersion":1}'],
+      ['rows.1.persisted.0.outcome_json', 'null'], ['rows.1.persisted.0.outcome_json', '[]'], ['rows.1.persisted.0.outcome_json', JSON.stringify({ outcome: 'completed' })],
+      ['rows.1.persisted.0.outcome_json', JSON.stringify({ outcome: 7 })], ['rows.1.persisted.0.outcome_json', undefined],
+      ['rows.6.persisted.0.outcome_json', JSON.stringify({ outcome: 'cancelled' })],
+      // side effects: a file written, a tool started, or the normal control missing its write/start/completed record
+      ['rows.1.written', 'tool_calls'], ['rows.4.written', ''], ['rows.1.starts', 1], ['rows.5.starts', undefined], ['rows.0.written', null], ['rows.0.starts', 0], ['rows.0.starts', 2],
+      ['rows.0.terminal.eventType', 'turn_failed'], ['rows.0.persisted.0.status', 'failed'], ['rows.0.persisted.0.outcome_json', JSON.stringify({ outcome: 'failed' })],
+    ];
+    for (const [pathText, replacement] of mutations) expect([pathText, JSON.stringify(replacement), driver.evaluateProviderOutcomes(setPath(good, pathText, replacement)).ok]).toEqual([pathText, JSON.stringify(replacement), false]);
+    expect(driver.evaluateProviderOutcomes(undefined).ok).toBe(false); expect(driver.evaluateProviderOutcomes({}).ok).toBe(false);
+    // The persisted facts of one Turn: exactly one row, and only a JSON object with a string outcome is an outcome.
+    expect(driver.providerPersistedFacts(persisted('T', 'failed', 'failed'))).toEqual({ rows: 1, turn_id: 'T', status: 'failed', outcome: 'failed', parse_ok: true });
+    for (const [value, count] of [[[], 0], [[good.rows[1].persisted[0], good.rows[1].persisted[0]], 2], [undefined, 0], [null, 0], ['x', 0]] as Array<[any, number]>)
+      expect(driver.providerPersistedFacts(value)).toEqual({ rows: count, turn_id: null, status: null, outcome: null, parse_ok: false });
+    for (const text of ['', '{}', 'null', '[]', '"failed"', '{', JSON.stringify({ outcome: null }), JSON.stringify({ outcome: ['failed'] })])
+      expect(driver.providerPersistedFacts([{ turn_id: 'T', status: 'failed', outcome_json: text }]).parse_ok).toBe(false);
+    for (const value of [undefined, null, 7, {}, { outcome_json: 7 }]) expect(driver.providerPersistedFacts([value as any]).parse_ok).toBe(false);
+  });
   test('M3 external byte records, continuation checkpoint and late write', () => {
     const file = { path: 'ext_shell.txt', b0: H('1'), b1: H('2'), b1_text: 'shell1\n', expected_b1_text: 'shell1\n', b2: H('1') };
     const done = (restored: string[]) => ({ ok: true, driftReasons: [], outcome: { restored, errors: [], drifted: [] } });
@@ -1690,7 +1741,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-50', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-51', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -6520,17 +6571,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0260: WIN7-50 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-50', candidate_tentative: true });
+  test('ADR-0260/ADR-0261: WIN7-51 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-51', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-50'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_50');
+    expect(lock.provenance.candidate).toBe('WIN7-51'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_51');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-50', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-51', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-50'");
+    expect(request).toContain("a.candidate !== 'WIN7-51'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-50'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49)/);
+      expect(text).toContain('WIN7-51'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });

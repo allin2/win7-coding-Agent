@@ -952,6 +952,57 @@ function evaluateBudgetClick(f) {
     actionable_again: stopLeavesActionableCard(facts.recovery_before, facts.recovery_after) === true,
   });
 }
+// M2-02: the Provider fixture reasons are a closed set. The normal control writes its file and starts exactly one tool; every abnormal
+// answer writes nothing, starts no tool, and ends its own Turn as failed. The failure outcome is the persisted record of that same Turn
+// (a9_turns.status and outcome_json.outcome), never the terminal event's data: a real turn_failed carries only `error` or `code`/`finishReason`
+// (ADR-0261 and the WIN7-50 first-failure inspection: a real turn_failed data carries only `error` or `code`/`finishReason`), so the event
+// name alone is not an outcome.
+const PROVIDER_REASONS = Object.freeze(['tool_calls', 'missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']);
+const PROVIDER_FAILURE_REASONS = Object.freeze(['missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']);
+const PROVIDER_SUCCESS_STATUS = Object.freeze(['completed', 'completed_with_warnings']);
+// The persisted evidence of one Turn: exactly one a9_turns row for that turn_id, its status, and its outcome_json.outcome (a damaged or
+// absent outcome_json is not an outcome). `parse_ok` is false for anything that is not a JSON object with a string outcome.
+function providerPersistedFacts(persisted) {
+  const rows = Array.isArray(persisted) ? persisted : [];
+  if (rows.length !== 1) return { rows: rows.length, turn_id: null, status: null, outcome: null, parse_ok: false };
+  const row = rows[0] && typeof rows[0] === 'object' ? rows[0] : {};
+  let outcome = null; let parse_ok = false;
+  if (typeof row.outcome_json === 'string') {
+    try {
+      const parsed = JSON.parse(row.outcome_json);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && typeof parsed.outcome === 'string') { outcome = parsed.outcome; parse_ok = true; }
+    } catch (_error) { parse_ok = false; }
+  }
+  return { rows: rows.length, turn_id: typeof row.turn_id === 'string' ? row.turn_id : null, status: typeof row.status === 'string' ? row.status : null, outcome, parse_ok };
+}
+function evaluateProviderOutcomes(f) {
+  const facts = f || {}; const rows = Array.isArray(facts.rows) ? facts.rows : [];
+  const reasons = rows.map((row) => (row && typeof row === 'object' ? row.reason : undefined));
+  const persisted = rows.map((row) => providerPersistedFacts(row && row.persisted));
+  const terminal = rows.map((row) => (row && row.terminal && typeof row.terminal === 'object' ? row.terminal : {}));
+  const payload = terminal.map((t) => (t.data && typeof t.data === 'object' && !Array.isArray(t.data) ? t.data : null));
+  const positive = reasons.indexOf('tool_calls'); const abnormal = PROVIDER_FAILURE_REASONS.map((reason) => reasons.indexOf(reason));
+  const sameTurn = (n) => n >= 0 && supNonEmpty(terminal[n].turnId) && persisted[n].turn_id === terminal[n].turnId;
+  const checks = {
+    closed_reason_set: rows.length === PROVIDER_REASONS.length && reasons.every((reason, n) => reason === PROVIDER_REASONS[n]),
+    terminal_payload_recorded: rows.length === PROVIDER_REASONS.length && payload.every((data) => data !== null),
+    positive_wrote_file: positive >= 0 && rows[positive].written === 'tool_calls',
+    positive_one_tool_start: positive >= 0 && rows[positive].starts === 1,
+    positive_completed_event: positive >= 0 && terminal[positive].eventType === 'turn_completed',
+    positive_persisted_success: positive >= 0 && persisted[positive].parse_ok && PROVIDER_SUCCESS_STATUS.includes(persisted[positive].status || '')
+      && PROVIDER_SUCCESS_STATUS.includes(persisted[positive].outcome || ''),
+    positive_same_turn: sameTurn(positive),
+    abnormal_wrote_nothing: abnormal.every((n) => n >= 0 && rows[n].written === null),
+    abnormal_no_tool_start: abnormal.every((n) => n >= 0 && rows[n].starts === 0),
+    abnormal_failed_event: abnormal.every((n) => n >= 0 && terminal[n].eventType === 'turn_failed'),
+    abnormal_same_turn: abnormal.every((n) => sameTurn(n)),
+    abnormal_one_record: abnormal.every((n) => n >= 0 && persisted[n].rows === 1),
+    abnormal_outcome_parsed: abnormal.every((n) => n >= 0 && persisted[n].parse_ok),
+    abnormal_persisted_failed: abnormal.every((n) => n >= 0 && persisted[n].status === 'failed' && persisted[n].outcome === 'failed'),
+  };
+  return { ...supVerdict(checks), rows: rows.map((row, n) => ({ reason: reasons[n], written: row ? row.written : undefined, starts: row ? row.starts : undefined,
+    terminal_event: terminal[n].eventType, terminal_turn: terminal[n].turnId, persisted: persisted[n] })) };
+}
 // M2-06 budget, changed condition: only after the input fits is a new request sent.
 function evaluateBudgetChanged(f) {
   const facts = f || {}; const before = facts.before || {}; const after = facts.after || {};
@@ -2934,13 +2985,16 @@ async function runDriver() {
     supplementAssert('m2-verification', 1, largeFailure && verification.every((t, n) => t.data.verification === expected[n]), { largeFailure, expected, observed: verification.map((t) => t.data),
       checks: verification.map((t) => ({ turnId: t.turnId, verification_events: t.events.filter((e) => ['verification_result', 'tool_end'].includes(e.eventType)) })) });
     const provider = [];
-    for (const reason of ['tool_calls', 'missing', 'length', 'content_filter', 'stop', 'empty', 'invalid_json']) {
+    for (const reason of PROVIDER_REASONS) {
       await newConversation(); if (fs.existsSync(localFile('provider-effect.txt'))) fs.unlinkSync(localFile('provider-effect.txt'));
       const turn = await supplementTurn('a2-provider:' + reason);
-      provider.push({ reason, terminal: turn.data, written: textFile('provider-effect.txt'), starts: turn.events.filter((e) => e.eventType === 'tool_start').length });
+      // The failure outcome lives in the persisted Turn of this exact turnId, not in the terminal event's data. The data is kept as observed.
+      provider.push({ reason, terminal: { turnId: turn.turnId, eventType: turn.ended.eventType, data: turn.data },
+        persisted: dbAll('SELECT turn_id, status, outcome_json FROM a9_turns WHERE turn_id = ?', turn.turnId),
+        written: textFile('provider-effect.txt'), starts: turn.events.filter((e) => e.eventType === 'tool_start').length });
     }
-    supplementAssert('m2-verification', 2, provider[0].written === 'tool_calls' && provider[0].starts === 1
-      && provider.slice(1).every((p) => p.written === null && p.starts === 0 && p.terminal.outcome === 'failed'), { provider });
+    const providerVerdict = evaluateProviderOutcomes({ rows: provider });
+    supplementAssert('m2-verification', 2, providerVerdict.ok, { provider, verdict: providerVerdict });
     const rules = []; const agentsSha = sha256(textFile('AGENTS.md'));
     for (let n = 0; n < 2; n++) { await newConversation(); const turn = await supplementTurn('a2-rules'); rules.push({ turnId: turn.turnId, started: turn.events.find((e) => e.eventType === 'turn_started') }); }
     const requests = providerLines().filter((r) => r.prompt === 'a2-rules' && !r.probe);
@@ -3807,6 +3861,7 @@ module.exports = {
   insertInterruptedTask, insertResidueFact, deleteResidueFact, findModeSettingsFile, CORRUPT_MODE_SETTINGS,
   SUPPLEMENT_MODES, SUP_RESTORED_NOTES, supRestoredFor, openDialogAnswer, evaluateGitDenials, evaluateOriginRefs, evaluateLocalBranch, evaluateTestStream, evaluateBuildCancel, evaluateLongCard, evaluateF01, evaluateInputShas, evaluateAuditStage,
   evaluateContinueReload, evaluateProviderFailureContinue, evaluateBudgetClick, evaluateBudgetChanged, evaluateExternalBytes, evaluateContinuationCheckpoint,
+  PROVIDER_REASONS, PROVIDER_FAILURE_REASONS, providerPersistedFacts, evaluateProviderOutcomes,
   evaluateLateWrite, evaluateReviewRestart, evaluateSystemPromptBody, evaluateProviderGuard, evaluateUserDataIsolation,
 };
 

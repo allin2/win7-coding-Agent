@@ -3144,3 +3144,11 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定：（1）驱动 `a9-batch2-driver-entry.cjs` 的 `stopAllManaged` 在返回前、`newConversation` 在开始等待按钮前，各调用一次 `window.win7AgentA9Workbench.refreshSnapshot()`；刷新失败使驱动失败；不改判据与超时。（2）合同测试增加回归。（3）页面滞后登记为 KL-13：托管后台进程自然退出后，页面在下一次提交、停止或切换前仍显示停止按钮并禁用新建会话；后端门禁正确，无越权或数据风险；产品修复延期到 RC。KL-13 写入套件 `KNOWN_LIMITS`。（4）驱动与套件在候选 ZIP 内，新建候选 WIN7-50 取代 WIN7-49；WIN7-49 构建与证据保留；产品代码不变。（5）审核通过后批准本地提交与双干净构建。
 - 放弃的保证：Alpha 2 不保证后台进程自然退出后页面即时更新。
 - 边界：不改产品代码、权限、持久化格式；不批准推送、冻结、门 A/门 B。
+
+## ADR-0261 M2 Provider 完整性断言读取同 turn 持久化结果；新建 WIN7-51
+
+- 状态：Accepted（2026-10-22）。负责人在本会话对“按最小修复方案换发WIN7-51，由pi实施、Codex独审，审核后本地提交、双构建并复验”的明确提议回复原话：“批准”。批准范围以该提议和 `outputs/a9-39-w50-package-prep/supplement/M2_FIRST_FAILURE_ANALYSIS.md` 为准。
+- 事实：WIN7-50 Win7实机开发补证run `9bc099eb-ad69-4a8c-838f-49c35db2fbd2` 的M2 A02 FAIL。驱动supplementTurn返回终态事件data，A02却要求其中outcome为failed；实际失败事件不含该字段。同run隔离数据库只读取证确认六种异常响应的持久化status/outcome均failed、tool_start为0，原证据确认无文件写入。原HALTED及FAIL不改判。
+- 决定：仅修驱动M2 A02取证与判定，从同一turnId的持久化记录读取status/outcome，并核终态事件为turn_failed；保留异常零工具、无文件副作用与正常正控，补齐缺失、错配、矛盾与副作用反例。不以事件名替代持久化结果。由pi实现、Codex独立审核，只报P0/P1；审核通过后本地提交、两个干净目录构建，并在开发通道复验。
+- 身份：驱动属于包内字节，新建WIN7-51，沿A9-39既有允许路径同步候选身份及候选外开发/补证输入；WIN7-50的包、首失败与原始证据全部保留，禁止原地覆盖或重用已消耗run。目标先核status，再以新不可变run执行最短真实链路及受影响合同项。
+- 边界：不改产品、Core、Gateway、权限、持久化格式、超时或安全判据；不批准推送、冻结、门A/门B，不解除M5实际配置/凭据读取禁令；KL-13产品修复延期RC及其他UNKNOWN保持。

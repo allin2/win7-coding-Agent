@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-50 (proposed; recheck before freeze)
+Candidate: WIN7-51 (proposed; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260
-Revision: r49 (2026-10-22 UTC; owner approved ADR-0260 driver refresh around managed processes, KL-13 deferred to RC, candidate WIN7-50 (§11.8.69 decision); supplement m2 root cause confirmed on Win7: renderer stays stale after a background process exits naturally (§11.8.69); fix approach pending owner decision; earlier: §11.8.68 WIN7-49 phases and rehearsal PASS)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261
+Revision: r53 (2026-10-22 UTC; owner approved M2 same-turn persisted-result driver fix and WIN7-51; pi implements, Codex independently reviews; local commit/double build/dev revalidation authorized after review; §11.8.73)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -2506,3 +2506,56 @@ ADR-0257 实现（执行代理 codex，`adr0257-orchestrator`）：`a9-alpha2-su
 - 最短目标链路按既有合同：先 `status` 核身份/空闲锁，上传新包，p01/p02/GPU/真实产品链后完成其余阶段，再做总控彩排与补证预跑。Win7 仅记 DEV_CHANNEL；M5 凭据操作保持 BLOCKED_BY_STANDING_AUTHORIZATION，未裁决的 close 缺陷与其他界面滞后不在本轮实现范围。
 
 本节落盘时 WIN7-50 尚未提交/构建，目标运行、正式门 A/B、冻结、Alpha 2/RC 均 NOT_PERFORMED。后续结果继续追加本任务记录及 STATUS/STATUS_LOG。
+
+#### 11.8.71 WIN7-50 本地提交、双构建与开发通道全阶段（2026-10-22 UTC）
+
+结论：WIN7-50 已按 ADR-0260 本地提交并完成双干净构建；Win7 开发通道 GPU 入口门与 p01～p10 全部 PASS，37 用例/67 断言。证据类别为 DEV_CHANNEL，不计正式成功次数。源提交 `cec1a1e1e8643ec8d047de33ea070bf7be067a8b`，未推送、未冻结、未签门 A/B。
+
+| 项 | 直接证据与边界 |
+|---|---|
+| 本地提交 | 16 个精确路径，提交前包测试 9/9，合同日志 631/631；docs:check 与 CRLF-aware diff check 通过。提交记录 `outputs/a9-39-w50-driver-fix/main-local-commit-20261022.json` |
+| 双构建 | `w50-build-1`、`w50-build-2` 两个新 detached 干净工作树；ZIP/manifest/Kit 全部同字节，801条目。沿用锁定原生输入，不重建 native；输入及既有保护候选哈希未变化 |
+| 准确身份 | ZIP `6bc243217d471c0607a43985b7b8ba1db7d42716f516b387a28f135770d1eff3`，101,883,827字节；manifest `42ff2daaa5e2c74af5fd3cb40c7ae7515b88012169a1fd96b6ab0d190112be18`；Kit `bef5f59b1ac9509e62b19e30f210788df298ec984e4635f75c3a9603c72adec5` |
+| 开发机静态闭包 | 两包各核800个manifest文件、801个ZIP条目，无差异；新驱动/fixtures/锁与提交源码逐字节相同。证据 `.acceptance/a9-39/w50-build-preparation/DOUBLE_BUILD.json`、同目录 `LOCAL_STATIC_BINDING_CHECK.json` 与 `SOURCE_TO_PACKAGE.json` |
+| 开发通道绑定 | pi 修改7处候选路径/默认构建号，Codex主会话独立审核0 P0/P1；`outputs/a9-39-w50-package-prep/MAIN_DEV_REVIEW.json`。旧字节在 before-dev 保留 |
+| Win7 开发运行 | run `74b113b2-d881-4887-9064-9c18f9ad13cb`，01:58:20Z～02:11:53Z；普通SID `S-1-5-21-1708701742-428676696-1831205153-1001`、session 2。GPU与10阶段通过；10份phase-result和20行账本已回收，结果SHA逐项一致；`DEV_PHASE_VERIFICATION.json` 与 `outputs/win7-dev/w50-phases/74b113b2/` |
+| 全阶段收尾 | status根内进程0、任务0、w47-dev锁空闲，根4,479,044,283字节；尚未close，继续总控/补证。`dev-postflight-status.json` |
+| 总控包适配 | pi 改绑候选外 w48-gate-a-package，保留旧版本；最终18脚本1088/0、封装262/0，Codex独审0 P0/P1。执行输入seal `60701b5247fa2b82e13e41e3f8ce106bc1d6498a98b21c615b0fb1970ad78617`；两个正式run仅未签草案 |
+| 总控彩排 | DEV run `7cb1e98e-9842-4904-b709-3906417a26ef`，02:42:30Z～03:06:48Z，R0～R8全部PASS；37/67结果绑定本提交与ZIP。R7选中1545文件全部VERIFIED，PARTIAL/MISSING为0；233项按既有合同排除，不计已下载或行为证据。R8任务0、进程0。SSH28、上传/下载各1，总运输30；无自动重试。原始记录 `outputs/win7-dev/formal/7cb1e98e/`，复核 `outputs/a9-39-w50-package-prep/gate/MAIN_REHEARSAL_VERIFICATION.json`；正式门A/B均false |
+
+本节直接执行和 Win7 开发证据与正式验收分别记载。源码/包不重绑旧失败；WIN7-49 m2 FAIL、定向诊断和旧候选字节保留。KL-13 产品页面滞后仍延期至 RC，本节不声称产品自动刷新已修复。补证尚未运行，新候选 m2 修复路径仍待补证验证；M5 为 BLOCKED_BY_STANDING_AUTHORIZATION，未取得凭据范围新批准，不读取/复制实际配置或凭据。close 工具缺陷未修、其他界面滞后点保持 UNKNOWN。下一步：新补证包与预跑→按实际结果close→准备未签门 A 材料。正式Win7、门A/B、Alpha2/RC仍NOT_PERFORMED。
+
+#### 11.8.72 WIN7-50 补证首失败、只读取证与开发根收尾（2026-10-22 UTC）
+
+结论：Win7 实机开发通道补证 run `9bc099eb-ad69-4a8c-838f-49c35db2fbd2` 为 HALTED。m4、m1 PASS；m2 main 的 A02 FAIL，其余五项断言 PASS。后续 m2 audit Stages、m3、m6 未派发，记 NOT_PERFORMED；M5 保持 BLOCKED_BY_STANDING_AUTHORIZATION。源提交仍为 `cec1a1e1e8643ec8d047de33ea070bf7be067a8b`，ZIP `6bc24321…`，没有修改或重建本候选。
+
+- 补证包由 pi 改绑，Codex 独立审核 0 P0/P1。开发机166/166测试、普通开发与未签正式草案各88/0、诊断样例各91/0；157项封装SHA核对，795个历史样例文件字节不变。运行seal为 `07fa301689496725616c704ba597bfe04fb03ef26a8bb608109c16633a8776a9`。M6仅继承夹具字节适用性，未继承目标PASS。
+- 实际Win7 R4能力检查通过：Node16.17.1、Electron22.3.27、ABI110；当前候选800文件无差异，回退WIN7-42为796文件。m4为3/3、m1为11/11 PASS；m2 main为5/6 PASS，失败项 `A2-M2-VERIFICATION-A02`。实际运行03:34:59.777Z～03:42:39.971Z，无自动重试。
+- A02根因：`supplementTurn` 返回终态事件的data，A02却读取其中的outcome；实际turn_failed的data为error或code/finishReason，不含outcome。Win7对本run隔离数据库的只读查询确认：六种异常响应的同一turn持久化status和outcome均为failed，tool_start均0；正常tool_calls对照启动1次。原驱动证据也确认六种异常均无文件写入。这是当前驱动取值错误，不能据此把本次FAIL或整组m2改为PASS。
+- 旧WIN7-49停止/新建会话等待在本次已走通，m2 main执行至六个断言；这不证明产品自动刷新已修复。KL-13产品修复延期RC，其他页面滞后保持UNKNOWN。详细分析、原始文件和SHA见 `outputs/a9-39-w50-package-prep/supplement/M2_FIRST_FAILURE_ANALYSIS.md`、同名JSON及 `M2_PERSISTED_OUTCOME_INSPECTION.json`。
+- 首失败与65个文件、477838字节全部回收并独立校验。R7/R8均PASS，任务0，产品postflight相关进程0；SSH15、上传1、下载1。未读/复制真实配置或凭据。只读查询首试受PowerShell原生参数引号影响，原始SyntaxError保留且不采信工具ok；第二次用重定向进程、等待及真实ExitCode，核得7条准确结果。
+- 已按常设授权close。首次close为REMOTE_ACTION_FAILED，残留根3808字节；原回执保留。复核无进程/任务后，以既有规避脚本先校验非reparse树，再清除supp下48文件ReadOnly，第二次close成功。最终status确认根不存在、root_bytes=0、进程/任务为空、lock=null。证据 `outputs/a9-39-w50-package-prep/close/FINAL_STATUS.json`。close工具实现未修改，不宣称缺陷已修复。
+
+下一步最小方案已交负责人裁决：由pi在驱动A02中读取同一turn的持久化status/outcome并核终态类型，保留零工具、无文件副作用与正控，补拒绝反例；Codex独审，建议登记新ADR并换发WIN7-51，审核通过后本地提交、双构建及开发通道复验。此修复超出ADR-0260两处刷新，本节只记录方案，未授权、未实现，也未创建WIN7-51。M5凭据例外授权仍待裁决。
+
+门A未签草案已由pi整理，Codex主会话独立审核0 P0/P1；材料及审核见 `outputs/a9-39-w50-package-prep/final-gate/GATE_A_REVIEW_DRAFT.md`、同名JSON与 `MAIN_FINAL_GATE_REVIEW.json`。审核只确认草案事实和边界，当前被m2 FAIL阻断，不能签用。两新消耗run `7cb1e98e…`、`9bc099eb…` 的正式拒绝清单补录尚NOT_PERFORMED；pi未改执行包，原总控封装字节未变化，见同目录 `GUARD_UPDATE_DEFERRED.json`。任何后续正式材料需先补齐该清单、新候选身份、冻结记录及准确预检。正式成功次数0；冻结、门A/B、正式Win7、Alpha2/RC、推送均NOT_PERFORMED。历史失败、候选与证据保留。
+
+#### 11.8.73 裁决：M2同turn结果取证修复与WIN7-51（2026-10-22 UTC）
+
+负责人对主会话上一条完整提议回复“批准”：按 `M2_FIRST_FAILURE_ANALYSIS.md` 最小范围换发WIN7-51，由pi实施、Codex独审，审核后本地提交、双干净构建及开发通道复验。登记ADR-0261（Accepted）。实际基线 `codex/a9-alpha2-integration-r2` / `cec1a1e1e8643ec8d047de33ea070bf7be067a8b`；入场已有3份台账修改，全部保留。17个本轮相关明确路径及原始状态已快照至 `outputs/a9-39-w51-driver-fix/BEFORE.json` 与before目录。
+
+实施仅限§3允许路径：驱动M2 A02从同一turnId持久化status/outcome及终态事件取证，保留正常正控、六种异常零工具/无文件副作用判据，增加缺失、错配、矛盾及副作用拒绝测试；合同测试同步。WIN7-50→WIN7-51身份改绑沿用§11.8.57与ADR-0260已有文件集合，不新增产品或原生路径。候选号本地refs、构建目录和主仓候选登记均未占用，未联网查询远端。
+
+先由pi实施和本地检查，Codex独立审核0 P0/P1后本地提交并双干净构建；稳定原生/依赖输入按精确哈希核对继承，不重新安装或构建未变原生。目标复验先status确认身份/新根/空闲锁，再运行当前新包完整性、真实产品最短链、M4/M1前置与M2及后续受影响补证。新run独立保存；安全、完整性或未知生命周期失败停止依赖下游，不改判WIN7-50。
+
+本批准不含产品/Core/Gateway改动、推送、冻结、门A/B、M5配置/凭据读取或close工具缺陷修复。M5仍BLOCKED_BY_STANDING_AUTHORIZATION，其他UNKNOWN及KL-13延期RC保持。本节为授权登记，WIN7-51实现/构建/目标结果尚NOT_PERFORMED。
+
+#### 11.8.74 WIN7-51 驱动交付与独立审核（2026-10-22 UTC，开发机）
+
+结论：pi完成11个允许路径的M2 A02取证修复与WIN7-51身份改绑；Codex独立审核PASS，0 P0/P1。实际基线仍为`cec1a1e1e8643ec8d047de33ea070bf7be067a8b`，源码交付11文件SHA逐件核对，见`outputs/a9-39-w51-driver-fix/delivery-input-binding.json`与`MAIN_INDEPENDENT_REVIEW.json`。产品/Core/Gateway、supplementTurn语义、原生输入、安全判据、37/67及KL-13均未改。
+
+开发机直接检查：必跑两合同套件633/633 PASS，包测试9/9 PASS，语法/编码/CRLF-aware diff PASS。同turn持久化记录与终态类型取证保留正常正控及六异常零工具/无文件副作用；缺失、错配、损坏、矛盾与副作用输入均拒绝。目标测试首跑断言误写重复行总数，原失败保留，修正测试预期后PASS。实际WIN7-50捕获投影在新判定中回放PASS，仍只计本地回放，不能改判旧FAIL，也不是WIN7-51实机证据。
+
+依赖按精确字节继承：六模块103个已编译JS文件与原清单一致，两个消费者实际加载路径及入口SHA已核对；未重编未变依赖、未安装。WIN7-50两ZIP和八项首失败证据SHA保持不变。执行期间越界的大范围历史搜索已停止；初始记录器在旧输出目录新建的w51前缀辅助文件保留，随后改为当前输出目录并通过合同检查，未覆盖受保护旧证据。
+
+后续按已有授权本地提交、双干净构建。目标复验采用最短真实链p01-env、p02-integrity、GPU入口门、p03-chain；随后总控新run直接覆盖p01～p10全部37/67，再补证m4、m1、m2、m3、m6。短链未覆盖项记NOT_PERFORMED，不重复一次完整全阶段，不把短链写为全阶段PASS。新运行分别绑定新提交、ZIP和run。M5保持BLOCKED_BY_STANDING_AUTHORIZATION；构建及WIN7-51目标结果在本节落盘时NOT_PERFORMED，未推送、冻结、签门A/B。

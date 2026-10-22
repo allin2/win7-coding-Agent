@@ -3156,3 +3156,25 @@ ZIP `654d916f…`（101,862,120 字节，801 条目），manifest `874a2a48…`�
 ### 2026-10-22 — A9-39 WIN7-50 接手与提交前检查
 
 开发机基线 `3465bc43…`，交付输入哈希一致。主会话合同日志 631/631，补跑包测试 9/9 PASS；独审 PASS 沿用交接记录。按已有授权推进本地提交与双干净构建，未推送、未冻结、未签门 A/B。见任务书 §11.8.70。
+
+### 2026-10-22 — A9-39 WIN7-50 双构建与开发通道全阶段
+
+本地提交cec1a1e1，双构建同字节（ZIP6bc24321…）；Win7 DEV run74b113b2 GPU及p01～p10 37/67 PASS，结果SHA与账本一致。总控包本地1088/0、封装262/0、Codex独审0 P0/P1；新DEV彩排7cb1e98e运行中。补证尚未执行，M5仍阻断。未推送、未冻结、未签门A/B。见任务书§11.8.71。
+
+### 2026-10-22 — A9-39 WIN7-50 总控彩排完成
+
+DEV run `7cb1e98e…` 的R0～R8全部PASS（02:42:30Z～03:06:48Z），37/67；R7选中1545文件全部VERIFIED，PARTIAL/MISSING为0；R8任务/进程残留0。SSH28、上传1、下载1；无自动重试，不计正式次数。补证尚未运行，M5仍阻断。见任务书§11.8.71与 `outputs/a9-39-w50-package-prep/gate/MAIN_REHEARSAL_VERIFICATION.json`。
+
+### 2026-10-22 — A9-39 WIN7-50 补证首失败与收尾
+
+Win7 DEV run `9bc099eb…`：m4 3/3、m1 11/11 PASS；m2 main A02 FAIL、其余5项PASS，HALTED；m2后续Stages、m3/m6 NOT_PERFORMED，M5仍阻断。65文件/477838字节回收校验，R7/R8 PASS。只读核实六种异常响应持久化status/outcome均failed且零工具，定位驱动把事件data当完整结果读取；修复超出ADR-0260两处刷新，WIN7-51方案待裁决，未实现/重试。close首次失败保留，既有ReadOnly规避后成功；最终根不存在、进程/任务0。当前候选与旧证据保留，未推送/冻结/签门A/B。见任务书§11.8.72与 `outputs/a9-39-w50-package-prep/supplement/M2_FIRST_FAILURE_ANALYSIS.md`。
+
+未签门A草案由pi整理、Codex独立审核0 P0/P1；m2等前置缺口仍阻断签用。草案及审核位于 `outputs/a9-39-w50-package-prep/final-gate/`。
+
+### 2026-10-22 — A9-39 WIN7-51 最小驱动修复获批
+
+负责人回复“批准”，ADR-0261 Accepted：pi修M2 A02同turn持久化结果取证及合同测试，换发WIN7-51；Codex独审后允许本地提交、双干净构建与开发通道复验。原基线cec1a1e1、3份已有台账修改均保护；旧WIN7-50 FAIL/HALTED不改判。M5禁令、产品/权限/超时/安全边界不变，不推送/冻结/签门A/B。见任务书§11.8.73。
+
+### 2026-10-22 — A9-39 WIN7-51 开发机审核通过
+
+pi实施11路径，Codex独审PASS（0 P0/P1），633/633合同与9/9包测试PASS；103编译依赖文件与实际加载路径核对，受保护WIN7-50证据未变。按既有授权继续本地提交/双构建；Win7最短链后总控覆盖完整37/67，再补证。当前构建与新目标结果NOT_PERFORMED；M5仍阻断，不推送/冻结/签门A/B。见任务书§11.8.74与`outputs/a9-39-w51-driver-fix/MAIN_INDEPENDENT_REVIEW.json`。

@@ -1130,3 +1130,35 @@ SSH 6/8、上传 1、下载 1；D4 182.257 秒、退出 1/PAYLOAD_HALTED，运�
 下一步：按 ADR-0260 本地提交并双干净构建，再进入开发通道；M5 凭据操作仍 BLOCKED_BY_STANDING_AUTHORIZATION。不推送、不冻结、不签门 A/B。
 
 入口：A9-39 任务书 §11.8.70；`outputs/a9-39-w50-driver-fix/main-package-test-20261022.command.json`。
+
+### A9-39 WIN7-50 开发通道全阶段与总控彩排通过，补证待运行（2026-10-22 UTC）
+
+当前事实：本地提交 `cec1a1e1…`，WIN7-50 双干净构建一致，ZIP `6bc24321…`；Win7 DEV run `74b113b2…` 的GPU门及p01～p10全部PASS，37用例/67断言，原始结果与账本SHA已回收核验。证据类别DEV_CHANNEL，不计正式成功次数。总控包经本地1088/0、封装262/0与Codex独审0 P0/P1；新彩排 `7cb1e98e…` 的R0～R8全部PASS，R7选中1545文件全量校验，R8任务/进程残留均0；仍为DEV_CHANNEL。
+
+下一步：补证预跑、close与门A材料。M5仍BLOCKED_BY_STANDING_AUTHORIZATION；补证m2尚未执行。KL-13延期RC，其他页面滞后UNKNOWN。未推送、未冻结、未签门A/B。
+
+入口：A9-39任务书§11.8.71；`.acceptance/a9-39/w50-build-preparation/DEV_PHASE_VERIFICATION.json`；`outputs/win7-dev/formal/7cb1e98e/STEP_TRACE.jsonl`。
+
+### A9-39 WIN7-50 补证 m2 FAIL，根因已定位，开发根已关闭（2026-10-22 UTC）
+
+当前事实：源 `cec1a1e1…` / WIN7-50；Win7 DEV补证run `9bc099eb…` 中m4 3/3、m1 11/11 PASS，m2 main的A02 FAIL，其余5项PASS。总控HALTED，m2后续audit Stages、m3、m6 NOT_PERFORMED，M5保持BLOCKED_BY_STANDING_AUTHORIZATION。原始65文件/477838字节全量回收校验，R7/R8 PASS、零任务/相关进程残留；随后close成功，status确认C:\A9-DEV不存在、进程/任务0。此前双构建、全阶段37/67及总控R0～R8的DEV结果保持，不计正式成功次数。
+
+根因已由实际只读数据库查询确认：六种异常响应持久化status/outcome均failed、零工具且无文件变化；驱动却从不含outcome的turn_failed事件data取该字段，触发A02失败。旧页面等待已走通，不把本次或历史FAIL改为PASS。方案仅修驱动取证、保留安全判据、补正反例并建议换发WIN7-51；超出ADR-0260两处刷新，待负责人批准后由pi实现、Codex独审。产品未改、当前候选未重建。
+
+下一步：等待m2最小修复及新候选裁决。M5凭据例外仍未批准；close工具只用既有属性规避，缺陷未修；其他页面滞后UNKNOWN。门A草案被m2及未完成冻结/预检等前置阻断，不能签用；未推送、未冻结、未签门A/B。
+
+门A未签草案由pi整理，Codex独立审核0 P0/P1，仅确认事实与阻断边界，不授权签发或执行。
+
+入口：A9-39任务书§11.8.72；`outputs/a9-39-w50-package-prep/supplement/M2_FIRST_FAILURE_ANALYSIS.md`；`outputs/a9-39-w50-package-prep/close/FINAL_STATUS.json`；`outputs/a9-39-w50-package-prep/final-gate/GATE_A_REVIEW_DRAFT.md`。
+
+### A9-39 WIN7-51 最小驱动修复已批准（2026-10-22 UTC）
+
+负责人对上一条明确提议回复“批准”，登记ADR-0261：pi修M2 A02同turn持久化结果取证与合同测试，沿既有路径换发WIN7-51；Codex独审通过后，本地提交、双干净构建和开发通道复验。当前基线仍 `cec1a1e1…`，WIN7-51实现与目标结果尚NOT_PERFORMED。WIN7-50及旧HALTED/FAIL证据保持原状。
+
+本批准不包含产品、Core、Gateway改动，不解除M5实际配置/凭据禁令；不推送、不冻结、不签门A/B。入口：任务书§11.8.73，ADR-0261，`outputs/a9-39-w51-driver-fix/PI_TASK.md`。
+
+### A9-39 WIN7-51 本地交付审核通过（2026-10-22 UTC，开发机）
+
+pi交付11路径，Codex独立审核PASS（0 P0/P1）；基线cec1a1e1，合同633/633、包测试9/9 PASS，实际依赖加载及受保护WIN7-50证据SHA一致。取证修复按同turn持久化status/outcome与终态类型判定，未改产品和安全边界。准确交付SHA见`outputs/a9-39-w51-driver-fix/MAIN_INDEPENDENT_REVIEW.json`。
+
+下一步按已有批准本地提交、双干净构建；Win7先最短链，再总控全37/67与补证，不重复两次全阶段。当前构建/新候选目标结果NOT_PERFORMED；M5仍BLOCKED_BY_STANDING_AUTHORIZATION。未推送、冻结、签门A/B。入口：任务书§11.8.74。
