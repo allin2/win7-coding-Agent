@@ -1,12 +1,12 @@
-# A9-39 / WIN7-51 批次 2 验证套件
+# A9-39 / WIN7-52 批次 2 验证套件
 
-候选 WIN7-51 是暂定编号：冻结前由执行代理按引用、登记和目录核对，ADR-0155 仍为 Proposed。
+候选 WIN7-52 是暂定编号：冻结前由执行代理按引用、登记和目录核对，ADR-0155 仍为 Proposed。
 本套件不授予任何放行权限；是否具备批次 2 执行能力只由负责人在门 B 裁决。
 结论上限固定为“批次 2 执行能力”，不是完整 Alpha 2，也不是 RC。
 
 A9-39 阶段 2 已追加十二项固定用例。当前集合为 37 用例/67 断言。
 原 25/43 与 A9-36 M1～M6 判定保留。开发机合同检查不构成 Win7 实机 PASS。
-本轮没有构建或冻结 WIN7-51；目标执行为 `NOT_PERFORMED`。
+本轮没有构建或冻结 WIN7-52；目标执行为 `NOT_PERFORMED`。
 
 ## 本套件包含什么
 
@@ -44,8 +44,8 @@ A9-39 阶段 2 已追加十二项固定用例。当前集合为 37 用例/67 断
 | `schema_version` | `1` |
 | `formal_input_lock_sha256` | 候选外正式输入锁的完整 SHA-256 |
 | `approval_registry.commit`、`approval_registry.sha256` | 与正式输入锁中的批准登记逐项相同 |
-| `kind` | `WIN7_51_RELEASE_AUTHORITY` |
-| `status` | `APPROVED_FOR_WIN7_51_VALIDATION` |
+| `kind` | `WIN7_52_RELEASE_AUTHORITY` |
+| `status` | `APPROVED_FOR_WIN7_52_VALIDATION` |
 | `run_id` | UUID；整次运行只用这一个 |
 | `target.machine_name`、`target.account_sid` | 被批准的目标机器和账户 |
 | `candidate.source_commit` | 40 位提交 |

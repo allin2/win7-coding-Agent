@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-51 (proposed; recheck before freeze)
+Candidate: WIN7-52 (proposed; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261
-Revision: r53 (2026-10-22 UTC; owner approved M2 same-turn persisted-result driver fix and WIN7-51; pi implements, Codex independently reviews; local commit/double build/dev revalidation authorized after review; §11.8.73)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262
+Revision: r54 (2026-10-22 UTC; owner approved M2 Runner control-pipe repair and WIN7-52; primary implements, independent review; local commit/double build/dev revalidation after review; §11.8.97)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -2559,3 +2559,310 @@ ADR-0257 实现（执行代理 codex，`adr0257-orchestrator`）：`a9-alpha2-su
 依赖按精确字节继承：六模块103个已编译JS文件与原清单一致，两个消费者实际加载路径及入口SHA已核对；未重编未变依赖、未安装。WIN7-50两ZIP和八项首失败证据SHA保持不变。执行期间越界的大范围历史搜索已停止；初始记录器在旧输出目录新建的w51前缀辅助文件保留，随后改为当前输出目录并通过合同检查，未覆盖受保护旧证据。
 
 后续按已有授权本地提交、双干净构建。目标复验采用最短真实链p01-env、p02-integrity、GPU入口门、p03-chain；随后总控新run直接覆盖p01～p10全部37/67，再补证m4、m1、m2、m3、m6。短链未覆盖项记NOT_PERFORMED，不重复一次完整全阶段，不把短链写为全阶段PASS。新运行分别绑定新提交、ZIP和run。M5保持BLOCKED_BY_STANDING_AUTHORIZATION；构建及WIN7-51目标结果在本节落盘时NOT_PERFORMED，未推送、冻结、签门A/B。
+
+#### 11.8.75 WIN7-51 本地提交与双干净构建（2026-10-22 UTC）
+
+结论：源码已本地提交`74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac`（17明确路径，提交后干净）；两次新detached工作树构建PASS，输入与33项既有候选文件未变，ZIP/manifest/Kit逐字节相同。开发机静态闭包每包核800个manifest文件、801个ZIP条目，差异0；驱动、fixtures、锁与提交字节相同。未安装依赖、未重建未变原生。
+
+- ZIP：`76112a2828e14e4c20721d30ce97fe509d75af17dcf2ca4e67d2fdd33f15e4c0`，101889586字节。
+- manifest：`16d58290efc5422c91ceab1d711b47aee94289c8138131890463664bc4084219`。
+- Kit：`5805da24bc9a7e84c86edf8695dc73b43d8c946ae2f15bc86fca8794bd1d6bf8`，WIN7-51、tentative:true、37用例/67断言。
+- 证据：`outputs/a9-39-w51-driver-fix/MAIN_LOCAL_COMMIT.json`；`.acceptance/a9-39/w51-build-preparation/DOUBLE_BUILD.json`、`LOCAL_STATIC_BINDING_CHECK.json`、`SOURCE_TO_PACKAGE.json`。
+
+实机status复核为DCCS-CHAIZL-PC/build7601/session2，开发根不存在、锁null、进程/任务为空；这是目标预检，不是产品PASS。pi继续适配候选外DEV/总控/补证材料，Codex逐交付独审后执行。目标结果在本节落盘时NOT_PERFORMED。M5仍BLOCKED_BY_STANDING_AUTHORIZATION；没有推送、冻结或门A/B签名。
+
+#### 11.8.76 WIN7-51 开发通道最短链（2026-10-22 UTC）
+
+结论：源`74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac`、ZIP`76112a28…`，Win7 DEV run`8c6d9acb-cebf-4d53-a8e7-51ec4556947a`的GPU入口及p01-env、p02-integrity、p03-chain均PASS（8用例/21断言）。实际普通用户SID`S-1-5-21-1708701742-428676696-1831205153-1001`、session2；原始3结果及6行账本全量回收，结果SHA逐项匹配COMPLETED记录，完整账本与已核摘要一致。目标postflight相关进程/任务0、生命周期已知、w51-dev锁空闲。
+
+pi的7文件DEV改绑仅新ZIP前缀/默认构建号变化，原字节已备份，Codex独审0 P0/P1，见`outputs/a9-39-w51-package-prep/MAIN_DEV_REVIEW.json`。目标证据`.acceptance/a9-39/w51-build-preparation/DEV_SHORTEST_VERIFICATION.json`、`dev-shortest.commands.json`；原始`outputs/win7-dev/w51-shortest/8c6d9acb/`及agent-run原回执。该短run未执行p04～p10，完整37/67仍NOT_PERFORMED；此结果为DEV_CHANNEL，正式次数0。
+
+下一步总控包独审后用全新DEV run覆盖全部37/67，再按顺序补证。当前新候选M2补证尚NOT_PERFORMED，不能由本短链推断PASS。M5仍BLOCKED_BY_STANDING_AUTHORIZATION；未推送、冻结、签门A/B。
+
+#### 11.8.77 WIN7-51 总控材料独审与开发彩排启动（2026-10-22 UTC）
+
+结论：pi完成候选外总控包改绑，Codex独立审核PASS（0 P0/P1），仅准开发彩排。当前源74ac9ef7、ZIP76112a28…；封装seal为`4b57be31664353737f2a015770136c579fbe0d0418371d629c5b9b361acf24ea`，91文件/76工具/83传输项逐件核对。34运行组件在候选身份归一化后字节一致，P1预算逐字段保持；原40拒绝身份与来源哈希保留，加入7cb1e98e、9bc099eb、8c6d9acb，共43前缀。
+
+本地首两轮失败日志保留。第二轮3脚本共同根因经最小复现确认为封装生成顺序错误：新默认run已生成，但注入管理模板仍含旧b4694e15路径。暂停整批后，pi仅修派生顺序和字面绑定，未改runner/守卫/断言。pi当前窄测9脚本981/0；主会话因第二轮后默认run材料变更、旧轮缺少完整输入字节绑定，补跑剩余9个轻量脚本117/0（未再跑耗时套件），当前合计1098/0；包检查262/0。保护证明通过，旧已执行材料在before-gate保留。证据`outputs/a9-39-w51-package-prep/gate/MAIN_GATE_REVIEW.json`、`MAIN_CURRENT_REMAINING_TESTS.json`、`SEAL_ROOT_CAUSE.md`。
+
+未签默认正式草案pair为3265559c/8f257a7c；b91581e8/8152052f仅新本地生产/消费校验样例，均无owner receipt，不作正式执行授权。主会话另建DEV run`fffca090-876a-45c8-8b45-93c61abcea98`，新DEV local-only准入PASS且SSH=0；目标status确认w51-dev锁空闲、进程/任务0后启动全37/67总控彩排。执行输入在READY后不再改动；本节落盘时该run仍在进行，不能记为PASS。
+
+实际命令、run与seal绑定见同目录`MAIN_ACTIVE_RUN.json`、`main-rehearsal.started.json`及`outputs/win7-dev/formal/fffca090/`。pi继续适配补证，封装前追加本run拒绝；主会话须待本run实际完成与证据核验后才派发补证。M5保持BLOCKED_BY_STANDING_AUTHORIZATION；该DEV run不计正式次数，未推送、冻结、签门A/B。
+
+#### 11.8.78 WIN7-51 总控开发彩排完整通过（2026-10-22 UTC，Win7实机）
+
+结论：源`74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac`、ZIP`76112a28…`，DEV run`fffca090-876a-45c8-8b45-93c61abcea98`的R0～R8全部PASS。GPU入口及p01～p10覆盖37用例/67断言，原始10结果与20行请求账本SHA逐项匹配，准确候选/source/ZIP/manifest/Kit绑定均通过主会话核验。实际执行05:40:26Z～06:05:00Z，退出码0，无自动重试。
+
+实际R1为DCCS-CHAIZL-PC、7601/SP1 x64，普通SID1001、session2。R7选中1542文件全部VERIFIED，PARTIAL/MISSING为0；233项按既有合同排除，不计已下载或行为证据。主会话独立重核回收文件字节和SHA。R8任务0、相关进程0、环境残留列表为空。SSH28、上传/下载各1，总运输30；正式门A/B标记均false，正式成功次数0。
+
+证据：`outputs/a9-39-w51-package-prep/gate/MAIN_REHEARSAL_VERIFICATION.json`、`main-rehearsal.execution.json`；原始`outputs/win7-dev/formal/fffca090/`。开发根尚未close，pi补证材料完成并独审后，主会话再status复核并新run执行m4/m1/m2/m3/m6；新候选M2尚NOT_PERFORMED。M5仍BLOCKED_BY_STANDING_AUTHORIZATION；未推送、冻结、签门A/B，不据此宣告正式Win7、Alpha2或RC通过。
+
+#### 11.8.79 WIN7-51 补证材料独审与新开发run（2026-10-22 UTC）
+
+结论：pi完成候选外补证包改绑，Codex独立审核PASS（0 P0/P1）。代码输入与提交74ac9ef7逐字节一致，普通DEV91/0、两诊断各94/0、未签正式草案91/0、167/167合同测试通过。README当前入口已改为WIN7-51；其不在执行seal中，工具/输入/诊断未变，本轮文档收尾按精确字节沿用167项结果。最终seal`5807f510d17d66c14d483d424fc1a05e8931e0c3cea6d184189dd87fe6b23a6a`，160项逐件核对；795历史样例不变，原WIN7-50执行输入与seal已备份。未签样例不可执行。
+
+主会话独立核对11个运行工具、四源输入、M5守卫原文和15个拒绝前缀，新增9bc099eb/8c6d9acb/fffca090及不同UUID尾部均被拒绝。M6六个夹具及27项闭包按字节继承，仅INHERITED_EVIDENCE_FIXTURE_BYTES_ONLY，不继承目标结果。回退WIN7-42未变。所有样例check-only零网络，PS为静态准入，实际能力仍由新run的R4核对。
+
+完整总控通过后，主会话再次status确认w51-dev锁空闲、任务/进程0，创建新DEV补证run`536dfaaa-9548-4066-a8eb-671254c736eb`，普通顺序m4→m1→m2→m3→m6，M5仍BLOCKED_BY_STANDING_AUTHORIZATION。本节落盘时执行正在进行，最终结果待验证。该run不计正式次数；没有推送、冻结或门A/B签名。
+
+证据：`outputs/a9-39-w51-package-prep/supplement/MAIN_SUPPLEMENT_REVIEW.json`、`MAIN_SOURCE_SCOPE_REVIEW.json`、`MAIN_ACTIVE_RUN.json`、`main-supplement.started.json`；原始`outputs/win7-dev/supp/536dfaaa/`。READY后封装不得热改，任何首失败保留并停止其依赖下游；M5未读取实际配置/凭据。
+
+#### 11.8.80 WIN7-51 补证首失败与外层生命周期取证（2026-10-22 UTC，Win7实机）
+
+结论：DEV run`536dfaaa-9548-4066-a8eb-671254c736eb`为HALTED。m4 3/3、m1 11/11 PASS；m2原始内层结果13/13、全部6 Stage及各Stage postflight均PASS，但外层R6报`RELATED_PROCESS_REMAINS`，m2整组不计PASS。m3/m6未派发，NOT_PERFORMED；M5保持BLOCKED_BY_STANDING_AUTHORIZATION。运行06:14:29Z～06:21:45Z，真实退出码1，无自动重试。
+
+本次A02修复已取得直接实机事实：正常tool_calls同turn持久化completed_with_warnings，恰1工具且写预期文件；六种异常同turn恰一条持久化failed/failed、turn_failed、零工具、无写入。主会话以当前源码纯判定复核7条原始事实，见`MAIN_M2_A02_TARGET_PROOF.json`；这不提升外层m2或整个HALTED run。WIN7-50原FAIL保持。
+
+R7/R8均PASS，91文件603180字节回收全量核SHA，任务0。源仍74ac9ef7、ZIP76112a28…、执行输入seal5807f510…未变。外层抛错前未保存残留PID/映像，原残留身份与原因UNKNOWN，不能归因于SGTool或直接称误报。阶段内6次postflight均related为空，只证明其各自检查时点。当前status根内进程/任务0，不是历史残留已解释。
+
+主会话后续只读查询：会话2当前39进程无本run匹配；TaskScheduler Operational日志未启用，Security进程历史不可用。全会话完整88进程快照（06:40:51Z），排除固定内核PID0/4后，原运行窗口06:14:25Z～06:21:50Z创建的存活实例0、创建时间缺失0、本run/candidate根匹配0。该证据只支持当前旧运行实例已不在进程表，原失败身份仍UNKNOWN。首次只读辅助脚本语法失败保留，修正后使用新文件执行；没有系统配置变更。
+
+按§11.8.63既有候选外补证包路径授权，主会话安排pi只补R6抛错前的有界身份日志与已消耗run拒绝，保留Related/$seen逻辑、完成条件、residue归集、原throw、等待/清理/环境规则。独审后最多一个新不可变封装、新DEV run有界复现；不复用本HALTED run。若需改关联/代际或排除判据，另交负责人裁决，不从取证授权推导。候选/产品/驱动不改，不重建。派单`outputs/a9-39-w51-driver-fix/PI_R6_OBSERVE_ONLY.md`。
+
+完整核验及只读记录在`outputs/a9-39-w51-package-prep/supplement/MAIN_TARGET_VERIFICATION.json`、`READ_ONLY_LIFECYCLE_SNAPSHOT.json`、`READ_ONLY_SECURITY_EVENTS.json`、`READ_ONLY_RUN_WINDOW_PROCESSES.json`。开发根保留，后续先status复核；本节没有签门A/B、冻结或推送。
+
+#### 11.8.81 R6有界身份观察版与单次新run（2026-10-22 UTC）
+
+pi只在候选外R6原throw前增加最多16条残留身份及截断汇总；Process-Record不输出命令行，未观察退出保持UNKNOWN。Codex独审PASS（0 P0/P1），剥去新增块后，整份remote-admin模板与旧字节一致；Related/$seen、完成条件、归集、throw、等待、分类与清理权限均未改。拒绝集仅加已消耗536dfaaa，15→16。候选/source/ZIP不变，不重建。
+
+开发机173/173测试、普通DEV92/诊断各95/未签formal92检查通过，四例check-only零网络。新seal`a89a4ae58030b04a299fe7d81892decc342b3bcf5a932a586e4aba5011d5cb21`，161项核对；旧160项可由未变原文件与before旧字节逐项还原到5807f510…。
+
+新取证组件先在实际Win7 PowerShell5.1.14409.1018上做四组合成对象协议检查：0残留不触发门，1/17残留仍抛原RELATED_PROCESS_REMAINS，17时只记16条且显式截断，缺失映像/创建时间保持未知且无命令行输出。该证据仅ACTUAL_WIN7_POWERSHELL_SYNTHETIC_PROTOCOL_ONLY，不是产品或生命周期PASS。记录`outputs/a9-39-w51-package-prep/r6-observe/MAIN_OBSERVER_SOURCE_BINDING.json`、`MAIN_SYNTHETIC_RUNTIME_OUTPUT.json`、`MAIN_INDEPENDENT_REVIEW.json`。
+
+完成独审与fresh status后，主会话创建唯一一次新普通DEV run`4584b38e-af41-423f-9ba2-dd89ce627416`，执行原m4/m1/m2/m3/m6顺序，M5仍阻断。源74ac9ef7/ZIP76112a28…，旧536dfaaa继续HALTED且不得复用。本节落盘时新run执行中，最终结果待验证；若再出现同类失败，停止整批并用身份日志最小诊断，任何关联算法或排除规则变更另行裁决。未close、推送、冻结或签门A/B。
+
+#### 11.8.82 单次补证重跑HALTED与独立收尾（2026-10-22 UTC，Win7实机）
+
+结论：DEV run4584b38e-af41-423f-9ba2-dd89ce627416为HALTED。m4 3/3、m1 11/11 PASS，m2 main 6/6 PASS；audit_output触发原定600秒超时，未产生driver-result，m2整组FAIL。m3/m6 NOT_PERFORMED，M5保持BLOCKED_BY_STANDING_AUTHORIZATION。源74ac9ef7、ZIP76112a28…、执行seal a89a4ae5…保持不变，不再整批重试。
+
+主会话独立核验67文件486828字节全部SHA；m2原始phase-result SHA为1162790871921bb62216a3b9ef61c8ed4a18e55e284f5d94fd679aff49247ca3。main阶段A02同turn持久化取证再次PASS；audit_output驱动PID6080、duration_ms600248、exit1、killed_by=timeout，阶段postflight曾记录electron4300/parent6080/session2。外层R6成功返回FAIL结果，没有触发新残留日志；本次不能解释536dfaaa的历史残留身份。
+
+独立只读取证保存该隔离测试数据库/WAL/SHM并逐件核SHA，在另建副本mode=ro查询：唯一turn active，最后事件tool_start，tool_output/tool_end/turn终态0；审计失败注入trigger仍存在。具体停滞原因UNKNOWN，不擅改驱动、产品或传输层。原始数据库字节保持，不读取agent真实配置/凭据。
+
+原R7 PASS、R8 FAIL：主会话诊断ps获取写者锁，与自动R8重叠，三任务删除因DEV_LOCK_NOT_IDLE_OR_NOT_HELD失败。该操作偏差归主会话，原CLOSEOUT/账本及FAIL保持。执行器退出后单独stop成功，任务/进程0；07:24:23Z完整查询无electron/Python/Git/Runner helper或已知驱动实例。隔离DB保存后，沿用已批准只读属性规避清除supp下32文件ReadOnly，再close成功；工具缺陷未修。最终status核对以close/FINAL_STATUS.json为准。
+
+证据：outputs/a9-39-w51-package-prep/r6-observe/MAIN_TARGET_VERIFICATION.json、M2_TIMEOUT_FIRST_FAILURE_ANALYSIS.md、FIXTURE_DB_RECOVERY.json、FIXTURE_DB_READ_ONLY_FACTS.json；原始outputs/win7-dev/supp/4584b38e/。后续产品/传输诊断或修复需负责人明确范围与候选策略；已有候选外材料范围内继续补已消耗run拒绝清单及未签门A草案。未推送、冻结或签门A/B，正式成功次数0。
+
+#### 11.8.83 未签门A材料与最终独立审核（2026-10-22 UTC，开发机）
+
+结论：pi完成两候选外执行包的已消耗run拒绝清单增强及未签门A草案，Codex独立审核PASS（最终0 P0/P1）。源仍74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac，WIN7-51 ZIP76112a28…；候选未重建。总控43→46前缀，加入fffca090、536dfaaa、4584b38e；补证16→17，加入4584b38e。旧来源及前缀全部保留，运行代码仅拒绝常量变化，M5/生命周期/等待/预算/请求顺序不变。
+
+- 总控新seal：6f5b37e2987963a28a0038f35c7bd6576cf71af44388c0d807e4eb9a26f9564c，91项。未签formal pair仍3265559c-0648-4d74-ac74-92fa0cdef7e7 / 8f257a7c-d3e2-4ecd-afaf-9de02d42ac47，未执行。
+- 补证新seal：ae6ad80baf40157488e358b535b1fe684d02a11dd00d79e20f6142e90279ff2f，161项。四新样例仅本地校验，实际UUID已与各描述符逐一核对。
+- 开发机检查：7局部脚本124/124 PASS，总控封装262/0，补证普通93/诊断各96/未签正式93；四check-only零网络。主会话另直接调用当前真实消费者，184总控与68补证拒绝反例全部通过，M5仍拒绝。
+- 主会话独立核旧91/161项可由未变文件及before字节还原到4b57be31…/a89a4ae5…；两新seal全项通过。当前实际DEV结果只绑定旧执行seal，不是新guard封装实机PASS。WIN7-50保护10文件、WIN7-51双ZIP不变。
+
+独审发现样例UUID误记为pair、内层Stage误称外层两项交付元数据P1，pi已修正，原审查记录保留。主会话另澄清未封装保护报告中SHA256SUMS被误列未变，原pi报告保留。一次旧验证器写死旧输出路径，覆盖了旧派生PACKAGE_CHECK.json；新误写报告另存，旧摘要依据未变原verify-package.log及同一序列化恢复，原authority哈希一致。此前未独立记录该摘要字节哈希，明确不声称具备该项事前证明；原始目标证据及旧日志未改。后续使用重定向副本；少量final-*新辅助日志位于既有supplement/logs，均为新名字。
+
+独立收尾最终核验PASS：close/FINAL_STATUS.json确认开发根不存在、bytes0、锁null、进程/任务0；原4584b38e R8 FAIL保持。close工具缺陷未修。M2整体仍无合格PASS，audit_output超时具体原因与旧R6残留身份均UNKNOWN；M5仍BLOCKED_BY_STANDING_AUTHORIZATION。门A草案不可签用、上传或执行，缺正式预检、冻结、双正式run和签发，正式成功次数0；未推送、签门A/B或宣告Alpha2/RC通过。
+
+材料与审核：outputs/a9-39-w51-package-prep/final-gate/GATE_A_REVIEW_DRAFT.md及同名JSON、MAIN_FINAL_GATE_REVIEW.json、MAIN_GUARD_BYTE_VERIFICATION.json、MAIN_CONSUMER_GUARD_CHECK.json。最短下一步提案为仅一轮M2诊断，详见r6-observe/M2_TIMEOUT_FIRST_FAILURE_ANALYSIS.md末节；须负责人单独批准，不扩为产品/传输实现、M5或正式签发授权。当前3份后续台账保留未提交，以免改变已绑定源提交；无推送。最终文档检查及负责人指定daemon重启实际结果另见final-gate/MAIN_FINAL_LOCAL_CHECKS.json和driver-fix/OWNER_POST_TASK_COMMAND.json。
+
+#### 11.8.84 一轮有界M2诊断继续授权（2026-10-22 UTC）
+
+负责人收到§11.8.83的一轮诊断范围与单独批准问题后回复原话“继续”。本轮只激活该范围：pi在候选外remote-admin模板及协议测试增加有界进度记录，Codex独审；实际PowerShell协议检查后最多一个全新DIAGNOSTIC_M2 run，顺序m4→m1→m2，原600秒Stage、总预算、安全与M5守卫保持。失败不自动重跑，不改产品、驱动、关联算法或传输实现，不重建、推送、冻结或签门A/B。
+
+实际基线为codex/a9-alpha2-integration-r2 / 74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac；3份既有台账修改保留。开发机先只读核对原超时证据；新Win7 status确认DCCS-CHAIZL-PC/build7601、agent session2、开发根不存在、锁null、相关进程与任务0。该查询只是当前预检，不是产品PASS。pi只本地准备，Codex独审后派发；执行期间不并发调用会取开发写锁的ps。
+
+派单与原话绑定：outputs/a9-39-w51-package-prep/m2-progress-diagnostic/PI_TASK.md及OWNER_SCOPE.json；当前预检PRE_STATUS.json。最短链是新增日志协议实际运行时检查→一个新诊断run→原始证据核验→独立收尾。此时日志实现、实际协议与新run仍NOT_PERFORMED；旧4584b38e/536dfaaa保持HALTED，旧R6身份与audit_output根因UNKNOWN。
+
+#### 11.8.85 M2进度日志独审、实际协议检查与唯一诊断启动（2026-10-22 UTC）
+
+结论：pi交付候选外日志块，Codex独立审核最终0 P0/P1；剥离该块后整remote-admin模板与修改前逐字节相等，M5、关联、等待、完成与清理判据未改。新seal为1cb9a4e1335409cbcc6361ac057696b2500b7ba33164a4e00a9293f3aeebb94f，162项；旧161项可还原。源74ac9ef7、WIN7-51 ZIP76112a28…不变。
+
+本地前轮失败与复核记录保留。整套检查在旧剥离规则连续失败后停止；主会话最小比较确认原规则吞掉前置换行，修复仅测试。之后只跑两个受影响协议文件，17/17 PASS；其他165项按r3准确未变输入记INHERITED_EVIDENCE，不采用pi READY误写的171计数。截断/错误载体曾错误包含对象花括号，主会话独审判FAIL并保留；修正Emit字段合同、字节计数及三处字符串引号后通过。pi READY的未来时间字面量不作实际时点，作者归属和计数澄清见MAIN_HANDOFF_CLARIFICATIONS.json；原件未回改。
+
+主会话直接在Win7 PowerShell5.1.14409.1018验证7个合成协议场景：正常、17进程截16及未知字段、字节边界、48次上限、正式模式静默、非M2静默、观察异常脱敏。全部PASS，绑定模板SHA19897f3d…；只是ACTUAL_WIN7_POWERSHELL_SYNTHETIC_PROTOCOL_ONLY，不是产品或生命周期PASS。
+
+fresh status确认DCCS-CHAIZL-PC/build7601/session2，holder w51-m2diag空闲，进程/任务0。主会话新建唯一DEV诊断run4c4a44ff-0dcd-44b0-b3fa-fa698c20b568，根C:\A9-DEV\supp\4c4a44ff，顺序m4→m1→m2，原Stage600秒与总预算保持；样例与执行run分开，运行输入不再改动。此时目标执行进行中，不计M2 PASS，失败不自动重跑。
+
+证据在outputs/a9-39-w51-package-prep/m2-progress-diagnostic/：MAIN_INDEPENDENT_REVIEW.json、MAIN_PROGRESS_RUNTIME_VERIFICATION.json、MAIN_PROGRESS_ERROR_VERIFICATION.json、MAIN_ACTIVE_RUN.json及MAIN_CHANGES.json。执行期间不并发调用win7-dev ps取写锁。M5仍阻断，不推送、冻结或签门A/B。
+
+#### 11.8.86 唯一M2诊断完成、超时复现与开发根关闭（2026-10-22 UTC）
+
+结论：run4c4a44ff-0dcd-44b0-b3fa-fa698c20b568已结束，原始m4 3/3、m1 11/11、m2 main6/6 PASS；audit_output在600231毫秒触发原timeout，driver-result缺失，m2整组FAIL。外层按既有诊断规则HALTED/DIAGNOSTIC_M2_STOP_NO_PASS，不能掩盖内层FAIL。m3/m6 NOT_PERFORMED，M5仍阻断；本轮没有再开run。
+
+Win7诊断直接回收73文件496559字节并逐件核SHA，R7/R8 PASS，任务0。30条进度记录实际128093字节，随后LOG_LIMIT显式截断；末条采样elapsed492104毫秒。audit_output Electron PID5300及其三个子进程多次出现；采样未见相关helper/Python，但不能排除短命或未关联对象。请求日志只含probe和a2-audit-output，保持878字节，无driver-result。不能定位到具体await、证明输出回调发生或归因SGTool，根因仍UNKNOWN。旧536dfaaa残留身份亦UNKNOWN。
+
+后续close首次失败并部分删根，原FAIL、release_error和FINAL_STATUS.json保留。只读盘点确认剩16个本次M1临时Git夹具object，共1270字节，非开发机或用户仓库；先回收原字节、核SHA-256和Git object SHA-1，再按既有属性规避只清16个明确文件的ReadOnly。第二次close PASS，FINAL_STATUS_R2.json确认根不存在、bytes0、locknull、进程/任务0、未知解包false；不改判首次close，不声称工具已修。
+
+源仍74ac9ef7/ZIP76112a28…/seal1cb9a4e1…，8项保护输入与3份既有文档前缀SHA保持；没有产品/驱动/原生改动、重建、提交、推送、冻结或门A/B。完整结论、准确哈希、剩余UNKNOWN及下一步范围在outputs/a9-39-w51-package-prep/m2-progress-diagnostic/MAIN_REPORT.md。唯一有界诊断已收尾；产品/传输插桩或修复须另定允许路径与候选策略，不从本单推导。
+
+#### 11.8.87 M2 调用定位入口失败与安全停止（2026-10-22 UTC）
+
+结论：M2 尚未解决。源仍74ac9ef7、WIN7-51 ZIP76112a28…；旧audit_output超时、FAIL/HALTED及根因UNKNOWN保持。负责人本轮要求“解决m2的问题，继续推进项目，目标是实机验收通过”。执行代理由主代理直接调查，未派子代理，未修改产品、驱动、传输源码或候选。
+
+六项影响记录：交付为定位单次Shell审计失败调用；基线为codex/a9-alpha2-integration-r2@74ac9ef7，三份台账入场修改均已快照保留；影响只在候选外开发诊断入口；直接检查为当前Runner编译到outputs、包内传输字节比较及macOS真实管道合成反例，旧实机结果只引用原绑定；远端沿ENGINEERING_03常设授权，禁止默认数据目录读写；最短链为单次Runtime调用进入/返回观察，不重跑m4/m1/m2整批。
+
+开发机：当前源码编译成功，native-transport.js与WIN7-51包内字节仅差sourceMappingURL注释；合成helper的输出回调拒绝在146毫秒返回结构化失败。这不能证明Win7原生helper、Electron、SQLite或IPC通过。最初依赖解析失败与旧dist的无效探针保留，不作产品证据。
+
+Win7：status确认目标DCCS-CHAIZL-PC/build7601、agent session2，初始根不存在、锁空闲、进程/任务0；准确候选ZIP上传解包完成。两次新启动m2-call-0a5495d8与m2-call-75341bbb均exit125/RUN_RECOVERY_FAILED，缺identity.json；trace下载均REMOTE_FILE_REQUIRED。首个目录只读盘点无run目录。没有新的M2调用证据，不签产品FAIL或PASS。
+
+执行代理入口错误：直接启动带resources/app的候选electron.exe，CLI探针参数不能替换内置产品入口；这是与未进入探针观察相符的开发机静态判断，未取得实际加载栈。启动前未在父进程隔离LOCALAPPDATA/APPDATA与产品数据根。若内置产品被加载，将使用默认产品数据目录。该目录实际读取/写入影响UNKNOWN；本轮没有读取该目录或真实配置/凭据来补证。发现后停止追加远端试跑，按ENGINEERING_03 §7“任一禁止动作被触发，或无法确认是否被触发”保留安全停止。
+
+收尾已完成：回收双流/退出码及两份wrapper-error；包装器已结束。close后独立FINAL_STATUS.json确认根不存在、bytes0、locknull、相关进程/任务0、解包生命周期未知false。根内收尾不消除默认数据目录影响UNKNOWN。产品源与ZIP未改，旧失败数据库和证据未覆盖，无提交、推送、冻结或门A/B。
+
+修正材料已备但未派发：新根diag/m2-node-71cc0dbc，父进程先设置ELECTRON_RUN_AS_NODE=1及根内全部数据/临时目录，再执行一次合成Provider的直接Runtime调用；45秒协作停止、外层120秒，无自动重试，不作UI/IPC或正式证据。准确脚本/依赖SHA与边界见outputs/a9-39-w51-package-prep/m2-call-diagnostic-r1/CORRECTED_SCOPE.json。负责人对安全停止后的继续方向待答复；新入口实际运行时检查NOT_PERFORMED。M3/M6仍NOT_PERFORMED，M5仍受常设授权阻断，正式Win7/Alpha2/RC未通过。完整事实、原始路径与证据限制见同目录REPORT.md、RESULT.json。
+
+#### 11.8.88 负责人继续授权与pi执行分工恢复（2026-10-22 UTC）
+
+负责人在明确workflow角色后回复“继续推进项目”。本轮按该上下文继续前述隔离Node入口的一次M2调用定位，默认产品目录影响UNKNOWN保持。GPT-6.1-Sol/high承担Sonnet5.5角色，负责派单、独立审核及证据核验；pi承担执行者角色。映射为职责，不证明实际后端模型等同。恢复既有pi会话01a162cb-c157-735a-b631-0bcb2026bb3b，未新开子代理；执行入口和完整会话输出保存在m2-call-diagnostic-r2-pi/PI_PREP_RUN.jsonl。
+
+实际基线仍codex/a9-alpha2-integration-r2@74ac9ef7，入场三份台账修改保留；产品、候选ZIP、原生、历史证据不改。成功条件为通过已隔离的同一实际运行时入口，取得一次合成Shell审计失败调用的进入/返回/清理事实，不能冒充UI/IPC或M2 PASS。变化只限候选外普通诊断与观察脚本；本地检查直接执行，未变包与原生按精确输入核对，不重建。已有Win7结果仅保留原绑定，不改判旧FAIL/HALTED/UNKNOWN。
+
+pi当前只本地备料，写入归属outputs/a9-39-w51-package-prep/m2-call-diagnostic-r2-pi/；不复制前轮主代理实现作为交付，不改tracked源码/白名单，不连接远端、不提交/推送/冻结。新交付由主会话独审通过后，才派发一次目标诊断：父进程先隔离全部数据与临时目录并设置ELECTRON_RUN_AS_NODE=1，再实际能力/身份/包闭包准入，最后单次合成调用。45秒协作Stop、外层120秒，不自动试跑第二次，不并发占写锁。安全/身份/完整性/未知生命周期失败停止依赖下游；无根外读取、写入、凭据或M5授权。
+
+本轮任务与原话见outputs/a9-39-w51-package-prep/m2-call-diagnostic-r2-pi/PI_TASK.md、OWNER_SCOPE.json。当前新实现、独审和实机定位均NOT_PERFORMED。最短链为本地备料→独审→实际入口准入→单次调用取证→回收与close；正式门A/B、Alpha2/RC仍未签。
+
+#### 11.8.89 pi模型服务最小请求失败，执行停止（2026-10-22 UTC）
+
+结论：本轮未交付新诊断脚本，未连接Win7，M2仍未解决。按负责人指定分工复用pi会话执行，主会话未代写实现。源74ac9ef7、WIN7-51 ZIP76112a28…、原FAIL/HALTED和默认目录影响UNKNOWN保持。
+
+pi完成55次本地工具调用，主要读取当前包和调用链；模型消息声明magpie/trae-cn/deepseek-v4.1-flash-max。初轮在交付前4次502/socket connection closed unexpectedly；一次同会话有界恢复再次4次502。随后停止整批任务重试，改为无工具/无会话/无context files、只要求固定回复的极小请求，仍4次同类502，未得到回复。不能只归因为历史会话大小，具体服务根因UNKNOWN。三次CLI退出0不代表模型或实施成功；原始error消息、日志SHA与实际无交付事实已保存。
+
+当前新实现、独立代码审核、目标身份/上传/运行/清理、正式验收均NOT_PERFORMED；上轮开发根关闭证据只保留原时点，不当成本轮目标状态。没有改产品、候选、驱动、原生、历史证据、模型/provider/全局配置或凭据，没有提交、推送、冻结或门A/B。
+
+离线pi模型列表确认已有magpie/auto/glm-5.3-flash。已准备仅单次CLI覆盖provider/model的恢复选项，连接可用性和费用UNKNOWN，未调用替代模型。负责人选择待答复：恢复当前pi服务，或允许pi临时用上述既有模型先做极小连接检查，再继续原本地实施与独审范围。主代理不会因执行服务失败自行替代pi实施。准确提案、原始日志与完整结论见outputs/a9-39-w51-package-prep/m2-call-diagnostic-r2-pi/TRANSIENT_PI_MODEL_OPTION.json、EXECUTOR_FAILURE_SUMMARY.json、REPORT.md。
+
+#### 11.8.90 M2 由 pi GLM 5.3 Max 继续备料（2026-10-22 UTC）
+
+负责人明确要求“检查pi可用模型，使用glm5.3 max”并继续解决M2及相关实机验证。
+开发机离线清单包含magpie/trae-cn/glm-5.3-max；实际请求及read/write/bash检查PASS。
+CLI请求thinking=max，有效会话记录high；模型记录为trae-cn/glm-5.3-max，不将两者混同。
+pi已用精简执行上下文继续原本地诊断准备，旧会话和502证据保留；全局配置未改。
+主会话负责独审，通过后只执行原范围的一次Win7隔离Runtime诊断，不重跑整批。
+源74ac9ef7、WIN7-51 ZIP76112a28…未改；M2仍未解决，旧FAIL/HALTED及默认目录影响UNKNOWN保持。
+本段登记时，新诊断审核、目标运行和正式验收均NOT_PERFORMED。
+证据在整合工作树m2-call-diagnostic-r2-pi/glm53-max-health/MAIN_VERIFICATION.json；任务记录见A9-39 §11.8.90。
+
+#### 11.8.91 M2 诊断草稿审核退回，pi限制工具后继续（2026-10-22 UTC）
+
+主会话发现pi执行了禁止的本地`/tmp`清理命令，已向准确绑定日志的pi进程发送SIGINT，退出130。
+该命令成功执行；清理前目录内容与删除影响UNKNOWN，未清理当前残留。
+原始96次工具调用中未发现目标通道或SSH/SFTP动作；没有新的Win7证据。
+两份未封装草稿保留，未签READY；独审发现身份未硬门、错误方法名、观察改变异常语义等问题，已退回。
+恢复同一pi会话时禁用shell，并加入调用前路径校验：只允许read/write/edit，写入限本任务diag目录。
+主会话维护的工具守卫经10项本地检查及实际pi正反写入检查PASS；它不改变产品或目标安全模型。
+pi继续修改诊断，主会话执行独立检查与审核；当前仍不连接Win7。
+GLM5.3 Max模型保持，CLI请求max、有效thinking记录high；全局配置未改。
+源74ac9ef7、WIN7-51及历史FAIL/HALTED、默认目录影响UNKNOWN保持；M2未解决，正式验收NOT_PERFORMED。
+准确材料：整合工作树m2-call-diagnostic-r2-pi/PI_SCOPE_STOP.json、MAIN_PREP_REVIEW_R1.md、workflow-guard/MAIN_SMOKE_VERIFICATION.json；A9-39 §11.8.91。
+
+#### 11.8.92 M2 单次诊断本地修订，尚未上机（2026-10-22 UTC）
+
+开发机：pi使用配置项magpie/trae-cn/glm-5.3-max，实际请求与本地工具检查PASS。
+初始CLI请求thinking=max实际记录high；长修订出现约11分钟只有读取、未交付修改。
+主会话改用同一模型的thinking=off进行本地单项验证，实际完成两处修改；后续本地备料沿用该参数。
+该参数由主会话选择，不冒充负责人额外指定的推理档位；全局配置与主代理档位未改。
+
+源74ac9ef7、WIN7-51 ZIP76112a28…保持；未修改产品/Core/Runner/原生或候选。
+pi实现候选外探针及PS草稿，主会话维护执行守卫并独立检查。
+本地直接执行实际探针的合成入口失败检查、日志上限/返回语义检查、身份反例与清理反例已通过。
+这些是开发机合成检查，不能提升为Win7、UI/IPC或M2 PASS。
+父启动器曾把非零子退出误判为成功，已修正；其余回收、路径和记录问题正在修订，尚未签READY。
+首个失败日志与修订结果分别保存，未以新结果覆盖旧FAIL；中断前已完成的局部修改按实际工具记录保留。
+pi曾越界执行本地/tmp清理，清理前内容及删除影响UNKNOWN；原始记录保留，没有再清理该目录。
+守卫现禁用shell、限制diag内写入，并在连续两次修改失败后阻断后续修改。
+
+本轮新Win7身份查询、上传、调用定位和清理均NOT_PERFORMED；不使用旧关闭快照冒充当前状态。
+默认产品目录历史影响UNKNOWN、原M2 FAIL/HALTED及根因UNKNOWN保持。
+最短后续链：启动器/观察点收尾→封装与独审→新实机预检→同入口能力准入→一次合成调用→原始证据回收。
+如需白名单外产品修复，先形成准确证据与最小范围提案，不自行扩大实现授权。
+最终目标仍是实机验收通过；正式门A/B、M5授权、Alpha2/RC边界不变。
+准确材料在整合工作树m2-call-diagnostic-r2-pi/，任务记录为A9-39 §11.8.92。
+
+#### 11.8.93 当前 M2 workflow 与执行模型（2026-10-22 UTC）
+
+负责人指定主会话使用GPT-6.1-Sol/xhigh/Fast。
+当前会话记录为gpt-6.1-sol/xhigh；本地service_tier配置为fast。
+实际请求服务档位未在turn_context回传，不据配置推定服务端兑现。
+pi执行者改用magpie/trae-cn/DeepSeek-V4-Flash-Official-max。
+开发机模型请求及read工具检查PASS；不作为Win7产品证据。
+主会话负责派单、独立审核、验证及原始证据核验。
+pi负责候选外实现和获准的执行步骤；全局配置未改。
+
+源74ac9ef7、WIN7-51 ZIP76112a28…保持。
+当前仍为候选外诊断本地修订，未签READY，未连接本轮Win7。
+GLM旧进程按日志绑定停止，退出130；该次调用没有修改工具调用。
+新pi首轮因派单目录简写发生只读路径错误，原日志保留。
+主会话补齐准确绝对路径后，pi在同一执行会话继续修订。
+工具守卫仍只允许read/write/edit，写入限diag，连续两次修改失败即停。
+
+后续按本地修订→独立审核→封装→新实机预检→一次隔离Runtime调用→证据回收推进。
+产品源码白名单、45秒协作Stop、外层120秒、无自动整批重试保持。
+M2旧FAIL/HALTED、根因及默认产品目录历史影响UNKNOWN保持。
+正式验收NOT_PERFORMED；M5禁令、门A/B与冻结边界保持。
+准确记录见整合工作树A9-39 §11.8.93与m2-call-diagnostic-r2-pi/deepseek-official-model-switch/。
+
+#### 11.8.94 M2 诊断本地审核完成，Win7准备执行中（2026-10-22 UTC）
+
+开发机诊断独立审核PASS，0 P0/P1；20项执行输入已按SHA256封装。
+源74ac9ef7与WIN7-51 ZIP76112a28…保持，输入seal为74431d52…。
+六项本地检查通过，覆盖实际诊断入口失败、日志上限、返回语义、身份、Stop分类和清理。
+每步精确命令守卫及串行停止规则已在实际pi所用Node22运行时检查。
+这些不是产品、Win7或正式M2 PASS。
+
+新Win7只读预检PASS：DCCS-CHAIZL-PC/build7601、agent会话2，根不存在、锁null、进程/任务0。
+空闲901187194880字节；该快照只用于本轮准备前准入。
+pi现执行候选校验、五份固定输入上传、实际PowerShell解析和根内PowerShell能力检查。
+每步串行，前一步失败后守卫阻断下游；没有任意shell或自动重试权限。
+唯一一次Runtime调用、调用结果回收及生命周期收尾尚NOT_PERFORMED。
+
+当前主会话按负责人要求使用GPT-6.1-Sol/xhigh，Fast为已核对的本地配置。
+pi使用magpie/trae-cn/DeepSeek-V4-Flash-Official-max；本地执行参数thinking=off保持。
+主会话负责协调、独立审核、检查及原始证据核验；pi负责候选外实现和获准执行。
+复杂请求连接错误、首个语法错误和修改失败原始记录均保留；已解释的问题通过小范围修改闭环。
+额外helper/callback插桩未实现；未直接观察的帧/回调详情UNKNOWN。
+
+M2旧FAIL/HALTED、根因及默认产品目录历史影响UNKNOWN保持。
+如实机证据要求Core/Runner白名单外修复，先形成准确证据和最小范围提案。
+正式验收、门A/B、M5和冻结边界保持；没有提交或推送。
+材料在整合工作树m2-call-diagnostic-r2-pi/MAIN_LOCAL_REVIEW.json、INPUT_SEAL.json与deepseek-official-model-switch/。
+
+#### 11.8.95 M2 当前证据复核与真实窗口最小诊断继续（2026-10-22 UTC）
+
+负责人在当前主工作区检查进展后，明确要求“解决 M2 问题并推进实机验收”。本轮继续既定分工：pi负责候选外实现，主会话负责协调、独审、检查与原始证据核验。工作位置为codex/a9-alpha2-integration-r2@74ac9ef7…；入场仅STATUS、STATUS_LOG与本任务书三份既有修改，主工作区全部既有修改保留。
+
+交付目标为定位并修复获准范围内M2超时，再推进受影响实机链路。当前先复核e902af14隔离调用，并在新根C:\A9-DEV\diag\m2-ui-c61b8a27准备一次原supplement_audit_output真实窗口Stage的有界诊断。只改候选外普通观察/夹具；原driver正文、SQL触发器、断言与产品/Core/Runner/原生保持。新诊断形成独立不可变输入，不重用旧HALTED，不重跑m4/m1/m2整批，不将短诊断时限替换正式600秒判据。
+
+直接证据：上轮Win7回收的DIAGNOSTIC_RESULT记自然返回A9_AUDIT_PERSISTENCE_FAILED，约3.7秒，无协作Stop；原始调用4件与回收11件已在本聊天逐项大小/SHA核验。离线SQLite分析只在新副本读取：quick_check为ok；原tool_output触发器存在；Turn仍active、outcome_json为空，未记录tool_end或终态。这些不构成M2 PASS，也不证明旧超时已修复。旧FAIL/HALTED、根因及默认产品目录影响UNKNOWN保持。
+
+新Win7只读预检确认DCCS-CHAIZL-PC/build7601、agent会话2、开发根存在、holder m2-e902af14 inactive、根内进程/任务0。它仅为当前准入，不能证明根外后代或旧生命周期；继续使用已审verify-target-lifecycle固定查询核对。新诊断独审及实际能力检查通过后才执行，先真实入口/调用边界再受影响回归。若需Core/Runner或其他白名单外修复，先保留准确反例和最小提案，停止依赖该变更的动作。
+
+常设授权仍按ENGINEERING_03 §7绑定Win7目标、根内动作、普通agent与有效期；M5禁止读取真实配置/凭据边界保持。正式验收、冻结及门A/B、提交/推送不由本轮要求自动签发。准确输入和结果沿本任务已有m2-call-diagnostic-r2-pi/resume-20261022与diag/ui-r1保存，不另立产品验收台账。
+
+负责人随后明确回复“允许主代理接管本轮诊断实现”。主会话按此接管候选外实现；pi两次尚无工具交付的本地请求按准确日志绑定停止，原日志保留。新的只读独立审核发现并关闭工具路径转义、Stage截止覆盖、日志截断判定和父子总窗四项P1；末轮0 P0/P1。主体输入为diag/ui-r1，输入封装与有限派发计划见resume-20261022/UI_INPUT_SEAL.json。
+
+首次准备的holder误用新ID，fresh-root与首个put均在acquire被LOCK_CONFLICT拒绝，未上传文件。停止依赖动作后核对lock.ps1，确认inactive仍保留原holder；在新只读status确认原任务holder inactive且进程/任务0后，按同任务继续沿用m2-e902af14。没有使用steal或强制接管。原失败在MAIN_PREPARATION_LOCK_FAILURE.json保留，后续使用独立r2动作记录。
+
+#### 11.8.96 原 audit_output Stage 抓到 EPIPE，开发机最小反例复现（2026-10-22 UTC）
+
+Win7实机DEV_CHANNEL：WIN7-51/source74ac9ef7…，新诊断run c61b8a27-0304-4dc8-8a39-45f5ff292dd3。800件闭包与工具钉一致，原driver正文、触发器和断言保持。真实窗口/IPC调用中，tool_output持久化在17:03:42.471Z抛SQLITE_CONSTRAINT_TRIGGER，2ms后观察到uncaught EPIPE，随后无进一步事件。具体Win7管道写点及Electron对话框UNKNOWN。
+
+GUI达到85秒诊断预算后被其直接父进程终止；Node父启动器自然退出1，未强制终止；结果INCOMPLETE，原driver-result与assertion7缺失。M2正式验收NOT_PERFORMED，原600秒FAIL/HALTED不改判。回收16件大小及SHA逐件一致；独立当前存活查询绑定launcher SHA，unknown_creation=0、window_survivors=0，仅证明查询时状态，不能补造历史退出证据。隔离DB副本quick_check=ok，触发器存在，无tool_output/end/终态。
+
+开发机真实OS管道反例：相同当前Runner编译输出，合成helper关闭stdin后发输出；审计回调974ms拒绝，976ms未处理EPIPE退出1，堆栈指向onAbort的stdin.end。正常管道对照返回原A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED。首轮夹具错误和第二轮未复现结果分别保留；不以Mac堆栈替代Win7具体写点证据。代码缺少stdin异步error监听，首个审计失败后的取消写入路径已被最小反例证明有缺陷。
+
+准确材料沿既有resume-20261022目录保存：UI_MAIN_RECOVERY_VERIFICATION.json、epipe-repro/RESULT_R3.json与M2_RUNNER_REPAIR_PROPOSAL.md。默认产品目录历史影响UNKNOWN、M5禁止项和正式门A/B保持。
+
+#### 11.8.97 负责人批准 M2 Runner 最小修复与新候选（2026-10-22 UTC）
+
+负责人对完整M2_RUNNER_REPAIR_PROPOSAL.md范围回复原话“批准按提案实施”。批准记录与提案SHA在OWNER_RUNNER_REPAIR_APPROVAL.json。主代理实施、独立只读审核；通过后批准本地提交、双干净构建新候选及ENGINEERING_03既有常设授权内实机复验。WIN7-51原包与证据保持。新编号拟为WIN7-52，创建前再核号。不得推送、发布、读取M5真实凭据/配置或签发正式门A/B。
+
+按C14新增且仅新增下列路径；当前分支仍须为codex/a9-alpha2-integration-r2：
+
+| 新增允许路径 | 精确责任 |
+|---|---|
+| src/runner/src/native-transport.ts | 首次write前监听stdin异步error，统一request/cancel/release管道失败，保留首个审计失败、幂等有界结算与真实清理证明 |
+| src/runner/tests/native-transport.test.ts | 初始write、审计拒绝后cancel-end、普通取消与release异步EPIPE；正常对照、重复/迟到错误与未知清理 |
+| src/shell/tests/product/a9-audit-integrity.test.ts | 真实Runtime/SQLite tool_output拒绝通过当前Runner的针对性消费者验证 |
+
+既有打包身份路径可为WIN7-52同步。产品/Core/原生、依赖、协议、权限与正式600秒判据的其他变化未获授权。若需要这些变化，停止依赖部分并报告。按ADR-0262登记本次批准，不改Accepted ADR历史正文。
+
+#### 11.8.98 M2 Runner 修复开发机验证与独审通过（2026-10-22 UTC）
+
+开发机：Runner三套件82项、输出57项、真实Runtime/SQLite消费者6项、batch2合同597项和包测试9项通过。普通请求、审计拒绝后取消、release、正常终态及未知清理判据保持；独立只读审核0P0/0P1。真实OS管道反例修复后约0.6秒返回原A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED，进程退出0，无uncaught EPIPE，未知清理false；正常管道对照保留有效清理证明。不是Win7或M2 PASS。
+
+首次消费者联跑因主代理过早恢复生成目录，载入历史dist并得到schemaVersion2。该失败原样保存。重新编译当前Runner后仅复验失败消费者，6项通过；完成后才恢复入场干净的跟踪dist。候选构建另行从当前src编译，生成物不提交。测试夹具曾缺Workspace.freezeTurnBaseline，两轮失败与定位保留，补齐合成边界后真实SQLite交接通过，不弱化产品判据。
+
+本次本地提交仅包含已获准产品/测试、WIN7-52身份同步和任务相关文档（含入场已存在的M2历史记录）。旧WIN7-51、所有诊断原始字节和主工作区其他修改保护。Win7新候选执行NOT_PERFORMED，正式门A/B、M5、冻结、推送与发布边界保持。材料见outputs/a9-39-w52-package-prep/checks/、real-pipe-r1/、INDEPENDENT_REVIEW.json及COMPILED_OUTPUT_PROTECTION.json。

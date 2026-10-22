@@ -3152,3 +3152,10 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定：仅修驱动M2 A02取证与判定，从同一turnId的持久化记录读取status/outcome，并核终态事件为turn_failed；保留异常零工具、无文件副作用与正常正控，补齐缺失、错配、矛盾与副作用反例。不以事件名替代持久化结果。由pi实现、Codex独立审核，只报P0/P1；审核通过后本地提交、两个干净目录构建，并在开发通道复验。
 - 身份：驱动属于包内字节，新建WIN7-51，沿A9-39既有允许路径同步候选身份及候选外开发/补证输入；WIN7-50的包、首失败与原始证据全部保留，禁止原地覆盖或重用已消耗run。目标先核status，再以新不可变run执行最短真实链路及受影响合同项。
 - 边界：不改产品、Core、Gateway、权限、持久化格式、超时或安全判据；不批准推送、冻结、门A/门B，不解除M5实际配置/凭据读取禁令；KL-13产品修复延期RC及其他UNKNOWN保持。
+
+## ADR-0262 M2 Runner 控制管道异步错误有界失败；新候选 WIN7-52
+
+- 状态：Accepted（2026-10-22）。负责人对M2_RUNNER_REPAIR_PROPOSAL.md明确范围回复“批准按提案实施”；提案及SHA见A9-39 §11.8.97。
+- 事实：WIN7-51 Win7 DEV真实audit_output Stage在SQLITE_CONSTRAINT_TRIGGER后观察到未处理EPIPE；开发机相同Runner的真实OS管道最小反例堆栈指向取消stdin.end。具体Win7写点UNKNOWN，M2旧FAIL/HALTED保持。
+- 决定：A9-39新增native-transport.ts、native-transport.test.ts与a9-audit-integrity.test.ts三条精确路径。首次写入前处理stdin异步错误，保留首个审计失败，request/cancel/release统一fail-closed且有界结算；不以kill或stdin关闭证明清理。主代理实现、独立审核；通过后本地提交、双干净构建拟WIN7-52并在既有开发通道范围内复验。新候选创建前核号，WIN7-51包/首失败/历史证据不改。
+- 边界：不改协议、权限、持久化格式、原生组件、依赖及正式判据。不批准推送、发布、冻结或门A/B；不解除M5禁令。DEV结果不能提升为正式PASS。

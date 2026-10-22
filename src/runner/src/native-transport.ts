@@ -119,6 +119,7 @@ export class StdioHelperTransport implements HelperTransport {
       let queuedBytes = 0;
       let delivery = Promise.resolve();
       let streamFailure: string | undefined;
+      let inputFailed = false;
       const failStream = (detail: string) => {
         if (streamFailure) return;
         // Never include child protocol/raw diagnostics (they may contain credentials).
@@ -144,6 +145,27 @@ export class StdioHelperTransport implements HelperTransport {
         }
         resolve(result);
       };
+      const onInputFailure = () => {
+        if (inputFailed) return;
+        inputFailed = true;
+        // Keep this listener after settlement: an already queued stream error
+        // must not escape into Electron's uncaught-exception handler.
+        if (settled) return;
+        if (releaseRequested) {
+          finish({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false });
+          return;
+        }
+        streamFailure = streamFailure ?? 'A9_HELPER_CONTROL_PIPE_FAILED';
+        cancelRequested = true;
+        cancellationEscalated = true;
+        if (watchdog) clearTimeout(watchdog);
+        if (startupWatchdog) clearTimeout(startupWatchdog);
+        if (forcedExitTimer) clearTimeout(forcedExitTimer);
+        forcedExitTimer = setTimeout(() => finish({
+          kind: 'helper_crashed', detail: streamFailure!, cleanupConfirmed: false,
+        }), 5_000);
+        child?.kill();
+      };
       const onAbort = () => {
         if (cancelRequested || settled) return;
         if (releaseRequested) { finish({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false }); return; }
@@ -154,9 +176,9 @@ export class StdioHelperTransport implements HelperTransport {
         try {
           child?.stdin.end(`${JSON.stringify(control)}\n`, 'utf8');
         } catch (_error) {
-          cancellationEscalated = true;
-          child?.kill();
+          onInputFailure();
         }
+        if (inputFailed || settled) return;
         forcedExitTimer = setTimeout(() => {
           cancellationEscalated = true;
           child?.kill();
@@ -265,7 +287,10 @@ export class StdioHelperTransport implements HelperTransport {
         finish({ kind: 'spawn_failed', detail: String(error), cleanupConfirmed: true });
         return;
       }
-      child.once('error', (error) => finish({ kind: 'spawn_failed', detail: String(error), cleanupConfirmed: true }));
+      child.once('error', (error) => finish(child?.pid
+        ? { kind: 'helper_crashed', detail: streamFailure ?? 'A9_HELPER_PROCESS_FAILED', cleanupConfirmed: false }
+        : { kind: 'spawn_failed', detail: String(error), cleanupConfirmed: true }));
+      child.stdin.on('error', onInputFailure);
       child.stdout.on('data', (chunk: Buffer) => {
         if (protocolVersion !== 3) stdout = Buffer.concat([stdout, chunk]);
         pendingLine = Buffer.concat([pendingLine, chunk]);
@@ -334,12 +359,16 @@ export class StdioHelperTransport implements HelperTransport {
           throw new Error('A9_RELEASE_STATE_INVALID');
         }
         releaseRequested = releaseId;
-        child!.stdin.write(`${JSON.stringify({ schemaVersion: 3, type: 'release', requestId: request.requestId, releaseId })}\n`, 'utf8');
+        try {
+          child!.stdin.write(`${JSON.stringify({ schemaVersion: 3, type: 'release', requestId: request.requestId, releaseId })}\n`, 'utf8');
+        } catch (_error) { onInputFailure(); }
+        if (settled) return;
         forcedExitTimer = setTimeout(() => finish({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false }), 10_000);
       });
       armRuntimeWatchdog();
       signal?.addEventListener('abort', onAbort, { once: true });
-      child.stdin.write(`${JSON.stringify(request)}\n`, 'utf8');
+      try { child.stdin.write(`${JSON.stringify(request)}\n`, 'utf8'); }
+      catch (_error) { onInputFailure(); }
       if (signal?.aborted) onAbort();
     });
   }

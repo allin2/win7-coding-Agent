@@ -346,3 +346,65 @@ test('cancel after a confirmed release leaves ownership transferred and sends no
   expect(controls.some((s) => s.includes('"type":"cancel"'))).toBe(false);
   expect(child.kill).not.toHaveBeenCalled();
 });
+
+
+// Real Writable error delivery, rather than throwing synchronously from end().
+function failControl(child: FakeChild, type: string) {
+  child.stdin = new PassThrough({ write(chunk, _encoding, callback) {
+    if (JSON.parse(chunk.toString()).type === type) callback(Object.assign(new Error('private pipe diagnostic'), { code: 'EPIPE' }));
+    else callback();
+  } });
+}
+
+test.each([false, true])('audit rejection plus asynchronous cancel EPIPE retains first failure (proof=%s)', async (proof) => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child); failControl(child, 'cancel');
+  const output = jest.fn().mockRejectedValue(new Error('private audit diagnostic'));
+  const pending = new StdioHelperTransport('helper').invoke(requestV3(), undefined, undefined, output);
+  send(child, startedV3()); send(child, chunkV3()); await new Promise((r) => setImmediate(r));
+  expect(child.kill).toHaveBeenCalledTimes(1);
+  // A repeated/late error remains handled without resending cancellation or killing again.
+  child.stdin.emit('error', Object.assign(new Error('private late error'), { code: 'EPIPE' }));
+  if (proof) send(child, terminalV3(1, 7, 0, true));
+  child.emit('close', proof ? 0 : 1);
+  await expect(pending).resolves.toEqual({ kind: 'helper_crashed', detail: 'A9_OUTPUT_AUDIT_OR_CONSUMER_FAILED', cleanupConfirmed: proof });
+  expect(output).toHaveBeenCalledTimes(1); expect(child.kill).toHaveBeenCalledTimes(1);
+  child.stdin.emit('error', new Error('late after settlement'));
+});
+
+test('asynchronous initial request EPIPE settles fail-closed without inventing cleanup', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child);
+  // Request frames have no type field in this protocol.
+  child.stdin = new PassThrough({ write(_chunk, _encoding, callback) {
+    callback(Object.assign(new Error('private request'), { code: 'EPIPE' }));
+  } });
+  const pending = new StdioHelperTransport('helper').invoke(requestV3());
+  await new Promise((r) => setImmediate(r)); child.emit('close', 0);
+  await expect(pending).resolves.toEqual({ kind: 'helper_crashed', detail: 'A9_HELPER_CONTROL_PIPE_FAILED', cleanupConfirmed: false });
+  expect(child.kill).toHaveBeenCalledTimes(1);
+});
+
+test('ordinary cancellation with asynchronous EPIPE remains bounded when helper never closes', async () => {
+  jest.useFakeTimers();
+  try {
+    const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child); failControl(child, 'cancel');
+    const controller = new AbortController(); const pending = new StdioHelperTransport('helper').invoke(requestV3(), controller.signal);
+    send(child, startedV3()); controller.abort();
+    // Force the Writable's queued error before checking the transport deadline.
+    await jest.advanceTimersByTimeAsync(1);
+    child.stdin.emit('error', Object.assign(new Error('pipe'), { code: 'EPIPE' }));
+    await jest.advanceTimersByTimeAsync(5000);
+    await expect(pending).resolves.toMatchObject({ kind: 'helper_crashed', detail: 'A9_HELPER_CONTROL_PIPE_FAILED', cleanupConfirmed: false });
+    expect(child.kill).toHaveBeenCalledTimes(1);
+  } finally { jest.useRealTimers(); }
+});
+
+test('release EPIPE cannot acknowledge ownership or send an opposing cancellation', async () => {
+  const child = new FakeChild(); (spawn as unknown as jest.Mock).mockReturnValue(child); failControl(child, 'release');
+  const managed = new StdioHelperTransport('helper').startManaged({ ...requestV3(), managed: true });
+  send(child, startedV3()); await managed.ready;
+  const released = managed.release!('release-1');
+  await expect(released).rejects.toThrow('A9_RELEASE_UNKNOWN');
+  await expect(managed.completion).resolves.toMatchObject({ kind: 'helper_crashed', detail: 'A9_RELEASE_UNKNOWN', cleanupConfirmed: false });
+  managed.cancel(); expect(child.kill).not.toHaveBeenCalled();
+  child.stdin.emit('error', new Error('late release error')); child.emit('close', 0);
+});
