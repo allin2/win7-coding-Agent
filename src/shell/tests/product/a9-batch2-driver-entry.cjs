@@ -1518,11 +1518,32 @@ async function runDriver() {
   // Idle means no Turn is running. A managed background process keeps controls.canStop true, so only stopKind 'turn' counts as busy.
   const waitIdle = (timeoutMs, label) => waitFor(async () => { const snap = await snapshot(); return snap.controls && snap.controls.stopKind !== 'turn' && snap.agentStatus !== 'running' ? snap : null; }, timeoutMs, label || 'idle');
   const conversationId = async () => (await snapshot()).activeConversationId;
+  let workbenchRefreshFailure = null;
+  async function refreshWorkbenchSnapshot(operation) {
+    if (workbenchRefreshFailure) throw workbenchRefreshFailure;
+    let reply;
+    try {
+      reply = await exec(`(async () => {
+        try {
+          const snapshot = await window.win7AgentA9Workbench.refreshSnapshot();
+          if (!snapshot) throw new Error('A9_BATCH2_DRIVER_WORKBENCH_REFRESH_EMPTY');
+          return { refresh_error: null };
+        } catch (error) { return { refresh_error: String(error && error.message ? error.message : error).slice(0, 240) }; }
+      })()`);
+    } catch (error) { reply = { refresh_error: String(error && error.message ? error.message : error).slice(0, 240) }; }
+    if (!reply || reply.refresh_error !== null) {
+      const refresh_error = reply && typeof reply.refresh_error === 'string' ? reply.refresh_error : 'A9_BATCH2_DRIVER_WORKBENCH_REFRESH_EMPTY';
+      out('workbench-refresh-error.json', { operation, refresh_error });
+      workbenchRefreshFailure = new Error(`A9_BATCH2_DRIVER_WORKBENCH_REFRESH_FAILED:${refresh_error}`);
+      throw workbenchRefreshFailure;
+    }
+  }
   async function newConversation() {
     const before = await conversationId();
     let clicked = false;
     let clickError = null;
     // The page can still show the last busy state after a fast Turn has ended. Wait for the real control; never bypass it or click twice.
+    await refreshWorkbenchSnapshot('newConversation');
     return waitFor(async () => {
       if (clickError) throw clickError;
       if (!clicked) {
@@ -2145,7 +2166,10 @@ async function runDriver() {
   async function stopAllManaged() {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const snap = await snapshot();
-      if (!snap.managedProcesses.some((item) => ['running', 'starting', 'running_unknown'].includes(item.lastProbeStatus))) return;
+      if (!snap.managedProcesses.some((item) => ['running', 'starting', 'running_unknown'].includes(item.lastProbeStatus))) {
+        await refreshWorkbenchSnapshot('stopAllManaged');
+        return;
+      }
       await exec('(() => { const b = document.getElementById("cancel-task"); if (b && !b.hidden) b.click(); return true; })()');
       await sleep(2500);
     }
@@ -3735,6 +3759,7 @@ async function runDriver() {
   }
 
   const finish = async (error) => {
+    error = error || workbenchRefreshFailure;
     if (ownsExit && !error) return;
     if (env.A9_ALPHA2_SUPPLEMENT_MODE === MODE && !error) {
       try { const tree = myTree(); out('a2-prequit-processes.json', { tree, wmic_failures: wmicFailures, stale_parent_links: [...staleParentLinks.values()] });

@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-49 (proposed; recheck before freeze)
+Candidate: WIN7-50 (proposed; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259
-Revision: r46 (2026-10-21 UTC; ADR-0259 implemented: driver refresh after resumeApproval, postflight ImageSource condition, WIN7-48 to WIN7-49 rebind; contract 612/612, package 9/9, independent review PASS (§11.8.67); local commit and double clean build approved; earlier: §11.8.66 m1 root cause, ADR-0257/0258 orchestrator fixes)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260
+Revision: r49 (2026-10-22 UTC; owner approved ADR-0260 driver refresh around managed processes, KL-13 deferred to RC, candidate WIN7-50 (§11.8.69 decision); supplement m2 root cause confirmed on Win7: renderer stays stale after a background process exits naturally (§11.8.69); fix approach pending owner decision; earlier: §11.8.68 WIN7-49 phases and rehearsal PASS)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -2449,3 +2449,60 @@ ADR-0257 实现（执行代理 codex，`adr0257-orchestrator`）：`a9-alpha2-su
 审核另记：p06 的 `oldApprovalResult` 调用在刷新后 continuation 卡的出现方式只能由 Win7 预跑确认。
 
 本节没有做的事：提交与构建见下一节；未推送。
+
+
+#### 11.8.68 WIN7-49 本地提交、双干净构建、开发通道全阶段与总控彩排（2026-10-22 UTC，开发机与 Win7 实机 DEV_CHANNEL）
+
+结论：WIN7-49 已本地提交并双干净构建一致；开发通道一次运行内 GPU 入口门与 p01～p10 全部 PASS；执行包改绑后开发模式总控彩排 R0～R8 PASS。补证预跑中 m4、m1 PASS，m2 失败，分析中。证据层级：构建为开发机，运行为 Win7 实机，证据类别 `DEV_CHANNEL`，候选 WIN7-49（tentative），不计入验收。
+
+| 项 | 结果 |
+|---|---|
+| 本地提交 | `3465bc43…`（ADR-0257～ADR-0259 与改绑，未推送；提交后工作树干净） |
+| 双干净构建 | 两次退出码 0；ZIP 101,880,713 字节，SHA-256 `711953e7…`，逐字节相同；manifest `d2f521d2…`，Kit `38313a2a…`；包内校验器静态绑定 PASS |
+| WIN7-48→WIN7-49 | 801→801，变化 11 项：身份、Kit、清单、内嵌任务书与 `validation/a9-batch2-driver.cjs`；产品文件未变 |
+| 开发通道全阶段（run `73d274a6…`） | GPU 入口门与 p01～p10 全部 PASS，约 13 分钟；p06 在驱动刷新后仍 PASS |
+| 执行包改绑（执行代理） | 1074 项测试、包校验 252 项通过；SHA256SUMS `00f86c22…` |
+| 总控彩排（run `b3ad2346…`） | R0～R8 PASS，25 分钟：R3 上传 88 秒，R7 回收 1545 件全部校验（下载 149 秒），R8 任务 0、进程 0、环境进程 0 |
+| 补证预跑（run `7ced7835…`） | m4 PASS；m1 PASS（ADR-0259 在 Win7 生效）；m2 FAIL：第五轮后驱动等待“新建会话”按钮 20 秒超时，根因 UNKNOWN，执行代理分析中 |
+
+彩排前两次尝试停在 R1：开发根累积 10.9 GB 历史文件导致 10 秒容量统计超时（`DEV_CAPACITY_UNKNOWN`）；`close` 后开发根不存在，R1 又因缺开发通道锁拒绝（`DEV_LOCK_MISSING_OR_OVERSIZE`），用一次 `put` 重建根与锁后通过。另发现开发通道工具缺陷：`close` 不清除只读属性，补证 m1 的 Git 对象文件残留；主会话以开发根内 `ps` 清除只读后再 `close`，根已删除。该工具缺陷未修复，属 ENGINEERING_03 范围。
+
+本节没有做的事：未推送，未冻结，未生成门 A 材料；M5 在开发模式仍为 `BLOCKED_BY_STANDING_AUTHORIZATION`。
+
+
+#### 11.8.69 补证 m2 失败根因：后台进程自然退出后页面未刷新（2026-10-22 UTC，Win7 实机 DEV_CHANNEL）
+
+结论：m2 失败的根因是页面状态滞后：第五轮的托管后台进程自然退出后，后端已允许切换会话，页面仍显示托管进程运行中，“新建会话”按钮保持禁用 20 秒；一次 `refreshSnapshot()` 后恢复。证据层级为 Win7 实机，证据类别 `DEV_CHANNEL`（定向诊断 run `4cf5c6db…`，不计 m2 PASS），候选 WIN7-49。修法待负责人裁决。
+
+执行代理只读分析（`outputs/a9-39-w48-supplement-package-prep/m2-analysis/`）列出 H1～H5；定向诊断（诊断驱动副本只增日志，加载 SHA `6ebdbc2d…` 读回一致）的记录：
+
+| 时点 | 后端 | 页面 |
+|---|---|---|
+| 第五轮结束（00:33:37.082Z） | 托管进程 running，`cleanupRequired:true`；`canSwitch:false`，原因“当前对话仍有托管后台进程” | 新建会话按钮禁用 |
+| `stopAllManaged` 返回（+0.28 秒） | 进程 exited，`cleanupRequired:false`；`canSwitch:true`；`stopKind:none` | 按钮仍禁用 |
+| 20 秒超时 | 同上；活跃会话 1，上限 16 | 按钮仍禁用；驱动未点击 |
+| 一次 `refreshSnapshot()` 后 | 同上 | 按钮可用；停止按钮隐藏 |
+
+判定：H2 成立，H1（清理未确认）与 H3（达到上限）被否定。驱动 `stopAllManaged` 在首次快照即见进程已退出，未点击界面停止按钮，页面没有发生刷新。renderer 的快照轮询只在提交或批准等请求期间运行，后台进程自然结束不会触发页面刷新。
+
+对真实用户的影响：后台进程自然退出后，页面会继续显示停止按钮与禁用的新建会话按钮，直到下一次页面刷新（任一提交、停止或切换操作）。后端门禁正确，没有越权或数据风险。
+
+本节没有做的事：未改驱动或产品，未换发候选，未提交，未推送。
+
+##### 11.8.69 裁决：驱动刷新、KL-13 与换发 WIN7-50（2026-10-22 UTC，开发机文档）
+
+负责人选 A，登记 ADR-0260（Accepted），原话见 ADR-0260；头部候选改为 WIN7-50。候选号核对：refs、构建目录与发布文件中无 WIN7-50 占用。KL-13 未被占用（ADR-0239 写明 KL-13 起留给套件发现的限制）。范围：驱动与合同测试、套件 `KNOWN_LIMITS`（§3 允许路径），WIN7-49→WIN7-50 改绑沿用 §11.8.57 的文件集合。执行代理 codex 实现，独立审核 Sonnet 审一次；审核通过后本地提交并双干净构建。
+
+
+#### 11.8.70 WIN7-50 接手核验与提交前检查（2026-10-22 UTC，开发机）
+
+结论：提交前检查完成。实际基线为整合工作树 `codex/a9-alpha2-integration-r2` / `3465bc430c38a3f8e9bbbe2a0f4825f77ce2fdd8`，入场 16 个已修改文件，无暂存修改；原修改全部保留。授权沿用 ADR-0260 与负责人“继续推进项目”，只本地提交与双干净构建，不推送、不冻结、不签门 A/B。
+
+- 交付影响：驱动在后台进程退出后刷新工作台，套件登记 KL-13，换发 WIN7-50；产品代码、原生组件、ABI、依赖和权限不变。14 项交付输入与 `outputs/a9-39-w50-driver-fix/delivery-input-binding.json` 的最终 SHA-256 全部一致。
+- 独立审核：交接书 `outputs/a9-39-handoff/HANDOFF_2026-10-22.md` 记录 PASS（0 P0/P1）；本轮未重新实施或冒充独审。后续写者为 pi，审核为 codex，保持分离。
+- 合同检查：读取主会话沙箱外 `main-jest.log`，两套 2/2、631/631 PASS；沿用现有结果，不重复成功检查。旧沙箱内 614/17 与监听 EPERM 首失败保留，不改判。
+- 直接检查：主会话补跑包测试 9/9 PASS、exit 0，原始日志 `outputs/a9-39-w50-driver-fix/main-package-test-20261022.log`，命令/UTC/日志 SHA 在同名 `.command.json`。该测试使用 TEST_ONLY 输入，不能替代正式候选构建。
+- 构建沿用锁定 Electron、D-013 v26 与 SQLite 返回包，先核 SHA；两个新 detached 干净工作树独立装配、逐字节比对与静态闭包检查，不重建未变化原生组件。已用候选及证据不可覆盖。
+- 最短目标链路按既有合同：先 `status` 核身份/空闲锁，上传新包，p01/p02/GPU/真实产品链后完成其余阶段，再做总控彩排与补证预跑。Win7 仅记 DEV_CHANNEL；M5 凭据操作保持 BLOCKED_BY_STANDING_AUTHORIZATION，未裁决的 close 缺陷与其他界面滞后不在本轮实现范围。
+
+本节落盘时 WIN7-50 尚未提交/构建，目标运行、正式门 A/B、冻结、Alpha 2/RC 均 NOT_PERFORMED。后续结果继续追加本任务记录及 STATUS/STATUS_LOG。

@@ -83,6 +83,103 @@ describe('ADR-0259 driver approval refresh', () => {
   });
 });
 
+describe('ADR-0260 driver managed-process refresh', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, 'a9-batch2-driver-entry.cjs'), 'utf8');
+  const ts = require('typescript');
+  const tree = ts.createSourceFile('driver.cjs', source, ts.ScriptTarget.ES2020, true, ts.ScriptKind.JS);
+  const functions: Record<string, string> = {};
+  const declarations: string[] = [];
+  const visit = (node: any) => {
+    if (ts.isFunctionDeclaration(node) && ['waitFor', 'refreshWorkbenchSnapshot', 'newConversation', 'stopAllManaged'].includes(node.name?.text)) {
+      functions[node.name.text] = node.getText(tree);
+    }
+    if (ts.isVariableDeclaration(node) && ['finish', 'workbenchRefreshFailure'].includes(node.name.getText(tree))) declarations.push(`let ${node.getText(tree)};`);
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  function harness(statuses: string[] = ['exited'], failure?: string, blocked = false) {
+    let now = 0; let snapshotIndex = 0; let activeId = 'before';
+    const order: string[] = []; const out = jest.fn();
+    const create = { disabled: true, click: jest.fn(() => { order.push('click'); activeId = 'after'; }) };
+    const stop = { hidden: false, click: jest.fn() };
+    const refreshSnapshot = jest.fn(async () => {
+      order.push('refresh'); await Promise.resolve();
+      if (failure === 'throw') throw new Error('snapshot transport failed');
+      if (failure === 'long') throw new Error('x'.repeat(500));
+      if (failure === 'null' || failure === 'undefined') return failure === 'null' ? null : undefined;
+      create.disabled = blocked; stop.hidden = true; order.push('refreshed');
+      return { conversationControls: { canSwitch: !blocked } };
+    });
+    const exec = jest.fn(async (code: string) => {
+      if (failure === 'exec') throw new Error('renderer execution failed');
+      return vm.runInNewContext(code, { window: { win7AgentA9Workbench: { refreshSnapshot } },
+        document: { getElementById: (id: string) => id === 'conversation-new' ? create : stop } });
+    });
+    const writeJson = jest.fn(); const driverProcess = { exitCode: 1 }; const quit = jest.fn();
+    const box: any = { exec, out, Date: { now: () => now }, env: {}, MODE: 'TEST_ONLY', ownsExit: false, p2Case: false,
+      results: [], evidenceIndex: [], ipcLog: [], dialogLog: [], startedAt: 0, resultFile: 'TEST_ONLY', driverExitCode: 1,
+      writeJson, process: driverProcess, app: { quit },
+      sleep: jest.fn(async (ms: number) => { now += ms; }), conversationId: async () => activeId,
+      snapshot: jest.fn(async () => ({ managedProcesses: [{ lastProbeStatus: statuses[Math.min(snapshotIndex++, statuses.length - 1)] }] })) };
+    vm.runInNewContext(`${declarations.join('\n')}\n${Object.values(functions).join('\n')}\nthis.api = { newConversation, stopAllManaged, finish };`, box);
+    return { ...box.api, out, refreshSnapshot, create, stop, order, exec, writeJson, driverProcess, quit, snapshot: box.snapshot, sleep: box.sleep, time: () => now };
+  }
+  test.each([['exited'], ['running', 'starting', 'exited']])('stopAllManaged refreshes once before returning after %j', async (...statuses: string[]) => {
+    const run = harness(statuses);
+    await run.stopAllManaged(); run.order.push('returned');
+    expect(run.refreshSnapshot).toHaveBeenCalledTimes(1); expect(run.refreshSnapshot).toHaveBeenCalledWith();
+    expect(run.order).toEqual(['refresh', 'refreshed', 'returned']);
+    expect(run.stop.click).toHaveBeenCalledTimes(statuses.length - 1);
+    expect(run.time()).toBe(2500 * (statuses.length - 1)); expect(run.out).not.toHaveBeenCalled();
+  });
+  test('newConversation refreshes once before waiting for the stale button and clicks only once', async () => {
+    const run = harness();
+    expect(await run.newConversation()).toBe('after');
+    expect(run.order).toEqual(['refresh', 'refreshed', 'click']);
+    expect(run.refreshSnapshot).toHaveBeenCalledTimes(1); expect(run.refreshSnapshot).toHaveBeenCalledWith();
+    expect(run.create.click).toHaveBeenCalledTimes(1); expect(run.out).not.toHaveBeenCalled();
+  });
+  describe.each(['stopAllManaged', 'newConversation'])('%s', (operation) => {
+    test.each(['throw', 'null', 'undefined', 'long', 'exec'])('a %s refresh failure writes bounded evidence and stops the driver', async (failure) => {
+      const run = harness(['exited'], failure);
+      await expect(run[operation]()).rejects.toThrow('A9_BATCH2_DRIVER_WORKBENCH_REFRESH_FAILED');
+      expect(run.out).toHaveBeenCalledTimes(1);
+      const error = failure === 'throw' ? 'snapshot transport failed' : failure === 'long' ? 'x'.repeat(240)
+        : failure === 'exec' ? 'renderer execution failed' : 'A9_BATCH2_DRIVER_WORKBENCH_REFRESH_EMPTY';
+      expect(run.out).toHaveBeenCalledWith('workbench-refresh-error.json', { operation, refresh_error: error });
+      expect(run.exec).toHaveBeenCalledTimes(1); expect(run.refreshSnapshot).toHaveBeenCalledTimes(failure === 'exec' ? 0 : 1);
+      expect(run.create.click).not.toHaveBeenCalled(); expect(run.stop.click).not.toHaveBeenCalled(); expect(run.sleep).not.toHaveBeenCalled();
+    });
+    test('a caught refresh failure still finishes ERROR and cannot replay or overwrite the first failure', async () => {
+      const run = harness(['exited'], 'null'); let failure: any;
+      try { await run[operation](); } catch (error) { failure = error; }
+      expect(failure).toBeDefined();
+      const next = operation === 'stopAllManaged' ? 'newConversation' : 'stopAllManaged';
+      await expect(run[next]()).rejects.toBe(failure);
+      await run.finish(null);
+      expect(run.writeJson).toHaveBeenCalledWith('TEST_ONLY', expect.objectContaining({ status: 'ERROR', error: expect.stringContaining('A9_BATCH2_DRIVER_WORKBENCH_REFRESH_FAILED') }));
+      expect(run.driverProcess.exitCode).toBe(1); expect(run.quit).toHaveBeenCalledTimes(1);
+      expect(run.out).toHaveBeenCalledTimes(1); expect(run.out.mock.calls[0][1].operation).toBe(operation); expect(run.refreshSnapshot).toHaveBeenCalledTimes(1);
+    });
+  });
+  test('a refresh does not bypass the real disabled button or change its 20-second deadline', async () => {
+    const run = harness(['exited'], undefined, true);
+    await expect(run.newConversation()).rejects.toThrow('TIMEOUT:new conversation:');
+    expect(run.time()).toBe(20000); expect(run.create.click).not.toHaveBeenCalled(); expect(run.refreshSnapshot).toHaveBeenCalledTimes(1);
+  });
+  test('an incomplete managed stop still fails after the original six UI attempts', async () => {
+    const run = harness(['running']);
+    await expect(run.stopAllManaged()).rejects.toThrow('A9_BATCH2_DRIVER_MANAGED_STOP_INCOMPLETE');
+    expect(run.stop.click).toHaveBeenCalledTimes(6); expect(run.time()).toBe(15000); expect(run.refreshSnapshot).not.toHaveBeenCalled();
+  });
+  test('KL-13 discloses stale controls, the correct backend gate and the RC deferral', () => {
+    const limits = fixtures.KNOWN_LIMITS.filter((item: string) => item.startsWith('KL-13:'));
+    expect(limits).toHaveLength(1);
+    expect(limits[0]).toMatch(/natural.*exit/); expect(limits[0]).toContain('Stop'); expect(limits[0]).toContain('New Conversation');
+    expect(limits[0]).toContain('submit, stop or switch'); expect(limits[0]).toContain('backend gate remains correct'); expect(limits[0]).toContain('deferred to RC');
+  });
+});
+
 describe('A9-36 independent supplemental request and inputs', () => {
   const req = require(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'));
   const supplement = require(path.join(releaseDir, 'a9-alpha2-supplement.cjs'));
@@ -94,8 +191,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-49', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-49', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-49.zip',
+    candidate: 'WIN7-50', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-50', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-50.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -120,10 +217,10 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-49 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-50 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
-  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'win7-49', '', null, undefined])('candidate label %s is refused', (value) => {
+  test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'win7-50', '', null, undefined])('candidate label %s is refused', (value) => {
     expect(() => req.validateAuthority(changedAuthority('candidate', value), now)).toThrow();
   });
   test.each([
@@ -191,7 +288,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-49');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-50');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -212,7 +309,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-49\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-50\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -1593,7 +1690,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-49', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-50', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -2819,12 +2916,13 @@ describe('A9-33 batch-2 smoke pieces', () => {
         submit: async (token: string) => { submitted.push(token); }, waitIdle: async () => undefined,
         events: async () => ({ events: [] }), toolEndsFor: () => [], settleResidue: async () => ({ residue: [], newFacts: [] }),
         exec: async (source: string) => {
-          const result = vm.runInNewContext(source, { document: { readyState: 'complete', getElementById: node } });
+          const result = vm.runInNewContext(source, { document: { readyState: 'complete', getElementById: node },
+            window: { win7AgentA9Workbench: { refreshSnapshot: async () => { render(); return { activeConversationId: activeId }; } } } });
           if (options.loseClickReply && clicks > 0) throw new Error('click reply unavailable');
           return result;
         },
         sleep: async (ms: number) => { now += ms; if (clickedAt !== null && now - clickedAt >= (options.switchAfter ?? 0)) activeId = 'after'; if (!options.staleDirectory) render(); } };
-      vm.runInNewContext(`${slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '  // ---- SQLite inspection')}\n${slice(driverSource, 'async function newConversation()', '  // A conversation switch')}\n${slice(driverSource, 'async function reloadRenderer()', '  // Samples DOM')}\n${slice(driverSource, 'const fastOutcome = async (token, label)', '    const fast = await fastOutcome')}\nthis.create = newConversation; this.fast = fastOutcome;`, driver);
+      vm.runInNewContext(`${slice(driverSource, 'async function waitFor(condition, timeoutMs, label)', '  // ---- SQLite inspection')}\n${slice(driverSource, 'let workbenchRefreshFailure = null;', '  // A conversation switch')}\n${slice(driverSource, 'async function reloadRenderer()', '  // Samples DOM')}\n${slice(driverSource, 'const fastOutcome = async (token, label)', '    const fast = await fastOutcome')}\nthis.create = newConversation; this.fast = fastOutcome;`, driver);
       return { create: driver.create, fast: driver.fast, clicks: () => clicks, time: () => now, reloads: () => reloads, submitted, button: node('conversation-new') };
     }
 
@@ -6422,17 +6520,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0259: WIN7-49 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-49', candidate_tentative: true });
+  test('ADR-0260: WIN7-50 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-50', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-49'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_49');
+    expect(lock.provenance.candidate).toBe('WIN7-50'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_50');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-49', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-50', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-49'");
+    expect(request).toContain("a.candidate !== 'WIN7-50'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-49'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48)/);
+      expect(text).toContain('WIN7-50'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });

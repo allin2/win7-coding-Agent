@@ -3136,3 +3136,11 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定：（1）驱动 `src/shell/tests/product/a9-batch2-driver-entry.cjs` 中所有直接调用 `resumeApproval` 的位置，在调用返回后调用一次 `window.win7AgentA9Workbench.refreshSnapshot()`；不改断言判据与超时。（2）`a9-batch2-contract.test.ts` 增加回归测试。（3）编排器 `postflight` 的环境进程分类额外要求映像来源 `ImageSource` 不为 `command_line`。（4）驱动在候选 ZIP 内，新建候选 WIN7-49，取代 WIN7-48 成为 Alpha 2 最终候选提案；WIN7-48 的构建、证据与首失败原样保留；产品代码不变。（5）审核通过后批准本地提交（含 ADR-0257、ADR-0258 的编排器修改）与双干净构建。
 - 放弃的保证：驱动不再逐字模拟“只调接口、不经界面”的路径；真实用户路径仍经界面处理器。
 - 边界：不改产品代码、脱敏、权限、持久化格式；不批准推送、冻结、门 A/门 B。
+
+## ADR-0260 驱动在后台进程状态变化后经界面刷新；页面滞后登记为 KL-13 并延期到 RC；新建候选 WIN7-50 取代 WIN7-49
+
+- 状态：Accepted（2026-10-22）。负责人原话：“选 A：驱动 stopAllManaged 返回前与 newConversation 等待前调用一次 refreshSnapshot()，加回归测试；页面滞后登记为已知限制，产品修复延期到 RC；登记 ADR-0260，换发 WIN7-50；codex 实现，Sonnet 审核，审核通过后批准本地提交与双干净构建。不推送。”
+- 事实：WIN7-49 补证开发通道定向诊断 run `4cf5c6db…`（Win7 实机，`DEV_CHANNEL`）证实：第五轮托管后台进程自然退出后，后端 `canSwitch:true`，页面“新建会话”按钮仍禁用 20 秒；一次 `refreshSnapshot()` 后恢复。renderer 快照轮询只在请求期间运行（A9-39 任务书 §11.8.69）。
+- 决定：（1）驱动 `a9-batch2-driver-entry.cjs` 的 `stopAllManaged` 在返回前、`newConversation` 在开始等待按钮前，各调用一次 `window.win7AgentA9Workbench.refreshSnapshot()`；刷新失败使驱动失败；不改判据与超时。（2）合同测试增加回归。（3）页面滞后登记为 KL-13：托管后台进程自然退出后，页面在下一次提交、停止或切换前仍显示停止按钮并禁用新建会话；后端门禁正确，无越权或数据风险；产品修复延期到 RC。KL-13 写入套件 `KNOWN_LIMITS`。（4）驱动与套件在候选 ZIP 内，新建候选 WIN7-50 取代 WIN7-49；WIN7-49 构建与证据保留；产品代码不变。（5）审核通过后批准本地提交与双干净构建。
+- 放弃的保证：Alpha 2 不保证后台进程自然退出后页面即时更新。
+- 边界：不改产品代码、权限、持久化格式；不批准推送、冻结、门 A/门 B。

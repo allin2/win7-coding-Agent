@@ -1,12 +1,12 @@
-# A9-39 / WIN7-49 批次 2 验证套件
+# A9-39 / WIN7-50 批次 2 验证套件
 
-候选 WIN7-49 是暂定编号：冻结前由执行代理按引用、登记和目录核对，ADR-0155 仍为 Proposed。
+候选 WIN7-50 是暂定编号：冻结前由执行代理按引用、登记和目录核对，ADR-0155 仍为 Proposed。
 本套件不授予任何放行权限；是否具备批次 2 执行能力只由负责人在门 B 裁决。
 结论上限固定为“批次 2 执行能力”，不是完整 Alpha 2，也不是 RC。
 
 A9-39 阶段 2 已追加十二项固定用例。当前集合为 37 用例/67 断言。
 原 25/43 与 A9-36 M1～M6 判定保留。开发机合同检查不构成 Win7 实机 PASS。
-本轮没有构建或冻结 WIN7-49；目标执行为 `NOT_PERFORMED`。
+本轮没有构建或冻结 WIN7-50；目标执行为 `NOT_PERFORMED`。
 
 ## 本套件包含什么
 
@@ -44,8 +44,8 @@ A9-39 阶段 2 已追加十二项固定用例。当前集合为 37 用例/67 断
 | `schema_version` | `1` |
 | `formal_input_lock_sha256` | 候选外正式输入锁的完整 SHA-256 |
 | `approval_registry.commit`、`approval_registry.sha256` | 与正式输入锁中的批准登记逐项相同 |
-| `kind` | `WIN7_49_RELEASE_AUTHORITY` |
-| `status` | `APPROVED_FOR_WIN7_49_VALIDATION` |
+| `kind` | `WIN7_50_RELEASE_AUTHORITY` |
+| `status` | `APPROVED_FOR_WIN7_50_VALIDATION` |
 | `run_id` | UUID；整次运行只用这一个 |
 | `target.machine_name`、`target.account_sid` | 被批准的目标机器和账户 |
 | `candidate.source_commit` | 40 位提交 |
@@ -203,6 +203,7 @@ p05 的最后一个模式 `release_exit` 启动一个最长 300 秒的后台命�
 - B2-CONT-02 的崩溃点（事务前后、Provider 与工具派发前后）无法从产品外部命中，只由 A9-32 的开发机测试覆盖。
 - B2-SAFE-01 的不可压缩超预算请求无法构造，因为 Renderer 不暴露上下文预算设置，只由 A9-32 的开发机测试覆盖。
 - KL-12：辅助进程的就绪失败（D-013）无法从产品外部制造。B2-BG-03 第 1 条用不存在的工作目录制造一次失败启动，记录它走的路径（被产品拒绝、辅助进程启动失败或意外启动），只判定没有留下进程；就绪失败本身只由 `trusted-shell-runner-contract.test.ts` 的开发机测试覆盖。
+- KL-13（ADR-0260）：托管后台进程自然退出后，页面在下一次提交、停止或切换前仍显示停止按钮并禁用新建会话；后端门禁正确，无越权或数据风险。驱动在停止托管进程返回前及等待新建会话按钮前刷新界面；产品即时刷新修复延期到 RC。
 - 不覆盖真实 Provider 和企业环境，只使用本机回环固定响应。
 - 不测量 POSIX 可执行位和 PowerShell `/Command` 的真实执行。
 - 低于 800 px 的布局不可达，记为 `NOT_VERIFIED`。

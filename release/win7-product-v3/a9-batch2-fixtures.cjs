@@ -1,4 +1,4 @@
-// A9-39 batch2 validation contract identity (WIN7-49 tentative, ADR-0250/0251; ADR-0155 Proposed).
+// A9-39 batch2 validation contract identity (WIN7-50 tentative, ADR-0250/0251; ADR-0155 Proposed).
 //
 // This module is the single definition of the batch2 acceptance contract. The producer
 // (scripts/release/build-a9-product-v3.mjs) builds the validation kit from it, and the packaged
@@ -16,11 +16,11 @@ const CONTRACT = Object.freeze({
   lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED',
   release_id: 'WIN7-CODING-AGENT-A9-ALPHA2',
   version: '0.3.0-alpha.2',
-  // WIN7-49 is tentative. Before freeze the number is checked against refs, registrations and
+  // WIN7-50 is tentative. Before freeze the number is checked against refs, registrations and
   // directories; a renumber changes this file, the profile, the lock and the kit together.
-  candidate: 'WIN7-49',
+  candidate: 'WIN7-50',
   candidate_tentative: true,
-  result_on_complete: 'A9_39_WIN7_49_BATCH2_EXECUTION_CAPABILITY_PASS',
+  result_on_complete: 'A9_39_WIN7_50_BATCH2_EXECUTION_CAPABILITY_PASS',
   result_ceiling: 'Batch-2 execution capability only; never the full Alpha 2 or an RC verdict.',
 });
 
@@ -266,6 +266,7 @@ const KNOWN_LIMITS = Object.freeze([
   'A9-38 limits: unregistered usernames, Digest trailing parameters, historical projections, quoted/JSON Authorization and code points above U+00FF remain outside the guarantee; GBK direct evidence is NOT_PERFORMED until the new candidate runs',
   'No INHERITED_EVIDENCE is approved while ADR-0155 is Proposed',
   'KL-12: the helper readiness failure of a managed start (D-013) cannot be induced from outside the product; B2-BG-03 records the path that a start with an unusable working directory takes (refused before the helper, or a helper start failure) and judges that no process is left; the readiness failure itself stays covered by the developer-machine tests in trusted-shell-runner-contract.test.ts only',
+  'KL-13: after a managed background process naturally exits, the page still shows Stop and disables New Conversation until the next submit, stop or switch refreshes it; the backend gate remains correct, with no authorization or data risk; the product fix is deferred to RC (ADR-0260)',
 ]);
 
 function evidenceSet() {
