@@ -6,7 +6,7 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-53 (proposed; WIN7-52 retained; recheck before freeze)
+Candidate: WIN7-54 (proposed; WIN7-53 FAIL retained; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264
@@ -3047,3 +3047,66 @@ WIN7-53已核本地refs/构建目录未占用，沿既有身份路径同步，�
 按已批准范围本地提交任务相关明确路径，再做双干净构建。
 此时新候选实机NOT_PERFORMED；旧WIN7-52的M1/M2/M3/M4/M6开发结果保持原run。
 旧FAIL/HALTED和所有原包不覆盖。
+
+### 11.8.115 本地提交与WIN7-53双构建完成，准备真实中断/release短链（2026-10-23 UTC）
+
+主代理按已批准19条精确路径本地提交068b5e72d332919ca4695130880025d6dbde9868，未推送。
+开发机打包合同9项PASS后，新增旧WIN7-52授权拒绝反例1项PASS，未选中8项。
+已复核独审最终三源码SHA及提交清单，提交后工作区干净。
+
+两个独立新输出目录的WIN7-53 ZIP逐字节一致。
+SHA-256 cfb7af778d71f69ecbafc7d55ec12eb0601145dacefe6bbc5d72e156d14b0fa6，101924890字节。
+800件清单、801个ZIP项目各自核验。
+相对WIN7-52，产品JS和原生字节不变；a9-runtime.json只变candidate身份。
+包内变化为新驱动/清理套件和候选身份/合同元数据。
+初次对比把a9-runtime.json误归入可执行产品字节而拒绝；随后核准准确JSON差异，无重建或输入修改。
+原生及产品组件只按精确字节分析INHERITED_EVIDENCE，新包身份和真实加载仍须直接核验。
+
+新候选外输入run cc49e091-1bde-4e18-bc67-a7eccb65f0ab保持不可变。
+沿原真实身份、800件闭包、SQLite及工具钉准入，随后无hooks调用原runDriverPhase。
+顺序为完整p06-continue，再成功后完整p05-session-bg。
+前者覆盖固定长Shell的真实中断，后者覆盖释放后的句柄根与子孙清理。
+不删模式或减少断言，不改变原模式时间判据。
+父包装3420秒、任务3480秒只包住原模式时间预算和准入开销。
+request只复用原结构上下文，全零authority哨兵显式DEV；不签发、验证或消耗正式授权。
+
+本地首份短链输入59eead4f存在静态转义错误，未执行并保留NOT_PERFORMED。
+新R2输入在开发机完成JS语法、准确账户及换行序列检查。
+实际运行时还先执行根内PowerShell worker身份/Medium准入，失败不启动GUI。
+最新严格SSH status确认DCCS-CHAIZL-PC/build7601/agent会话2、锁本持有者inactive、根内进程/任务空。
+当前新包上传准备中，Win7短链和完整总控尚NOT_PERFORMED。
+M5、正式门A/B、冻结和推送边界不变。
+
+### 11.8.116 WIN7-53首个短链FAIL保留，清理顺序破坏中断前置状态已确认（2026-10-23 UTC）
+
+WIN7 DEV run cc49e091执行原p06全部六模式。
+真实身份、800件闭包、SQLite/工具钉与根内worker准入通过。
+父包装自然退出1，无强制退出或IO/收尾错误。
+原B2-CONT-03 A01 FAIL：unknown_results与首次恢复请求unknown_count均0。
+p05未启动，完整总控fd0a57d8未派发，均NOT_PERFORMED。
+30件原始证据逐项大小/SHA核验一致；独立当前窗口unknown_creation0，仅1个准确SGTool环境实例，根内进程/任务空。
+
+清理日志显示先结束准确PowerShell5524，再约6秒后结束GUI7268。
+只读隔离SQLite进一步确认原turn在02:09:10.329Z持久化tool_end，GUI终止intent为02:09:15.377Z。
+因此新顺序破坏了原crash/unknown前置条件，不能改原断言来放行。
+首个元数据诊断查询误用不存在的outcome列而失败，原样保留；新不可变V2仅查询已核schema的status/updated_at和事件类型/时间，通过。
+没有查询payload、真实配置或凭据，也未修改数据库。
+准确材料见W53_SHORT_FIRST_FAILURE_VERIFIED.json及W53_INTERRUPTION_SEMANTICS_CAUSE.json。
+
+主代理在ADR-0264原范围内修复中断语义，不扩大映像或权限。
+只对continue_unknown_interrupt、long-running、PowerShell固定内建循环启用GUI先中断。
+终止前重核完整树、逐实例owner及准确helper只有唯一绑定PowerShell后代。
+任何其他job成员或未知身份在首个Terminate前拒绝。
+GUI结束后只按原身份有界观察helper/PowerShell自然退出，不直接结束它们；超时、复用、新后代停止。
+CMD动态PING不满足该封闭条件，因此该crash分支拒绝；release仍走原先命令根先停及遗留子孙清理路径。
+实际运行时先验证Node的有界等待能力，失败不启动GUI。
+独审先只读确认该取舍符合现有准确PowerShell及间接退出授权，最终字节只读独审0P0/0P1；实际Win7自然Job退出仍UNKNOWN。
+
+新增顺序/终态竞争/自然Job超时/未知后代/PID复用/CMD拒绝反例。
+定向48项开发机PASS，首轮TS可空handle编译失败及修正保留。
+WIN7-54已核号，沿既有身份路径同步；原WIN7-53与FAIL字节不覆盖。
+同范围修复通过检查和独审后继续原批准的本地提交、双构建和有界DEV复验。
+未批准的正式门A/B、M5、冻结、推送及系统修改边界保持。
+
+开发机完整合同691项PASS，受影响打包3项PASS、未选中6项；文档370件/55任务检查PASS。
+最终SHA与独审材料见SCOPED_INTERRUPT_INDEPENDENT_REVIEW.json；同范围本地提交及双构建继续。

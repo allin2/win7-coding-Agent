@@ -191,8 +191,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-53', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-53', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-53.zip',
+    candidate: 'WIN7-54', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-54', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-54.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -217,7 +217,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-53 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-54 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
   test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'win7-51', '', null, undefined])('candidate label %s is refused', (value) => {
@@ -288,7 +288,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-53');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-54');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -309,7 +309,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-53\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-54\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -1797,7 +1797,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-53', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-54', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -6625,17 +6625,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0260/ADR-0261/ADR-0262: WIN7-53 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-53', candidate_tentative: true });
+  test('ADR-0260/ADR-0261/ADR-0262: WIN7-54 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-54', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-53'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_53');
+    expect(lock.provenance.candidate).toBe('WIN7-54'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_54');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-53', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-54', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-53'");
+    expect(request).toContain("a.candidate !== 'WIN7-54'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-53'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
+      expect(text).toContain('WIN7-54'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });
@@ -7027,13 +7027,16 @@ describe('ADR-0264 scoped cleanup authority', () => {
       if (expected) { if (!smoke.sameCleanupIdentity(expected, identity)) throw new Error('TEST_ONLY_IDENTITY_CHANGED'); killed.push(pid); rows = rows.filter((r: any) => Number(r.ProcessId) !== pid); if (patch.afterTerminate) rows = patch.afterTerminate(pid, rows); return { status: 'TERMINATED', identity }; }
       return { status: 'FACTS', identity };
     };
-    const scope = smoke.createCleanupScope(ctx, runtime, 'release_exit', { exec, owner, hostname: () => 'DCCS-CHAIZL-PC', invocation: () => ({ command, args }) });
-    const binding = () => ({ schema_version: 1, run_id: ctx.runId, phase: ctx.phase, mode: 'release_exit', driver_pid: 100,
-      fixture: 'released-hold', shell_kind: 'cmd', command_sha256: crypto.createHash('sha256').update(command).digest('hex'),
-      call_id: 'b2-rel-1', tool_name: 'start_process', turn_id: 'turn-TEST_ONLY', handle: { handleId: 'handle-TEST_ONLY', pid: 300 }, root_pid: 300,
+    const fixedCommand = fixtures.shellCommand(patch.kind || 'cmd', { name: patch.fixture || 'released-hold' });
+    const fixedArgs = patch.kind === 'powershell' ? 'TEST_ONLY_FIXED_POWERSHELL_ARGS' : args;
+    if (patch.phase) ctx.phase = patch.phase;
+    const scope = smoke.createCleanupScope(ctx, runtime, patch.mode || 'release_exit', { exec, owner, pause: () => undefined, hostname: () => 'DCCS-CHAIZL-PC', invocation: () => ({ command: fixedCommand, args: fixedArgs }) });
+    const binding = () => ({ schema_version: 1, run_id: ctx.runId, phase: ctx.phase, mode: patch.mode || 'release_exit', driver_pid: 100,
+      fixture: patch.fixture || 'released-hold', shell_kind: patch.kind || 'cmd', command_sha256: crypto.createHash('sha256').update(fixedCommand).digest('hex'),
+      call_id: patch.fixture === 'long-running' ? 'b2-unk-1' : 'b2-rel-1', tool_name: patch.fixture === 'long-running' ? 'shell' : 'start_process', turn_id: 'turn-TEST_ONLY', handle: patch.fixture === 'long-running' ? null : { handleId: 'handle-TEST_ONLY', pid: 300 }, root_pid: 300,
       instances: rows.filter((r: any) => [300, 301].includes(Number(r.ProcessId))).map(facts) });
-    const writeBinding = (b = binding()) => fs.writeFileSync(path.join(attemptDir, 'release_exit-cleanup-binding.json'), JSON.stringify(b));
-    return { ctx, scope, runtime, owner, exec, commands, killed, binding, writeBinding, facts,
+    const writeBinding = (b = binding()) => fs.writeFileSync(path.join(attemptDir, `${patch.mode || 'release_exit'}-cleanup-binding.json`), JSON.stringify(b));
+    return { ctx, scope, runtime, owner, exec, commands, killed, binding, writeBinding, facts, fixedArgs,
       rows: () => rows, setRows: (r: any[]) => { rows = r; }, failListing: () => { listingFailed = true; } };
   }
   afterAll(() => { for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true }); });
@@ -7074,7 +7077,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
   test('a system path alone and a forged command digest do not prove the actual command', () => {
     const h = released(); h.commands.set('300', `${image} /d /s /c echo unrelated`); expect(() => h.scope.observeBinding()).toThrow('BOUND_PROCESS_MISMATCH'); expect(h.killed).toEqual([]);
   });
-  test('the command handle must bind the actual command root', () => { const h = released(); const b = h.binding(); b.handle.pid = 301; h.writeBinding(b); expect(() => h.scope.observeBinding()).toThrow('BINDING_MISMATCH'); expect(h.killed).toEqual([]); });
+  test('the command handle must bind the actual command root', () => { const h = released(); const b = h.binding(); b.handle!.pid = 301; h.writeBinding(b); expect(() => h.scope.observeBinding()).toThrow('BINDING_MISMATCH'); expect(h.killed).toEqual([]); });
   test('a changed binding cannot replace a previously observed instance', () => { const h = released(); h.scope.observeBinding(); const b = h.binding(); b.turn_id = 'replacement'; h.writeBinding(b); expect(() => h.scope.terminate(300, false)).toThrow('BINDING_CHANGED'); expect(h.killed).toEqual([]); });
   test('PID reuse remains refused even with an unchanged earlier binding', () => { const h = released(); h.scope.observeBinding(); h.rows().find((r: any) => r.ProcessId === '300').CreationDate = stamp(9); expect(() => h.scope.terminate(300, false)).toThrow('PARENT_IDENTITY_CHANGED'); expect(h.killed).toEqual([]); });
   test('new PING is bound below the still-identical fixed command; another shell descendant is refused', () => {
@@ -7116,6 +7119,46 @@ describe('ADR-0264 scoped cleanup authority', () => {
     expect(() => smoke.cleanupWmi(true, identity, spawn)).toThrow('PID_INVALID');
     expect(() => smoke.cleanupWmi(100, identity, () => ({ status: 0, stdout: '' }))).toThrow('WMI_UNKNOWN');
     expect(() => smoke.cleanupWmi(100, identity, () => ({ status: 1, stdout: '' }))).toThrow('WMI_FAILED');
+  });
+  function crashCase(extra: any = {}, children: any[] = []) {
+    const ps = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, ps, 2), ...children], {
+      mode: 'continue_unknown_interrupt', phase: 'p06-continue', fixture: 'long-running', kind: 'powershell',
+      afterTerminate: (pid: number, rows: any[]) => pid === 100 ? rows.filter((r: any) => !['200', '300'].includes(r.ProcessId)) : rows, ...extra,
+    });
+    h.commands.set('300', `${ps} ${h.fixedArgs}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding(); return h;
+  }
+  test('crash interruption ends GUI first and only observes the bound PowerShell/job; product cannot persist tool_end first', () => {
+    let persistedToolEnd = false;
+    const h = crashCase({ afterTerminate: (pid: number, rows: any[]) => {
+      if (pid === 300 && rows.some((r: any) => r.ProcessId === '100')) persistedToolEnd = true;
+      return pid === 100 ? rows.filter((r: any) => !['200', '300'].includes(r.ProcessId)) : rows;
+    } });
+    h.scope.terminate(100, true, 'marker'); expect(h.killed).toEqual([100]); expect(persistedToolEnd).toBe(false);
+    const events = fs.readFileSync(path.join(h.ctx.attemptDir, 'continue_unknown_interrupt-cleanup-events.jsonl'), 'utf8');
+    expect(events).toContain('CRASH_INDIRECT_JOB_AUTHORIZED'); expect(events).toContain('CRASH_JOB_NATURAL_EXIT');
+  });
+  test('unobserved job exit stops after the GUI; no fallback terminates the system fixture or helper', () => {
+    const h = crashCase({ afterTerminate: (_pid: number, rows: any[]) => rows });
+    expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_JOB_EXIT_UNKNOWN'); expect(h.killed).toEqual([100]);
+  });
+  test('unexpected descendant in the prospective job refuses before the first termination', () => {
+    const h = crashCase({}, [row(400, 200, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 3)]);
+    expect(() => h.scope.terminate(100, true, 'marker')).toThrow(/JOB_SCOPE_UNKNOWN|CRASH_JOB_NOT_CLOSED/); expect(h.killed).toEqual([]);
+  });
+  test('an extra child after the GUI exit is UNKNOWN, never an implicitly authorized job member', () => {
+    const h = crashCase({ afterTerminate: (pid: number, rows: any[]) => pid === 100 ? [...rows, row(400, 300, 'C:\\Windows\\System32\\PING.EXE', 4)] : rows });
+    expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_NEW_JOB_MEMBER'); expect(h.killed).toEqual([100]);
+  });
+  test('PID reuse after GUI interruption fails instead of terminating the replacement', () => {
+    const h = crashCase({ afterTerminate: (pid: number, rows: any[]) => pid === 100 ? rows.map((r: any) => r.ProcessId === '300' ? { ...r, CreationDate: stamp(5) } : r) : rows });
+    expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_IDENTITY_CHANGED'); expect(h.killed).toEqual([100]);
+  });
+  test('dynamic CMD crash interruption stays closed even when a fixed command is otherwise bound', () => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, image, 2)],
+      { mode: 'continue_unknown_interrupt', phase: 'p06-continue', fixture: 'long-running', kind: 'cmd' });
+    h.commands.set('300', `${image} ${h.fixedArgs}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
+    expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_PROFILE_NOT_CLOSED'); expect(h.killed).toEqual([]);
   });
   test('cleanup WMI cannot start an unbound system PowerShell worker', () => {
     expect(() => smoke.cleanupWmi(100, undefined, childProcess.spawnSync, undefined)).toThrow('WORKER_NOT_BOUND');

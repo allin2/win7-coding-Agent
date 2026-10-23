@@ -740,9 +740,9 @@ function killProcess(pid, scope) {
   if (!scope || typeof scope.terminate !== 'function') throw new Error('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
   return scope.terminate(pid, false);
 }
-function killTree(pid, scope) {
+function killTree(pid, scope, reason) {
   if (!scope || typeof scope.terminate !== 'function') throw new Error('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
-  return scope.terminate(pid, true);
+  return reason === undefined ? scope.terminate(pid, true) : scope.terminate(pid, true, reason);
 }
 
 // ADR-0264. These are instance-bound fixture exceptions, never a general system-image allowlist.
@@ -849,7 +849,8 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
   const exec = hooks.exec || realExec; const owner = hooks.owner || ((pid, expected) => cleanupWmi(pid, expected, childProcess.spawnSync, runtime.cleanupPowerShell));
   const receipt = path.join(ctx.attemptDir, `${mode}-cleanup-events.jsonl`);
   const bindingFile = path.join(ctx.attemptDir, `${mode}-cleanup-binding.json`);
-  const tracked = new Map(); let driver = null; let bindingDigest = null; let events = 0;
+  const tracked = new Map(); let driver = null; let bindingDigest = null; let boundFixture = null; let events = 0;
+  const pause = hooks.pause || (() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500));
   const dev = String(ctx.runRoot).toLowerCase().startsWith(CLEANUP_ROOT);
   const imageUnder = (image, root) => image.toLowerCase().startsWith(`${String(root).toLowerCase().replace(/\\+$/, '')}\\`);
   const rootImage = (image) => dev ? image.toLowerCase().startsWith(CLEANUP_ROOT)
@@ -896,7 +897,8 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
       if (facts.status !== 'FACTS' || !sameCleanupIdentity(item, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_BOUND_OWNER_MISMATCH');
       tracked.set(`${item.pid}:${item.created}`, item);
     }
-    bindingDigest = digest; log({ action: 'BIND_FIXTURE', binding_sha256: digest, call_id: b.call_id, turn_id: b.turn_id, instances: [...tracked.values()] });
+    bindingDigest = digest; boundFixture = { fixture: b.fixture, kind: b.shell_kind, root: b.root_pid };
+    log({ action: 'BIND_FIXTURE', binding_sha256: digest, call_id: b.call_id, turn_id: b.turn_id, instances: [...tracked.values()] });
   };
   const rememberPings = (rows) => {
     const parents = [...tracked.values()].filter((item) => [FIXTURE_IMAGES.cmd, FIXTURE_IMAGES.powershell].some((image) => item.image.toLowerCase() === image.toLowerCase()));
@@ -946,7 +948,9 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
       admission(); const facts = owner(process.pid); const groups = exec('whoami_groups');
       if (facts.status !== 'FACTS' || facts.identity.session !== 2 || facts.identity.sid !== CLEANUP_SID
         || !rootImage(facts.identity.image) || groups.status !== 0 || groups.error || parseIntegrity(groups.stdout) !== 'Medium') throw new Error('A9_BATCH2_CLEANUP_RUNTIME_IDENTITY_UNKNOWN');
-      log({ action: 'RUNTIME_ADMISSION', node: process.versions.node, identity: facts.identity, integrity: 'Medium' });
+      if (typeof SharedArrayBuffer !== 'function' || typeof Atomics !== 'object' || typeof Atomics.wait !== 'function'
+        || Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 0) !== 'timed-out') throw new Error('A9_BATCH2_CLEANUP_BOUNDED_WAIT_UNAVAILABLE');
+      log({ action: 'RUNTIME_ADMISSION', node: process.versions.node, identity: facts.identity, integrity: 'Medium', bounded_wait: true });
     },
     observeBinding() { admission(); rememberBinding(); },
     bind(pid) {
@@ -956,7 +960,7 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
         || !sameCleanupIdentity({ ...item, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_DRIVER_NOT_BOUND');
       driver = facts.identity; log({ action: 'BIND_DRIVER', identity: driver });
     },
-    terminate(pid, tree) {
+    terminate(pid, tree, reason) {
       admission(); if (!driver || !cleanupInteger(pid)) throw new Error('A9_BATCH2_CLEANUP_DRIVER_NOT_BOUND');
       rememberBinding(); const rows = snapshot(); rememberPings(rows);
       const row = rows.find((item) => Number(item.ProcessId) === pid);
@@ -985,11 +989,56 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
           && !tracked.has(`${child.pid}:${child.created}`))) throw new Error('A9_BATCH2_CLEANUP_JOB_SCOPE_UNKNOWN');
       }
       log({ action: 'AUTHORIZED_TARGETS', targets: allowed, environment, non_atomic_recheck: true });
+      let interruptedGui = false;
+      if (reason === 'marker' && mode === 'continue_unknown_interrupt') {
+        // Ending the command while the GUI lives persists tool_end and destroys the original crash/unknown-result precondition.
+        // This fixed PowerShell fixture uses only built-ins: unlike CMD/PING it cannot create another job member between reads.
+        if (!tree || pid !== driver.pid || !boundFixture || boundFixture.fixture !== 'long-running' || boundFixture.kind !== 'powershell'
+          || tracked.size !== 1) throw new Error('A9_BATCH2_CLEANUP_CRASH_PROFILE_NOT_CLOSED');
+        const command = [...tracked.values()][0];
+        const helperImage = path.win32.join(ctx.candidateRoot, 'resources', 'native', 'runner', 'spike02_helper.exe');
+        const helper = allowed.find((item) => item.pid === command.parent && item.image.toLowerCase() === helperImage.toLowerCase());
+        const fresh = snapshot();
+        if (!helper || !allowed.some((item) => sameCleanupIdentity(item, driver))
+          || !sameCleanupIdentity(command, { ...cleanupIdentity(fresh.find((r) => Number(r.ProcessId) === command.pid)), sid: CLEANUP_SID })
+          || !sameCleanupIdentity(helper, { ...cleanupIdentity(fresh.find((r) => Number(r.ProcessId) === helper.pid)), sid: CLEANUP_SID })) throw new Error('A9_BATCH2_CLEANUP_CRASH_JOB_NOT_BOUND');
+        const members = liveDescendants(fresh, [helper]);
+        if (members.length !== 1 || members[0].pid !== command.pid || members[0].created !== command.created) throw new Error('A9_BATCH2_CLEANUP_CRASH_JOB_NOT_CLOSED');
+        for (const item of allowed) {
+          const current = cleanupIdentity(fresh.find((r) => Number(r.ProcessId) === item.pid));
+          if (!current || !sameCleanupIdentity(item, { ...current, sid: CLEANUP_SID })) throw new Error('A9_BATCH2_CLEANUP_CRASH_TREE_CHANGED');
+          const facts = owner(item.pid);
+          if (facts.status !== 'FACTS' || !sameCleanupIdentity(item, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_CRASH_OWNER_CHANGED');
+        }
+        // Owner checks may take time. Repeat the entire tree/job-set check before the first and only triggering termination.
+        const last = snapshot();
+        const currentTree = [driver, ...liveDescendants(last, [driver])];
+        if (currentTree.some((item) => !allowed.some((known) => known.pid === item.pid && known.created === item.created)
+          && !environment.some((known) => known.pid === item.pid && known.created === item.created))) throw new Error('A9_BATCH2_CLEANUP_CRASH_TREE_CHANGED');
+        const lastMembers = liveDescendants(last, [helper]);
+        if (lastMembers.length !== 1 || lastMembers[0].pid !== command.pid || lastMembers[0].created !== command.created) throw new Error('A9_BATCH2_CLEANUP_CRASH_JOB_NOT_CLOSED');
+        log({ action: 'CRASH_INDIRECT_JOB_AUTHORIZED', driver, helper, command, fixed_no_spawn_fixture: true });
+        terminateOne(driver); interruptedGui = true;
+        let clean = 0;
+        for (let round = 0; round < 8 && clean < 2; round++) {
+          pause(); const current = snapshot();
+          for (const item of [helper, command]) {
+            const row = current.find((r) => Number(r.ProcessId) === item.pid);
+            if (row && !sameCleanupIdentity(item, { ...cleanupIdentity(row), sid: CLEANUP_SID })) throw new Error('A9_BATCH2_CLEANUP_CRASH_IDENTITY_CHANGED');
+          }
+          const children = liveDescendants(current, [helper, command]);
+          if (children.some((item) => item.pid !== command.pid || item.created !== command.created)) throw new Error('A9_BATCH2_CLEANUP_CRASH_NEW_JOB_MEMBER');
+          const allGone = gone(helper, current) && gone(command, current);
+          log({ action: 'CRASH_JOB_NATURAL_EXIT', round, helper_gone: gone(helper, current), command_gone: gone(command, current) });
+          clean = allGone ? clean + 1 : 0;
+        }
+        if (clean < 2) throw new Error('A9_BATCH2_CLEANUP_CRASH_JOB_EXIT_UNKNOWN');
+      }
       // Stop command roots first. Once observed gone they cannot create another PING; retain historical parent identity for orphan discovery.
       const commandRoots = allowed.filter((item) => tracked.has(`${item.pid}:${item.created}`) && item.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase());
-      for (const item of commandRoots) terminateOne(item);
-      if (commandRoots.length) drainCommandChildren();
-      const remaining = allowed.filter((item) => !tracked.has(`${item.pid}:${item.created}`) || !commandRoots.length);
+      if (!interruptedGui) { for (const item of commandRoots) terminateOne(item); if (commandRoots.length) drainCommandChildren(); }
+      const remaining = allowed.filter((item) => (!tracked.has(`${item.pid}:${item.created}`) || !commandRoots.length)
+        && (!interruptedGui || (item.pid !== driver.pid && !gone(item, snapshot()))));
       while (remaining.length) {
         const at = remaining.findIndex((item) => !remaining.some((child) => child.parent === item.pid && child.pid !== item.pid));
         if (at < 0) throw new Error('A9_BATCH2_CLEANUP_PARENT_CYCLE');
@@ -1087,7 +1136,7 @@ function launchDriver(runtime, env, options, spawn = childProcess.spawn) {
     child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-262144); });
     const terminate = (reason) => {
       killedBy = reason;
-      try { killTree(child.pid, options.cleanupScope); }
+      try { killTree(child.pid, options.cleanupScope, reason); }
       catch (error) {
         cleanupError = String(error && error.message || error).slice(0, 300);
         // A refused cleanup is unknown lifecycle. Return a failure without waiting forever or terminating an unapproved process.

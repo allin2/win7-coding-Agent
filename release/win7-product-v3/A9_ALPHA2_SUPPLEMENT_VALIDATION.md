@@ -1,6 +1,6 @@
 # A9-36 Alpha2候选外补证输入
 
-本文件描述 WIN7-53 的候选外补证合同。WIN7-53 是包含 A9-37/38 的 Alpha 2 最终候选，尚未构建、冻结或签发门 A。source、ZIP、manifest 和 M6 正向模块及原生 SHA 在构建后由负责人签发的门 A 授权提供。执行代理不在代码中预填这些值。
+本文件描述 WIN7-54 的候选外补证合同。WIN7-54 是包含 A9-37/38 的 Alpha 2 最终候选，尚未构建、冻结或签发门 A。source、ZIP、manifest 和 M6 正向模块及原生 SHA 在构建后由负责人签发的门 A 授权提供。执行代理不在代码中预填这些值。
 
 M6 回退目标仍为冻结的 WIN7-42（第一批可靠性候选）。其完整钉见任务书 §2 和请求模块。本地实现仍限 ADR-0245 的六路径。改绑依据是负责人 2026-10-17 的授权和整合分支 ADR-0250、ADR-0251。取舍见 ADR-0252 草案，状态 Proposed，待负责人接受。本文件不构成门 A 或 Win7 PASS。覆盖与未完成范围只维护[既有缺口表](../../docs/plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
 
@@ -29,7 +29,7 @@ authority是严格字段v1 JSON，状态必须OWNER_APPROVED，其准确SHA256�
 
 | 字段 | 判据 |
 |---|---|
-| `candidate` | 严格等于 `WIN7-53`；回退目标 `WIN7-42` 不得作候选 |
+| `candidate` | 严格等于 `WIN7-54`；回退目标 `WIN7-42` 不得作候选 |
 | `source`、`package_sha256`、`manifest_sha256` | 只来自负责人授权；分别为 40、64、64 位小写十六进制；逐项拒绝已退役 WIN7-45 的三项身份 |
 | `m6.cand_persistence_sha256`、`m6.native_sha256` | 64 位小写十六进制；两包原生文件均须匹配同一授权值，否则在探针启动前停止 |
 | `m6.w42_source`、`m6.w42_zip_sha256`、`m6.w42_manifest_sha256`、`m6.w42_persistence_sha256` | 分别与代码中的 WIN7-42 完整钉相等 |
@@ -146,7 +146,7 @@ Stage PASS需同时满足：driver状态`DONE`、断言id与该Stage的闭集完
 
 M6不启动GUI，不启动helper，不触碰用户原数据库。编排器对每个场景把夹具复制到独立数据根，用对应包内`electron.exe`（`ELECTRON_RUN_AS_NODE=1`）运行本文件`--m6-probe`子命令，加载该包内持久层与better-sqlite3，打开副本。
 
-- 场景：S1～S6为正常互读（F42/WIN7-42、FCandC/WIN7-53、F42/WIN7-53、FCandC/WIN7-42、FCandN/WIN7-42、FCandN/WIN7-53）；X1～X4为损坏副本（C42、CCand各由两个版本打开一次）。
+- 场景：S1～S6为正常互读（F42/WIN7-42、FCandC/WIN7-54、F42/WIN7-54、FCandC/WIN7-42、FCandN/WIN7-42、FCandN/WIN7-54）；X1～X4为损坏副本（C42、CCand各由两个版本打开一次）。
 - 正常场景按固定顺序调用13项接口：11项读取与2项状态修改（`markInterruptionsOnRestart`、`enforceRetention`，后者传入固定`now`）。损坏场景只记录打开状态、打开前后主文件SHA256与目录清单，不调用接口。
 - `now`固定为`2026-10-16T12:00:00.000Z`，由authority的`m6.now`绑定；请求模块拒绝其他值。运行时生成的时间戳与自增ID只出现在`env`部分。
 - 开发机生成：`m6-fixtures`在新目录生成五个夹具（拒绝覆盖），`m6-baseline`对同一批夹具跑全部十个场景两轮，两轮一致才写出`baseline.json`。夹具字节在不同次生成间不同，因此夹具与基线必须作为同一批固定并逐个记录SHA256（见A9-36 §10）。
