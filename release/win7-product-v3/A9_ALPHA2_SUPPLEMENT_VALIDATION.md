@@ -1,6 +1,6 @@
 # A9-36 Alpha2候选外补证输入
 
-本文件描述 WIN7-54 的候选外补证合同。WIN7-54 是包含 A9-37/38 的 Alpha 2 最终候选，尚未构建、冻结或签发门 A。source、ZIP、manifest 和 M6 正向模块及原生 SHA 在构建后由负责人签发的门 A 授权提供。执行代理不在代码中预填这些值。
+本文件描述 WIN7-54 的候选外补证合同。WIN7-54 是包含 A9-37/38 的 Alpha 2 最终候选；其构建、冻结与门 A 状态以 `docs/STATUS.md` 和冻结目录为准。source、ZIP、manifest 和 M6 正向模块及原生 SHA 在构建后由负责人签发的门 A 授权提供。执行代理不在代码中预填这些值。
 
 M6 回退目标仍为冻结的 WIN7-42（第一批可靠性候选）。其完整钉见任务书 §2 和请求模块。本地实现仍限 ADR-0245 的六路径。改绑依据是负责人 2026-10-17 的授权和整合分支 ADR-0250、ADR-0251。取舍见 ADR-0252 草案，状态 Proposed，待负责人接受。本文件不构成门 A 或 Win7 PASS。覆盖与未完成范围只维护[既有缺口表](../../docs/plans/A9_ALPHA2_GAP_DISPOSITION.md#75-补证执行委托与准备2026-10-15-utc)。
 
@@ -40,7 +40,7 @@ authority是严格字段v1 JSON，状态必须OWNER_APPROVED，其准确SHA256�
 
 代码不再独立固定最终候选身份，授权填错仍可能签入错误字节。这是放弃的一项独立复核。补偿措施是请求绑定授权原文件 SHA，以及 R2 预检：建任务前，用候选自带 `electron.exe` 的 Node 模式只读调用固定编排器的 `inspectCandidate` 与 `verifyManifestTree`。预检核对授权身份和 manifest 完整树，经 `original-fs` 读取；失败即停。新 R2 材料在候选冻结后形成，本轮没有生成或执行。r7 原字节保留且作废，不继承候选、run、期限或预算。
 
-请求闭集、顺序及预算：`m4 → m1 → m2 → m3 → m6 → m5`，共6次、总墙钟7200秒、每请求开始前有效期≤900秒、负责人窗口≤8小时。“≤900秒”是请求生成到消费的有效期（任务书§7门A草案“逐组新TTL≤900秒”，请求模块`a9-alpha2-supplement-request.cjs`的生成与消费校验），不是单个请求的执行时长上限；执行时长由总墙钟7200秒、授权截止和各Stage超时共同限制。M6放在付费真实服务组之前。没有自动重跑预算。每个请求先写CONSUMED，不覆盖；前组须有同run/包/phase且SHA匹配的PASS结果。重复、并发锁、超时、改输入/报告、错目标或HALTED均拒绝。CONSUMED原文另存后才更新COMPLETED；任何非PASS结果产生HALTED，未知生命周期不自动清理或继续。
+请求闭集、顺序及预算：`m4 → m1 → m2 → m3 → m6 → m5`，共6次、总墙钟9000秒（ADR-0278自7200秒修订）、每请求开始前有效期≤900秒、负责人窗口≤8小时。“≤900秒”是请求生成到消费的有效期（任务书§7门A草案“逐组新TTL≤900秒”，请求模块`a9-alpha2-supplement-request.cjs`的生成与消费校验），不是单个请求的执行时长上限；执行时长由总墙钟9000秒、授权截止和各Stage超时共同限制。M5请求开始时总墙钟剩余须≥3600秒，否则不启动M5并记NOT_PERFORMED。该门须容纳M5请求内全部阶段上限：材料门与条件诊断≤240秒、rehearsal≤600秒、main≤1800秒、扫描与回收≤600秒，合计3240秒，另留360秒给材料核对与复核；各阶段上限不因剩余时间压缩。M6放在付费真实服务组之前。没有自动重跑预算。每个请求先写CONSUMED，不覆盖；前组须有同run/包/phase且SHA匹配的PASS结果。重复、并发锁、超时、改输入/报告、错目标或HALTED均拒绝。CONSUMED原文另存后才更新COMPLETED；任何非PASS结果产生HALTED，未知生命周期不自动清理或继续。
 
 目标材料须准确绑定机器/SID/session、Medium、非提升、InJob=false。只读配置观察曾为DCCS-CHAIZL-PC、agent SID `S-1-5-21-1708701742-428676696-1831205153-1001`、console5；实际token准入仍由当前桌面进程直接检查，不能沿用旧run的console2。Node执行器另核对自己的SID/Session/完整性/机器。管理员SSH只按准确批准传输、固定调度和回收，不作为普通用户产品结果。
 
@@ -119,7 +119,7 @@ Stage PASS需同时满足：driver状态`DONE`、断言id与该Stage的闭集完
 | M6-A01～A05 | 见§5 | 组件级 |
 | M5-A06 | 夹具Provider：后台进程存活时配置变更被拒（`A9_PROVIDER_MANAGED_ACTIVE`），进程、Provider配置、请求数均不变 | 真实服务组的前置演练，不使用真实服务 |
 | M5-A01 | 产品从隔离数据恢复DPAPI，配置匹配；恢复的配置不含探测记录，页面在首个Turn前经自己的探测控件探测一次（真实请求，计入40次），分类须为`tool_calling` | 复制配置只重建白名单非秘密字段（接受产品保存的`updatedAt`，不复制它和`probe`） |
-| M5-A02 | J1：核对实际read路径AGENTS/README/calc.py、产品行号格式/完整行数/源SHA及最终回答中`calc.py:1`/`calc.py:2`实际代码行和加减法缺陷说明；无写入类工具 | |
+| M5-A02 | J1：核对实际read路径AGENTS/README/calc.py、产品行号格式/完整行数/源SHA及最终回答中`calc.py:1`/`calc.py:2`实际代码行和加减法缺陷说明；无写入类工具 | J1提示另要求：全文每次出现源码`文件:行号`引用都附完整原行（ADR-0278）；判据不变 |
 | M5-A03 | J2：相同cwd的准确`python test_calc.py`工具start/end绑定证明先红后绿，种子测试不改，`verified` | |
 | M5-A04 | J3：三文件新功能与4+测试、准确`python build.py`、不可改`acceptance_check.py`的真实功能检查、UI Diff；请求≤40次、TLS全部authorized | |
 | M5-A05 | 真实请求的系统提示词体按SHA256逐请求取证：同一模型、同一哈希，且与候选`core/dist/system-prompt.js`的版本常量一同记录 | 只记哈希；版本常量不能区分两个提示词体，哈希可以 |
@@ -166,11 +166,22 @@ M6通过只证明两版持久层在Win7运行时上互读夹具的行为。不�
 
 ## 6. 真实服务组（M5）
 
-M5只复制经校验的非秘密配置和DPAPI密文到新数据根，不复制用户数据库或草稿。源保存配置必须无代理、无自定义CA/Headers且URL/模型匹配；变化即停，另行确认准确配置。密文不回传本机。密钥只由同agent账户内的产品safeStorage恢复，驱动只取可用性和来源，不调用解密API、不记录凭据值。
+M5只复制经校验的非秘密配置和DPAPI密文到新数据根，不复制用户数据库或草稿。产品safeStorage还依赖profile的DPAPI包封密钥，因此另在main启动前预置只含`os_crypt.encrypted_key`密文字段的最小Local State（ADR-0269）；材料来源与读取例外以当轮获准的执行材料为准。源保存配置必须无代理、无自定义CA/Headers且URL/模型匹配；变化即停，另行确认准确配置。密文不回传本机。密钥只由同agent账户内的产品safeStorage恢复，驱动只取可用性和来源，不调用解密API、不记录凭据值。
 
-恢复的配置不含探测记录，M5-A01在首个Turn前经页面探测控件探测一次，其请求同样经过下述计数旁路。真实请求旁路仅计数与限制，保留原`https.request`/TLS验证，拒绝自定义CA/agent/checkServerIdentity和其他目标；最多40次HTTPS请求、累计响应体≤1048576字节、3次用户Turn。超限中断并FAIL。该字节上限不等于供应商计费额度或最大生成token保证，成本以实际服务为准。旁路对请求体只计算系统消息的SHA256与长度，不保存或记录请求体。
+恢复的配置不含探测记录，M5-A01在首个Turn前经页面探测控件探测一次，其请求同样经过下述计数旁路。真实请求旁路仅计数与限制，保留原`https.request`/TLS验证，拒绝自定义CA/agent/checkServerIdentity和其他目标；最多40次HTTPS请求、累计原始响应体≤8388608字节（单个SSE帧缓冲仍≤1048576字节）、3次用户Turn。超限中断并FAIL。累计上限由ADR-0278自1048576字节修订，依据是WIN7-54 DEV run d951c847的实测累计1983647字节。该字节上限不等于供应商计费额度或最大生成token保证，成本以实际服务为准。旁路对请求体只计算系统消息的SHA256与长度，不保存或记录请求体。
 
 同一HTTPS `api.deepseek.com`/`deepseek-v4-flash`。不可用、能力不足、模型未完成或断言不符均保留FAIL/NOT_PERFORMED，不换回放模型冒充。
+
+验收环境（ADR-0278）：Python用登记的CPython 3.8.10嵌入式闭包（ZIP `abbe314e…`）在本轮根内的副本，并为本轮生成`python38._pth`（`python38.zip`、`.`、main工作区绝对路径三行，UTF-8无BOM、CRLF）；不读不改共享解释器。启动进程的环境不得含`PYTHONIOENCODING`或`PYTHONUTF8`，否则停止。M5启动时距下一个UTC 00:00须至少3900秒。
+
+工作区编码配置（ADR-0278）：
+
+- J1前，产品Shell须为`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`，记录其SHA，工作区环境覆盖为空。
+- 经产品公开`configureShell`把工作区环境覆盖设为仅`PYTHONIOENCODING=utf-8`；设置后覆盖键恰为该一项，Shell路径与SHA与设置前相同。
+- 恢复条件：三个Turn均为completed；每个Shell工具的start与end成对、状态exited、未超时、进程树已回收；无工具错误；页面空闲，无运行中Turn、无待批准、托管进程均已结束且无需清理。满足后把覆盖恢复为空，恢复后覆盖为空、Shell路径与SHA与设置前相同。
+- 证据：main Stage目录的`a2-m5-encoding.json`，含设置前/设置后/恢复后的Shell事实与覆盖键、完成的Turn数、恢复门结果与状态。
+- M5的PASS另须该证据状态为PASS且恢复为PASS；设置、恢复或任一条件未通过即FAIL。
+- 本轮不另测Python标准流编码，沿用DEV run cd904535对同一配置的直接测量（stdout/stderr均为utf-8），证据层级写为继承。该配置是用户可用的公开设置，不是产品默认行为，见KL-14。
 
 ## 7. 回传、复核与失败保护
 
@@ -195,3 +206,4 @@ M5只复制经校验的非秘密配置和DPAPI密文到新数据根，不复制�
 - 预演（M5-A06）使用夹具Provider，不覆盖真实服务的配置变更。
 - 审计失败后的主动继续只在M2-A07取证，M2-A08与A09不重复。
 - M4四表序列化结果限1000行/1MiB，但限制在取行之后，仍保留读取峰值P2；该驱动只用于新受控数据根，不能应用到未知大数据库。
+- KL-14（ADR-0278）：实测（WIN7-54，DEV run 128e19fb与cd904535）：隔离CPython 3.8.10在该目标上stdout/stderr为gbk；`python test_calc.py`的241字节stderr被产品判为`A9_OUTPUT_ENCODING_ERROR`，文本投影为空并标`truncated`；设置`PYTHONIOENCODING=utf-8`后同一命令输出完整可读。推断：触发内容为含中文路径的Traceback，未解码核实；其他Python安装与其他子进程未测，UNKNOWN。M5靠公开配置规避，产品默认行为未改。

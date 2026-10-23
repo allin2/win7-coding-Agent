@@ -1,5 +1,321 @@
 # 项目状态流水（历史）
 
+## 冻结加门A准备提案r3获准，ADR-0278与合同修订落地（2026-10-23 UTC）
+
+A9-39 r83：负责人批准提案r3（SHA5add0194…，§10全文；按钮文字截断已在回执说明）。G1～G9均选推荐项，回执OWNER_FREEZE_GATE_A_APPROVAL.json。已追加ADR-0278，合同补丁已应用，A9_ALPHA2_SUPPLEMENT_VALIDATION.md现为2c2b3aa0…。任务书§3.2登记增补路径。
+
+下一步：文档与合同一次本地提交，从9b385246重跑双构建并与3737852a逐字节比对，再本地冻结WIN7-54。之后由codex实现两个正式包，G9开发模式彩排后close。正式门A/B、推送NOT_PERFORMED；产品/native/ZIP不变。下文为此前记录。
+
+## 正式M5选项甲的冻结加门A准备提案审核通过，待裁决（2026-10-23 UTC）
+
+A9-39 r82：负责人选正式M5选项甲，要求只起草和审核。提案WIN7_54_FORMAL_M5_FREEZE_GATE_A_PROPOSAL.md r3 SHA5add0194…，合同补丁bc36ff3c…。r1独审0P0/8P1/6P2；r2由codex只读接替复审，0P0/1P1/1P2；r3差异复核0P0/0P1，末条P2措辞已改。回执FREEZE_GATE_A_PROPOSAL_REVIEW.json。
+
+开发机只读核对：正式补充包草稿与当前源码5件核心输入中4件不同，M1～M4、M6须在开发模式各跑一次。前五组DEV产品执行段合计194秒。Win7开发通道只读status PASS，根空闲、无进程。
+
+G1～G9待负责人裁决。ADR-0278、合同修订、双构建、冻结、正式包、彩排、提交/推送、正式A/B均NOT_PERFORMED。HEAD9b385246…/WIN7-54/ZIP3737852a…不变。下文为此前记录。
+
+## 新M5六项 Win7 DEV PASS，已恢复配置并收尾（2026-10-23 America/Los_Angeles）
+
+A9-39 r81/ADR-0277：新run d951c847…的A01～A06全部PASS。A02完整原行引用匹配；A03原命令红→绿；A04跨文件红→绿、原构建和独立功能检查通过。公开工作区UTF-8配置已恢复，原六断言和三个资格/引用函数不变。绑定WIN7-54/source9b385246…/ZIP3737852a…。同一只读实际结果复核0P0/0P1/0P2，回执R5_TARGET_RESULT_REVIEW.json。
+
+23请求全部结算，保守费用上界US$0.0693486、pending0；旧费用UNKNOWN/预留保持。目标扫描/正控/phase2正控与逐size/SHA回收28件443071字节PASS，总373.7秒。两Stage和父launcher自然exit0，最终根内进程/任务空、锁inactive，无远端活动。不启第二run。
+
+本次累计响应1983647字节，超过正式合同1MiB，只能签DEV8MiB下PASS。候选未冻结，正式A/B NOT_PERFORMED；旧r4根因UNKNOWN/旧FAIL保留，无产品/native/ZIP/系统修改或构建/提交/推送/冻结/发布。报告R5_EXECUTION_REPORT.md。下文为此前记录。
+
+## 新M5已授权持续推进，r5实现独审中（2026-10-23 America/Los_Angeles）
+
+A9-39 r80/ADR-0277：负责人“窗口费用都没关系，持续推进”已授权新M5。每run保留原US$1/40请求/3Turn/3600秒；本批最多两run，条件满足时仅一次有证据的同范围修正重试，不重复求批。旧费用UNKNOWN/预留保持。
+
+当前r5 run d951c847…，候选外31件新输入，只加公开工作区UTF-8设置/恢复和A02通用引用澄清。原6断言和3个journey资格/引用函数逐字不变。86项开发机准入、42网络守卫、双wrapper及20CJS语法PASS，原r4输入保持；同一只读实现审核中，目标NOT_PERFORMED。HEAD9b385246…/WIN7-54/ZIP3737852a…不变，无构建或产品/native/ZIP变化。正式A/B NOT_PERFORMED。下文为此前记录。
+
+## 原命令编码配置 Win7 DEV 验证完成（2026-10-23 America/Los_Angeles）
+
+ADR-0276/run cd904535…完成，登记r79。实际Node16准入97项/driver SHA通过。公开配置使隔离Python3.8.10 stdout/stderr均utf-8；原python test_calc.py exit1，stderr raw/投影/logsize均243，ImportError/multiply完整，无告警/截断，原资格true。一个Turn两调用/18事件，本run配置恢复PASS。未提升产品默认行为或原M5结论。
+
+12件32971字节目标扫描/正控/phase2正控和严格回收PASS，总155.6秒。Stage/父自然exit0、收尾正常，最终根内进程/任务空、锁inactive；无远端活动。3非probe加1probe，真实模型0有封闭请求和Node计数依据，Chromium NOT_PERFORMED。报告A04_OVERLAY_EXECUTION_REPORT.md；同一只读实际结果复核0P0/0P1/0P2，A04_OVERLAY_TARGET_RESULT_REVIEW.json。旧r4根因UNKNOWN、原M5 FAIL及费用预留保持。新M5路径/窗口/费用未批准，正式A/B NOT_PERFORMED，无构建、提交/推送/冻结或系统修改。
+
+## 原命令编码配置验证获准并实施（2026-10-23 America/Los_Angeles）
+
+负责人回复“批准本轮一次实机验证”，登记ADR-0276/r78及A04_OVERLAY_OWNER_APPROVAL.json。提案r2 SHA0fa3761d…只读复核0P0/0P1/0P2。run cd904535…新19件包，97项开发机合成/9CJS语法PASS，7依赖同SHA；旧r2 19件封存保持。同一只读实现审核中，目标NOT_PERFORMED。一次900秒/两Python调用/公开配置及恢复，无真实模型、新M5或产品/native/ZIP变化。
+
+## 原命令编码配置实机方案已形成（2026-10-23 America/Los_Angeles）
+
+A9-39 r77登记DRAFT_READY_FOR_REVIEW提案M5_A04_ENCODING_OVERLAY_VALIDATION_PROPOSAL.md/r2，SHA0fa3761d…。拟使用现有公开工作区配置、一次900秒/两Python调用，原命令保持；新C14与窗口仍待裁决。开发机冻结组件四项合成PASS，不代表目标配置生效。主代理准备、同一只读独审中；未实施新工具或连接目标，无真实模型或新M5。
+
+旧r76实机编码取证PASS、旧r4根因UNKNOWN、原M5 FAIL、全部首败与费用预留保持。正式A/B NOT_PERFORMED，无产品/native/ZIP/系统修改、构建、提交/推送/冻结/发布。
+
+## A04 r2 编码取证完成并收尾（2026-10-23 America/Los_Angeles）
+
+ADR-0275/run128e19fb…的Win7 DEV取证完整性和编码对照PASS，登记r76。实际Node16准入66项及准确driver模式SHA通过。原命令stderr241字节因编码告警成为空投影、truncated，被原资格过滤；-X utf8对照保留243字节ImportError/multiply，无告警。一个Turn三调用、25事件完整。旧r4根因UNKNOWN、原M5 FAIL保持。
+
+目标扫描/严格回收12件36668字节PASS，总156.8秒。Stage/父自然exit0，最终根内进程/任务空、锁inactive，无远端活动。4非probe+1probe夹具请求，无真实模型；Chromium覆盖NOT_PERFORMED。报告A04_R2_EXECUTION_REPORT.md。旧r1/候选/费用预留保持，无新M5、提交/推送/冻结/构建/系统修改。
+
+同一只读实际结果复核0P0/0P1/0P2，A04_R2_TARGET_RESULT_REVIEW.json确认12件size/SHA及事件、身份和收尾。仅本run DEV取证PASS，旧r4根因UNKNOWN/原M5 FAIL保持。
+
+## A04 r2 获准并完成本地窄修复（2026-10-23 America/Los_Angeles）
+
+负责人批准SHA875da75d…，登记ADR-0275/r75及A04_R2_OWNER_APPROVAL.json。新run128e19fb…，19件独立包、原7件同SHA；driver仅新run路径/一行模式顺序修复，66项开发机检查PASS。新准入绑定准确driver，旧原guard失败复现；同一只读独审中，目标NOT_PERFORMED，无新M5。r1seal/输入/失败保持。
+
+## A04 取证工具首败并收尾（2026-10-23 America/Los_Angeles）
+
+A9-39 r74，ADR-0274/run ec93f7d6…。实际61项准入PASS后，新driver在产品main加载前因有序模式声明不一致失败。该遗漏是主代理取证夹具问题。子自然exit2、外层自然exit1，Python调用0、fixture请求0，诊断NOT_PERFORMED，旧r4 A04根因UNKNOWN。
+
+目标下载前扫描与逐size/SHA回收7件7213字节PASS，总156.8秒。最终根内进程/任务空、锁inactive，无远端活动，旧seal/输入/首败保持。开发机原guard失败/单行顺序修正通过/缺项拒绝均已核对；新r2提案待批准，旧窗口不复用。报告A04_EXECUTION_REPORT.md，正式A/B NOT_PERFORMED，无新M5、提交/推送/冻结/产品构建/系统修改。
+
+新r2提案SHA875da75d…经同一只读文案复核0P0/0P1/0P2。A04_R2_PROPOSAL_REVIEW.json明确仅审核，不授予新C14或窗口；r2未实现/未执行。
+
+## A04 零模型取证获准并实施（2026-10-23 America/Los_Angeles）
+
+负责人批准准确SHAb66ac0fa…的提案r4，登记ADR-0274/A9-39 r73。run ec93f7d6…，新候选外19件包、7同SHA，48项开发机合成检查PASS，交同一只读审核者独审。目标执行NOT_PERFORMED，未连接目标。最多900秒、一个Turn、三次Python调用，无真实模型或新M5；旧FAIL与费用预留保持。
+
+## A04 零模型取证提案已备好，目标执行待批准（2026-10-23 America/Los_Angeles）
+
+A9-39 r72仅做开发机分析和新提案，绑定HEAD9b385246…、WIN7-54/ZIP3737852a…。冻结包组件的四组编码对照、原严格引用判据的四组合成检查均PASS；旧r4 A04原因UNKNOWN、A02/A04 FAIL保持。本地dist字节不符，未用作候选证据，未重建产品。
+
+M5_A04_ZERO_MODEL_EVIDENCE_PROPOSAL.md为DRAFT_READY_FOR_REVIEW，申请新根、一次900秒、一个Turn和最多三次固定Python调用。保留过滤前事件，不放宽M5判据。主代理交同一只读审核者；负责人尚未批准新C14或目标窗口。新诊断未实现/未执行，本轮未连接目标、未读秘密、未发真实模型请求。费用预留和全部历史证据保持，正式A/B NOT_PERFORMED，无提交/推送/冻结/系统修改。
+
+提案r4最终SHAb66ac0fa…，同一只读审核者确认0P0/0P1/0P2。回执A04_PROPOSAL_REVIEW.json保存三轮结论和处置。旧contract缺件P1经直接run调用链核对撤回；probe口径和run前初始化均已明确。新C14/窗口仍待负责人批准。
+
+## 新 M5 r4 已收尾：A03 PASS，A02/A04 FAIL（2026-10-23 America/Los_Angeles）
+
+ADR-0273 唯一 run ff6c400e…已完成，WIN7-54/source9b385246…/ZIP3737852a…保持。本轮 Win7 DEV M5 为 FAIL：A01/A03/A05/A06 PASS，A02/A04 FAIL。A02 是首个失败：第三处重复源码引用未含完整原行。A04 的最终测试、构建和功能检查均成功，但导出的合格原命令序列缺少失败测试，j3Fail=-1。模型自述不作证，缺失原因 UNKNOWN。
+
+新累计响应1,401,215字节，未触8MiB，已超过旧1MiB。新24请求全部结算，费用守卫PASS，保守费用上界US$0.0679785、pending0。旧费用UNKNOWN/US$0.786432未结算预留保持；两轮记录的承诺上界US$0.8716638，实际总账单UNKNOWN。未把DEV8MiB结果当作release1MiB合同等价。
+
+实际Node16准入51项、新guard42项及双wrapper通过。普通agent/session2/Medium/无Job；隔离Python31件及本run_pth核对、恢复九件/三复制和原源metadata门通过。派发准备182.6秒。27件443399字节目标扫描/正控/phase2正控与逐size/SHA一致。父自然exit1，无强制/IO/输出限制/cleanup错误；最终根内进程/任务空，锁inactive。准确Sogou环境实例单列保留，不声称全局0。实际凭据字面量扫描NOT_PERFORMED。
+
+实现独审首轮P1已修并复审；材料准入与实际结果均经同一只读审核者确认0P0/P1。报告 R4_EXECUTION_REPORT.md、核验 R4_M5_WIN7_DEV_FAILURE_VERIFIED.json、分析 R4_FAILURE_ANALYSIS.json、结果回执 R4_TARGET_RESULT_REVIEW.json，沿用 outputs/a9-39-w52-package-prep/m5-admission-r1/。
+
+本轮一次性授权已消费，不自动重试。下一步先准备A04零模型失败调用取证方案，再裁决A02提示词表达及新的M5；新路径/窗口/费用未授权。原37/67 DEV与全部旧首败保持。正式A/B NOT_PERFORMED，未提交/推送/冻结/构建产品或改系统。下文为此前记录。
+
+## 新 M5 r4 推荐方案获准，开始候选外实施（2026-10-23 America/Los_Angeles）
+
+负责人“继续推进”绑定已列明的 D1/B2、D2/甲、D3 推荐项与提案 SHA8fecf897…。已登记 ADR-0273/A9-39 r70，回执 OWNER_M5_R4_APPROVAL.json。新 run ff6c400e-260c-4d9f-b0c6-edd946c842fa，固定截止 2026-10-23T18:04:01.960330+00:00。新实现、Win7目标准入与M5结果均 NOT_PERFORMED。累计台账保留旧US$0.8036853/费用UNKNOWN，新run独立US$1，累计授权承诺上界US$1.8036853。
+
+本轮仅候选外r4/隔离Python/_pth；8MiB只对本DEVrun，不改release合同。主代理实施，同一只读审核者复核。管理账户不触碰旧work/data；窗口内普通agent缺件/metadata不符即停，窗口作废、模型0、重提案。原FAIL与全部旧证据保持。正式A/B NOT_PERFORMED，未提交/推送/冻结或改产品。下文为此前记录。
+
+## 新 M5 提案最终确认完成，三项待裁决（2026-10-23 America/Los_Angeles）
+
+新 M5 提案 r4 的修订 r3 已完成开发机只读最终确认。提案 SHA 为 8fecf897…。最终审核为 0P0/0P1/0P2。审核范围仅为提案文字，绑定 WIN7-54、source 9b385246…、ZIP 3737852a…。
+
+P1-3 采用第一方案。管理账户不触碰旧根 work/data。九件材料与三个源文件 metadata stamp 由窗口内普通 agent 准入核对。任一失败即停，窗口作废，模型请求为 0，重新提案；不另找材料或重新提取。P2-8 已改为“已发约 36 次后拒绝下一个请求”。P2-9 已改为约 1.6～3.0 MiB，并同步 1.3/2.7 倍。
+
+原审核者最终确认因会话额度耗尽未返回结论。本轮由新的只读审核者接续确认。原 r1/r2 意见与替换审核者的事实写入回执，未冒充同一审核者。
+
+待负责人裁决 D1/D2/D3：仅本 DEV run 采用 8 MiB；保留旧承诺上界 US$0.8036853，新 run 独立 US$1，接受两轮累计承诺上界 US$1.8036853；按原 40 请求/3 Turn/3600 秒执行一次，并遵守新有效期和 UTC 日界门。上述均为推荐方案，尚未批准。
+
+本轮仅补文档、审核回执与现有 checkpoint。新 r4 实现、新 M5 执行与负责人批准均为 NOT_PERFORMED。原 M5 FAIL、费用 UNKNOWN、786432000 nanoUSD 未结算预留及历史证据保持。正式门 A/B 为 NOT_PERFORMED。未连接目标、发模型请求、提交、推送、冻结或构建产品。
+
+提案：`outputs/a9-39-w52-package-prep/M5_R4_EXECUTION_PROPOSAL.md`。审核回执：`outputs/a9-39-w52-package-prep/m5-admission-r1/M5_R4_PROPOSAL_REVIEW.json`。任务登记：[A9-39 §11.8.144](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md#118144-新-m5-提案-r3-最终确认与待裁决登记)。
+
+## 隔离Python与实际Runner短链Win7 DEV PASS，原M5仍FAIL（2026-10-23 UTC）
+
+ADR-0272批准的唯一一次零模型短链已完成。run dc3c0ff4-c92f-4041-bc40-0a1ef7aff717，WIN7-54/source9b385246/ZIP3737852a不变；包.acceptance/a9-39/w54-dev-python-runner-chain-r1，seal 00857805…、INPUT_BINDING c615e74f…。主代理实施，同一只读独审：实现首轮0P0/0P1/3P2已修、复审0/0/0；开发机59项合成检查PASS。
+
+窗口前状态、PS2只解析预检、登记ZIP abbe314e…经cand上传展开32件、派生driver上传与metadata、旧根5件同SHA输入metadata均通过。新根py38按inventory逐件核SHA复制31件并放入本run python38._pth（0dabc35a…）。实际Electron22.3.27/Node16.17.1/ABI110准入59项PASS；普通agent/session2/Medium/非管理员/无Job。
+
+经WIN7-54实际产品TrustedShellRunner与loopback夹具：解释器为隔离副本且工作区在sys.path；python test_calc.py先exit1原加减断言失败、无ModuleNotFoundError；固定修复calc.py后Ran 2 tests OK；build.py A2-BUILD-PASS；acceptance_check.py导入可达并停在缺multiply。A2-PY-CHAIN-A01 14项判据PASS；7次工具调用、顺序严格、全部自然退出且进程树回收；Review只含calc.py；夹具8个脚本请求加1个probe；Node层非loopback连接0，Chromium网络NOT_PERFORMED。中文空格_pth条目与带引号python -c传参在该DEV环境成立。
+
+真实模型请求0（依据：不植入凭据、Provider为127.0.0.1夹具、Node层非loopback 0）；结果中model_requests字段为写定值，不作测量。配置未引用C:\acceptance\python38_mvp，无文件访问级审计；C:\acceptance只有git按r3核SHA/--version/PATH。12件39575字节下载前扫描/正控/phase2正控PASS、findings=[]，逐件size/SHA一致，inventory 453f246c…；两次launch自然exit0、未强制；SGTool仅分类保留；全程120.5秒；最终根内进程/任务空、锁inactive，当前无远端活动。实际结果只读复核0P0/0P1/2P2（措辞，已采纳）。凭据字面量扫描NOT_PERFORMED。
+
+能下结论：验收环境的Python导入前置可用隔离副本加本run _pth修复，实际Runner红→绿成立。不能推出新M5会通过、1MiB上限足够、产品Turn验证流程已验证或正式Win7 PASS。原M5 A01/A02/A06 PASS、A03 FAIL、A04/A05 NOT_PERFORMED、11请求及786432000 nanoUSD未结算预留保持；原37/67 DEV PASS继承；正式A/B NOT_PERFORMED，未冻结，无提交/推送/产品构建。
+
+下一步仅为新M5提案：须为其自身run生成_pth，并由负责人裁决1MiB累计响应上限与旧未结算预留的处理；新M5未授权、未执行。证据PYCHAIN_WIN7_DEV_VERIFIED.json、PYCHAIN_TARGET_REVIEW.json、PYTHON_RUNNER_CHAIN_REPORT.md；状态见CURRENT_DEV_EVIDENCE_CHECKPOINT.json的m5_python_runtime_chain。
+
+## Python运行时与实际Runner短链提案待裁决（2026-10-23 UTC）
+
+隔离Python运行时与实际Runner短链提案已备好，待负责人裁决（DRAFT_READY_FOR_REVIEW）。提案M5_PYTHON_RUNTIME_RUNNER_CHAIN_PROPOSAL.md，准确SHA ddb58d5c4fa3a527f5d3beccb0b8ae2a3759746dae308448256b3f6518f5c8cc。本轮只读核对并起草，未实现、未连接目标、模型请求0。
+
+当前分支codex/a9-alpha2-integration-r2/HEAD9b385246a6fff911162e8effaf15a12de76903a8及五份dirty文档保持；WIN7-54/ZIP3737852a不变。开发机核对登记CPython 3.8.10嵌入式ZIP abbe314e…共32项，python.exe与Win7实测5275c42f…相同；清单PYTHON_RUNTIME_CLOSURE_INVENTORY.json。开发机源码核对：TrustedShellRunner继承进程env，产品PATH第一项来自tools.python.path，r3 launch.ps1另把共享python38_mvp写入PATH。
+
+推荐方案：经通道cand上传展开登记ZIP，新根C:\A9-DEV\m5-pychain\<run前8位>复制31个文件并放入本run生成的python38._pth（python38.zip、.、夹具工作区绝对路径）；不读不改共享python38_mvp，git沿用r3 SHA核对与PATH。用WIN7-54实际产品、TrustedShellRunner与loopback夹具跑一次红→绿短链：解释器身份→原测试业务失败→固定修复→测试OK→build PASS→acceptance_check到达缺multiply。900秒窗、一次、失败即停；C14路径与判据见提案§3～§4。
+
+同一只读独审四轮：r1 0P0/3P1/12P2，r2 0P0/0P1/6P2，r3 0P0/1P1/2P2，r4 0P0/0P1/1P2，均已处置；定稿只比r4多一句N=8说明，回执PYTHON_RUNTIME_CHAIN_PROPOSAL_REVIEW.json。独审不替代负责人批准。
+
+新M5前须另行裁决：原1MiB累计原始响应上限能否容下A03+A04为UNKNOWN。12fb889e已结算10请求2,614 completion tokens对应678,478字节；请求1～4后余976,734字节，请求5单次288,164字节、请求11单次370,745字节。本提案不改该上限、费用守卫或预算。原M5 A01/A02/A06 PASS、A03 FAIL、A04/A05 NOT_PERFORMED、11请求及786432000 nanoUSD未结算预留保持；原37/67 DEV PASS继承；正式A/B NOT_PERFORMED，未冻结，无提交/推送。当前状态见CURRENT_DEV_EVIDENCE_CHECKPOINT.json的m5_python_runtime_chain_proposal。
+
+## Python导入前置问题已实机复现，原M5仍FAIL（2026-10-23 UTC）
+
+ADR-0271批准的一次零模型诊断已完成。run80c43fa0-692f-49c7-9b71-2357ca6837a0，WIN7-54/source9b385246/ZIP3737852a不变；封存16件及派发器经同一只读独审0P0/P1。实际Electron22.3.27/Node16.17.1/ABI110的27项合成自检PASS；普通agent/SID1001/session2/Medium/非管理员/实际Node无Job。
+
+三次固定Python调用全部自然结束：PATH探针exit0且实际exe/SHA/3.8.10/cwd匹配；同exe原test_calc.py自然exit1、IMPORT_CALC_FAILED；仅进程内sys.path插入夹具目录后，同脚本自然exit1、ORIGINAL_ASSERTION_FAILURE。两条原加减断言失败可达，完整新JOURNEY_FILES不变。cwd_in_sys_path=false、isolated/no_site=true、ignore_environment=false；python._pth不存在、python38._pth存在，其条目匹配exe目录而非脚本目录、未import site。旧calc/test目前ordinary存在，仅metadata/realpath，无内容读取。
+
+该对照支持固定解释器在该受控中文空格fixture下缺少工作目录搜索路径足以造成导入失败；不证明旧M5调用瞬间全部环境，不证明产品Runner已修复，也不建立导入异常导致累计1MiB耗尽的因果。原M5 A01/A02/A06 PASS、A03 FAIL、A04/A05断言NOT_PERFORMED；11请求/费用UNKNOWN及786432000 nanoUSD未结算预留保持。没有重跑M5、请求模型或修改共享PATH/_pth/系统。
+
+四件3991字节目标扫描/正控/phase2正控PASS，findings=[]、精确传输集合及逐size/SHA一致；DIAG_RESULT SHAd097f0c9a651b6c3efef764171ee1e17de73a2350ecdc2b10dc019b5e69ee3a7，inventory SHA2991862a7e64a2d3940595228cdb451359fdd8a432259d72b95ba40f2b2b3439。实际结果只读复核0P0/P1。未回传_pth/profile/凭据；实际凭据字面量扫描NOT_PERFORMED。诊断约2秒/输出1171字节、客户端全窗69.6秒；父自然exit0、无forced/IO/limit/cleanup错误，最后status根进程/任务空、锁inactive，当前无远端活动。
+
+证据PYTHON_DIAGNOSTIC_WIN7_DEV_VERIFIED.json、PYTHON_DIAGNOSTIC_TARGET_REVIEW.json、PYTHON_IMPORT_DIAGNOSTIC_REPORT.md。runtime.python_execution=NOT_PERFORMED是准入采样字段，后续三次实际调用见calls，原JSON不覆盖。下一步工程建议为先盘点并准备隔离Python运行时，再用当前候选实际TrustedShellRunner验证原命令红→绿短链；闭包及新配置/执行路径尚未授权或实现，不直接改共享_pth或自动重试M5。原37/67 DEV PASS与全部历史首败保持；正式A/B NOT_PERFORMED，无提交/推送/冻结/产品构建。
+
+## Python导入诊断获准，本地实现待独审（2026-10-23 UTC）
+
+负责人已批准提案SHA266d467e8748af3071232d91c118797759f9c8b1cb614954aef1f706511cb5d3，登记ADR-0271/任务r64。新run80c43fa0-692f-49c7-9b71-2357ca6837a0，仅一次零模型请求、最多三Python调用/300秒的候选外诊断。27项合成检查PASS、10份CJS语法PASS；16件封存、7同SHA依赖和8嵌入payload逐项核对通过，同一只读实现独审进行中。目标诊断NOT_PERFORMED，无远端活动。
+
+本轮不改产品/native/ZIP、原driver/guard/M5断言或系统/_pth/PATH，不重跑M5。原A01/A02/A06 PASS、A03 FAIL/A04/A05 NOT_PERFORMED、11请求和未结算预留保持。原完整37/67 DEV PASS继承；正式A/B NOT_PERFORMED，无提交/推送/冻结。当前状态见m5-admission-r1/PYTHON_DIAGNOSTIC_CURRENT_EXECUTION_CHECKPOINT.json。下文是历史记录。
+
+## 新M5越过恢复门，A03因响应上限FAIL，已收尾（2026-10-23 UTC）
+
+WIN7-54/source9b385246/ZIP3737852a保持。新run12fb889e-4361-4002-9347-8133d304a017实际Node16新增34项合成准入PASS、固定九件材料适用性/三件复制PASS；原源内容未重读、恢复诊断未重跑。旧恢复只记INHERITED_EVIDENCE。封存28件seal cb59d049及派发器368d1716经同一只读独审0P0/P1，实际材料复审0P0/P1。准备174.4秒时派发唯一原M5，余3425.6秒，满足原300/3600及足额3000秒门。
+
+| 原断言 | 本run Win7 DEV状态 | 事实 |
+|---|---|---|
+| A01 | PASS | 正常产品恢复key available/source dpapi，真实probe两个请求、tool_calling |
+| A02 | PASS | 只读解读、严格源码行引用，未写文件或执行Shell |
+| A03 | FAIL | python test_calc.py先报ModuleNotFoundError: calc；随后累计响应触M5_FEE_RESPONSE_LIMIT |
+| A04 | NOT_PERFORMED | 未产出该断言；不声称每个局部driver步骤均未进入 |
+| A05 | NOT_PERFORMED | 未产出该断言 |
+| A06 | PASS | 运行中Provider配置被拒绝且原进程/配置未受影响 |
+
+响应累计1,049,223字节，原上限1,048,576；含已收到随后拒绝的越界chunk。原driver及guard均按整个main累计，没有改为逐请求或放宽。已发11请求、有效usage结算10请求，后者保守费用上界US$0.0172533；保留未结算请求预留后的承诺上界US$0.8036853。费用门与实际总账单UNKNOWN，不能将缺usage当0或记费用PASS。后续driver TIMEOUT:review diff不覆盖首个A03 FAIL。
+
+22件132839字节目标下载前扫描/正控/phase2正控PASS，逐项size/SHA一致；inventory SHA f80765b2ec6343ed2e080df0245e832c4497b51a680d7f97e6825a32c558df8d，M5_RESULT SHA04f0c5e057d1405888fe5482f4af9fa4109e3a5832507e3efb0804d50b5c5857。没有回传profile/配置/密文，实际凭据字面量扫描NOT_PERFORMED。两Stage.related=[]、父自然exit1、无强制/IO/上限/cleanup错误；rehearsal保留准确SGTool环境实例，未终止，不宣称全局环境0。09:05:23.8524002Z最终status根内进程/任务空、锁inactive，当前无远端活动。
+
+完整核验FRESH_M5_WIN7_DEV_FAILURE_VERIFIED.json、首败FRESH_FIRST_FAILURE.json、分析M5_A03_FAILURE_ANALYSIS.md。只读分析未发现calc删除证据，但实际sys.path/_pth/调用时文件在场及导入异常与耗尽响应之间因果均UNKNOWN。下一步仅建议M5_PYTHON_MODULE_DIAGNOSTIC_PROPOSAL.md的一次零模型请求导入诊断；新诊断未授权/未实现/未连接，不自动重跑M5或修改系统。原完整37/67 DEV PASS、旧r1/r2和历史HALTED/首败保持；正式A/B NOT_PERFORMED，未提交/推送/冻结或改产品。下文是历史记录。
+
+## 新窗口获准，r3 本地实现完成并待独审（2026-10-23 UTC）
+
+负责人已批准准确 SHA21812a596c76a6c2babb816eac7fa8831d90ad8da50e92b45f486c8ce592c535 的 M5_FRESH_WINDOW_PROPOSAL.md，登记 ADR-0270/任务 r62。新 run12fb889e-4361-4002-9347-8133d304a017 及新根 C:\A9-DEV\m5\12fb889e 仅在本地备好，目标执行 NOT_PERFORMED。下文“新窗口待裁决”是批准前历史状态。
+
+r3 新增隔离九件材料适用性核对/三件 CreateNew 复制；原三个用户源文件只查询 metadata，不读内容，不重跑恢复诊断。新窗口3600秒、准备最多300秒，派发前足额保留3000秒；原两Stage/六断言/US$1/40HTTPS/3Turn/1MiB/绝对截止/终止边界保持。管理 prepare 只核对旧26件非秘密执行输入并批量本地复制/写入，真实材料由实际普通 agent 准入后处理。
+
+开发机新增30项合成拒绝门检查 PASS、20份CJS语法 PASS；只读实现审核进行中。旧恢复 PASS 标 INHERITED_EVIDENCE，不能代替新 A01。WIN7-54/source9b385246/ZIP3737852a 保持，原完整37/67 DEV PASS及旧r1 A01 FAIL/r2准备停止不可变。正式A/B NOT_PERFORMED，未提交、推送、冻结、重建产品或修改系统。当前 checkpoint：outputs/a9-39-w52-package-prep/m5-admission-r1/FRESH_CURRENT_EXECUTION_CHECKPOINT.json。
+
+## r2 实机恢复 PASS，M5 因准备预算在派发前停止（2026-10-23 UTC）
+新run6857d9bb-030d-488f-9dae-37e5b98e5b73实际Electron22.3.27/Node16.17.1/ABI110下54项无网络自检PASS，普通agent/SID1001/session2/Medium/非提升/实际Node无Job；26件输入和候选800件闭包核对。费用守卫、原driver、产品和ZIP未变，最终只读实现独审0P0/P1，绑定seal70c5068a及派发器29bdb9ca。
+
+第一组真实产品诊断准确记录CREDENTIAL_DECRYPT_FAILED、key unavailable/source none，配置/record/dataRoot/userData/sessionData/vault/保护均正常、网络0；自然exit0/postflight.related=[]。严格满足该门后，才按批准读取固定原Local State、仅提取os_crypt.encrypted_key密文字段。第二组新profile恢复key available/source dpapi、diagnostic null，其余路径/保护正常、网络0，自然exit0/related=[]；源metadata和两组副本一致性直接核验。当前密文的profile-key依赖得到实机对照支持，不能据此推断所有历史源字节相同。两组中准确搜狗环境实例仅分类保留，未终止。
+
+RESTORE_RESULT SHA87ba0b278e79c985cb68050560897193abee2413e2374348c5b386a00871cd4f，parent launch SHAa75fca5bfee90ac345c479d312e5436c4ff9ff6eeb706b49f84bc03fd38fb300，parent自然exit0/forced=false/process_ended=true，无IO/上限/收尾错误。同一只读目标复审0P0/P1；这只覆盖DEV恢复准入，不等于M5或正式验收PASS。
+
+复审后在准备约575秒时调用run准入；上传非秘密复审receipt及fresh status后，profile_dispatch.py:148的600秒门拒绝，未调用M5 launcher。准确profile-actions/M5-ONCE.attempted不存在，旧actions/M5-ONCE.attempted属c506ff62历史失败。新M5 NOT_PERFORMED、实际模型请求0、费用门NOT_PERFORMED，不计产品旅程FAIL。原600秒/时间锚/输入未修改，准备方案低估了26次传输及最后预检耗时；不以延长预算或重计时绕过。
+
+按原同SHA scanner/严格清单路径完成final回收，10件12589字节逐项size/SHA一致，目标下载前正控/phase2正控及扫描PASS、findings0，inventory SHA928170e69e5a850454b80d9ed524ec4d12c482d9bcaf0fd128d6eb4457339e46。没有下载配置、密文、profile或stamp。最终08:32:10.5794002Z status根内进程/任务空、锁inactive，根7867826404字节；本轮收尾时总耗743.7秒，当前无远端活动。证据PROFILE_RESTORE_WIN7_DEV_VERIFIED.json、PROFILE_PREPARATION_BUDGET_STOP.json、PROFILE_FINAL_RECOVERY.json及PROFILE_FINAL_TARGET_STATUS.json。
+
+原r1 A01 FAIL、原完整DEV37/67 PASS、全部历史首败/HALTED/UNKNOWN保持；正式A/B NOT_PERFORMED，未冻结，无提交/推送/产品构建或系统修改。旧窗口不能完整容纳同步后原阶段/回收上限，未批准的延续草案有预算与marker歧义P1，已停用。
+
+新M5_FRESH_WINDOW_PROPOSAL.md仅待裁决：新run/r3，原三个源文件内容不再读取，只复用旧隔离根精确九件核对/三件复制及已核恢复证据；不重跑诊断。新3600秒窗口含最多300秒准备，M5前足额预留3000秒阶段/回收，原US$1/40HTTPS/3Turn/1MiB/两Stage六断言/环境/终止/绝对截止保持。新r3/newrun尚NOT_PERFORMED，不新增Accepted ADR或擅自扩范围。状态继续沿用既有索引与日志。
+
+## profile 恢复提案获准与本轮影响（2026-10-23 UTC）
+负责人对完整提案回复“批准”，准确SHA13ac240b328b6eb3d684a1f4aa08638951733b857dcb21b4bd32737e0b202a07，登记ADR-0269及OWNER_PROFILE_REPAIR_APPROVAL.json。当前分支codex/a9-alpha2-integration-r2/HEAD9b385246不变，原五份dirty文档保留；原WIN7-54和原37/67 DEV PASS保持。本轮仅取证/普通编排夹具变化，不改产品/native/ZIP，不重建原生或候选。
+
+C14准确新增.acceptance/a9-39/w54-dev-m5-package-r2内提案§5全部明确路径及必要同SHA输入；精确范围、两组条件诊断、第三文件唯一字段例外、下载前扫描和停止条件按已批准提案及ADR-0269。主代理实施与目标操作，同一只读独审；窄验证→实际Node16合成无网络准入→原两文件同字节第一诊断→满足明确解密失败才第三文件/第二诊断→独审→唯一原M5 DEV，是本轮最短真实链路。
+
+原r1费用守卫/driver及适用检查按逐SHA保持标INHERITED_EVIDENCE；新profile提取/拒绝门/扫描/接线直接验证。产品恢复和M5目标结果仍UNKNOWN，新实现/目标执行待完成，不以文档批准记PASS。600秒准备包含诊断/中间复核、3600秒总墙钟、原截止/费用/断言/终止边界保持。原首败不可变，无提交/推送/冻结/正式A/B或系统修改。
+
+r2封存seal70c5068a，54项本地窄检查和最终只读独审0P0/0P1通过。run6857d9bb已进入Win7实际能力自检与条件恢复对照流程，结果UNKNOWN；不并发其他目标操作。当前状态见整合树outputs/a9-39-w52-package-prep/m5-admission-r1/PROFILE_CURRENT_EXECUTION_CHECKPOINT.json。下文保留历史。
+
+## M5 在 A01 密钥恢复处 FAIL；实际模型请求0，已收尾（2026-10-23 UTC）
+
+WIN7-54/source9b385246/ZIP3737852a不变。ADR-0268唯一run `c506ff62-2487-47d2-abbb-1f1a70e9b783` 已结束：A06 PASS，A01因 `A9_36_SAVED_PROVIDER_NOT_READY` FAIL，A02～A05 NOT_PERFORMED。配置已加载、记住标记true，但key unavailable/source none；probe0。获批两个源文件已读取并隔离复制，不再沿用执行前的“未读”状态。
+
+费用守卫在原driver前安装，sent0/settled0/response0、本地计价上界US$0；fee状态仍UNKNOWN，不把零请求当费用门PASS。真实TLS、服务usage及供应商账单NOT_PERFORMED。800件候选闭包及60项实际Node16无网络能力自检PASS，不替代M5行为。
+
+两个GUI自然退出；parent exit1、forced=false、process_ended=true，无IO/上限/收尾错误。最终根内进程/任务空、锁inactive。A06保留了准确分类的SGTool环境实例，未终止；不能据此写全局环境进程0。18件28915字节逐项size/SHA核验，17件执行输入未变，原run不重跑、不改判。
+
+精确Electron22.3.27/Chromium108源码显示safeStorage另依赖Local State中的DPAPI包封profile key。原两文件方案可能遗漏该层，实际根因仍UNKNOWN，因为旧A01没有输出详细恢复码。只读机制核对见 整合树 outputs/a9-39-w52-package-prep/m5-admission-r1/RESTORE_MECHANISM_ANALYSIS.md。新 整合树 outputs/a9-39-w52-package-prep/M5_SAFE_STORAGE_PROFILE_REPAIR_PROPOSAL.md 仅为DRAFT_READY_FOR_REVIEW；第三文件读取、新诊断和第二次M5均NOT_PERFORMED。
+
+开发机下载后扫描19文件、正控/phase2正控PASS、findings0；目标下载前扫描NOT_PERFORMED，r1漏接扫描器的工具缺口保留，不补写R7 PASS。完整结果见 整合树 outputs/a9-39-w52-package-prep/m5-admission-r1/M5_WIN7_DEV_FAILURE_VERIFIED.json。原完整DEV37/67 PASS保持，正式A/B NOT_PERFORMED；无远端活动、提交/推送/冻结或系统修改。下文保留原时点记录。
+
+## M5 已通过实际能力门，唯一 DEV 旅程执行中（2026-10-23 UTC）
+
+WIN7-54/source9b385246/ZIP3737852a不变。实际Win7 Electron22.3.27 / Node16.17.1 / ABI110、Python3.8.10、Git2.46.2准入通过；普通agent/SID1001/会话2/Medium/非提升/无Job直接核验。候选完整800件与封存输入核对通过，原driver字节不变。无网络能力自检60项PASS，包含真实ClientRequest/IncomingMessage内存虚拟socket和原driver双wrapper；不作为真实TLS证据。自检后进程/任务0、锁空闲。
+
+ADR-0268获批的唯一原M5 run c506ff62-2487-47d2-abbb-1f1a70e9b783已进入派发；保持原rehearsal→main、六断言、US$1、40HTTPS/3Turn/1MiB，第一次目标准备至派发前311秒，未超原600秒准备预算。官方计价/别名映射已重核，费用守卫在首个body bytes发送前验证Flash请求模型并先预留最坏费用，未知usage即停。
+
+M5最终结果UNKNOWN；实际请求数、费用和两文件访问事实待本run回收核验，不写0或PASS。只观察本地控制器，不并发操作目标。原完整DEV37/67 PASS保持；不提交/推送/冻结/正式A/B或系统修改。证据沿用整合树outputs/a9-39-w52-package-prep/m5-admission-r1/。下文保留原时点记录。
+
+## M5 精确例外已批准；候选外实现与独审完成（2026-10-23 UTC）
+
+负责人已批准M5提案SHA2981f0752161372649a15764974d6e1400a263a033e9bed48b65ff6c7ce34e33，登记ADR-0268 / A9-39 r60。仅普通agent两个固定源文件的读取/隔离密文复制例外，US$1费用准入，保持原两Stage/六断言/40HTTPS/3Turn/1MiB，独审及实际无网络自检后唯一M5 DEV。
+主代理实现候选外w54-dev-m5-package-r1；本地60项PASS，独审发现的逐请求model覆盖计费缺口已在body首次发送前关闭，复审0P0/P1。实际Node ClientRequest/IncomingMessage内存socket及原driver双wrapper检查通过，不算TLS实测。17文件seal e529ee0c1a3f23e2fe81d5abd87ac0389ec977ae17548c7a3784b74d4c8fbb65已封存，run c506ff62-2487-47d2-abbb-1f1a70e9b783正在做Win7无网络自检；M5付费旅程尚NOT_PERFORMED，真实请求0，未读原配置/凭据。
+原WIN7-54完整DEV37/67 PASS保持。无提交/推送/冻结/正式A/B/系统修改。当前结果以outputs/a9-39-w52-package-prep/m5-admission-r1/CURRENT_EXECUTION_CHECKPOINT.json为准。下文保留历史。
+
+## M5 准入提案已备；待两文件例外及费用守卫裁决（2026-10-22 America/Los_Angeles）
+
+WIN7-54完整DEV 37/67 PASS保持（run 1f013870）。负责人要求继续推动M5。本轮完成源码入口/隔离边界审计、公开模型与计价资料核对、新严格只读目标status；agent会话2、进程/任务0、锁inactive，未读真实配置或凭据，模型请求0。
+现有M5编排器必须读取并复制配置/DPAPI密文；产品没有现成的配置来源与状态根分离入口。ENGINEERING_03 §7明确禁止该动作，ADR-0267也不含M5。本轮不从“继续推动”推导凭据例外或新C14路径。
+准确提案outputs/a9-39-w52-package-prep/M5_DEV_ADMISSION_PROPOSAL.md已备：仅两个固定源文件由普通agent校验/隔离复制，候选外新M5包和US$1保守费用准入，保持原两Stage/六断言/3Turn/40HTTPS/1MiB，独审及实际无网络自检后仅一轮DEV。旧请求别名继续，但当前服务映射为V4.1-Flash-1017，需明确接受；不写原配置。提案为DRAFT_READY_FOR_REVIEW，实现与M5实机NOT_PERFORMED；M5保持BLOCKED_BY_STANDING_AUTHORIZATION，正式A/B NOT_PERFORMED。无提交、推送、冻结或系统修改。证据m5-admission-r1/；下文保留历史。
+
+## WIN7-54 原完整 Win7 DEV 37/67 PASS；M5 与正式门待准入（2026-10-23 UTC）
+
+当前产品源 `9b385246a6fff911162e8effaf15a12de76903a8`，两份 ZIP SHA `3737852aa9525ff3f3871b9c09fce9115e2462fa31da3baa32a20f992d0f0b86`。获批候选外 r4 的唯一原总控 `1f013870-b6cf-4889-8f7d-f7f48d933631` 已完成，37 用例 / 67 断言全部 Win7 DEV PASS，原 GPU 门、R7、R8 均 PASS。GUI 原句柄和 OS 退出事实准确绑定，退出码0。1584 件 / 181447300 字节选定原始证据大小与 SHA 全部一致；233 项依原合同不下载，不计已回收。R8 进程、任务、环境列表均为空；最后只读锁 inactive。
+
+74 项开发机窄合同、实际 PS2/默认 PS5 各59项自检通过；实际 CLR 为2.0.50727.8806/4.0.30319.42000。同一只读最终独审0 P0 / 0 P1。缓存因果保持 UNKNOWN_PRECONDITION_NOT_REPRODUCED。两ZIP及r2/r3/r4各94文件核验未变，旧 HALTED/首败/UNKNOWN保留。无第二次完整目标运行。
+
+M2同候选原6 Stage /13断言DEV PASS；M1～M4原38断言与M6组件跨读5断言在本轮为INHERITED_EVIDENCE，未重跑。M5 BLOCKED_BY_STANDING_AUTHORIZATION，正式门A/B NOT_PERFORMED，候选未冻结。下一步为M5准入/授权缺口及新正式材料；当前无远端活动，无提交、推送、冻结或系统修改。
+
+最终报告及核验：整合树 `outputs/a9-39-w52-package-prep/controller-w54-r4/REPORT.md`、`FULL_WIN7_DEV_VERIFIED.json`、`FINAL_IDENTITY_AND_STATUS_VERIFIED.json`、`FINAL_EVIDENCE_READONLY_REVIEW.json`；任务书§11.8.130。下文保留历史时点记录。
+
+## WIN7-54 r4 已完成准入，唯一原总控 DEV 执行中（2026-10-23 UTC）
+
+74项开发机窄合同、最终实际PS2/默认PS5各59项及同一只读复审0P0/0P1通过。真实CLR/程序集及原句柄保持已记录。两运行时均未复现存活时1601，缓存因果保持UNKNOWN。
+获批唯一新run 1f013870-b6cf-4889-8f7d-f7f48d933631已派发，原37/67、预算、GPU/R7、WMI/Dispose和终止边界保持，结果UNKNOWN。仅观察本地进度，等待自动回收。M2原13断言DEV PASS保留；不提交、推送、冻结、M5、正式门A/B或系统修改。证据controller-w54-r4/。
+
+## WIN7-54 r4 缓存局部修复已批准（2026-10-23 UTC）
+
+负责人已批准GPU_EXIT_CACHE_REPAIR_PROPOSAL.md，ADR-0267 / A9-39 r59登记精确候选外路径。主代理实施，同一只读独审；窄合同及实际PS2/PS5方法、句柄和自然退出自检通过后，仅一轮原完整DEV总控。
+M2同候选原13断言DEV PASS，r3 GPU拒绝EXIT_TIME_1601和HALTED保留。r4结果UNKNOWN；原37/67、预算、WMI/Dispose/GPU/R7/终止边界保持。无提交、推送、冻结、M5、正式门A/B或系统修改。证据沿用controller-w54-r4/。
+
+## WIN7-54 r3 已定位 GPU 拒绝原因；完整 DEV 保持 HALTED（2026-10-23 UTC）
+
+当前源9b385246a6fff911162e8effaf15a12de76903a8，WIN7-54 ZIP3737852aa9525ff3f3871b9c09fce9115e2462fa31da3baa32a20f992d0f0b86。M2原6 Stage/13断言Win7 DEV PASS；M1～M4共38断言与M6组件5断言的同候选证据保留。
+获批唯一r3总控4adca5c3通过传输/逐件SHA/展开及p01/p02，在原GPU门HALTED。GUI5164原句柄绑定true，终态和同次trace准确记录EXIT_TIME_1601；该GUI无有效OS退出事实。1601生成机制仍UNKNOWN，不能以Node exit/close0改判。p03～p10 NOT_PERFORMED，完整37/67未完成。
+R7保持metadata-only；固定6件诊断44355字节逐项核验，不能冒充密封R7。R8根内进程/任务/环境列表均空，最后只读锁inactive。r2/r3各94文件与两ZIP均未变。72项开发机窄合同、实际PS2/默认PS5各39项及同一只读独审通过。
+新GPU_EXIT_CACHE_REPAIR_PROPOSAL.md已备并经只读独审0P0/0P1，申请仅新r4的同对象缓存刷新/零等待信号准入；待负责人裁决，r4实现与执行NOT_PERFORMED。依据AGENTS.md §4/C14和ADR-0266，现批准仅诊断且不改变读取序列。
+本轮无提交、推送、冻结、M5、正式门A/B或系统修改。旧HALTED/首败/UNKNOWN保留。证据：整合树outputs/a9-39-w52-package-prep/controller-w54-r3/FULL_WIN7_DEV_FAILURE_VERIFIED.json及同目录REPORT.md。下文保留历史。
+
+## WIN7-54 r3 原总控 DEV 已派发，结果 UNKNOWN（2026-10-23 UTC）
+
+ADR-0266候选外固定拒绝原因诊断已实现。开发机72项窄合同、实际Win7 PS2与默认PS5各39项自检及同一只读独审0P0/0P1通过。原r2的94文件和两WIN7-54 ZIP核验未变。
+获批唯一新run 4adca5c3-8419-4069-b8ac-5a07b6e3d978已派发，原完整37用例67断言及R0～R8、GPU/R7/终止边界保持；当前结果UNKNOWN。仅观察本地进度，不并发操作目标。
+M2仍为原6 Stage/13断言DEV PASS；正式门A/B NOT_PERFORMED，M5 BLOCKED_BY_STANDING_AUTHORIZATION。没有提交、推送、冻结或系统变更。证据沿用controller-w54-r3/及outputs/win7-dev/formal/4adca5c3/。下文保留历史。
+
+## WIN7-54 package-r3 固定拒绝原因诊断已批准（2026-10-23 UTC）
+
+负责人已批准提案，ADR-0266及A9-39 r58登记新包精确范围。主代理实施，复用同一只读独审；窄合同和实际PS2/默认PS5自检后，仅一轮原完整DEV总控。原GPU/R7门、37用例67断言、预算和终止边界保持。
+M2仍为WIN7-54开发实机原13断言PASS；完整37/67尚未完成。旧c609e0e6保持HALTED。产品/ZIP不变，不提交、推送、冻结、M5或正式门A/B。
+当前实施及新实机结果UNKNOWN；证据沿用outputs/a9-39-w52-package-prep/controller-w54-r3/。下文保留原时点记录。
+
+## WIN7-54 的 M2 开发实机 PASS；完整验收仍受 GPU 退出事实门阻断（2026-10-23 UTC）
+
+当前源 `9b385246a6fff911162e8effaf15a12de76903a8`，ZIP `3737852aa9525ff3f3871b9c09fce9115e2462fa31da3baa32a20f992d0f0b86`。
+原 M1～M4 的 10 Stage / 38 断言全部 Win7 DEV PASS；其中 M2 为原 6 Stage / 13 断言（run `bd937f3b`，83 件原始证据核验）。
+M6 原 10 探针 / 5 断言 Win7 DEV PASS（run `37dd4628`，14 件原始证据核验），仅证明持久化组件跨读。
+候选外观察器修复的 72 项开发机合同、20 项实际 PS2 自检、原 p04 的 6 用例 / 7 断言和独审 PASS。
+完整 run `c609e0e6` 已通过传输/逐件 SHA/展开和 p01/p02（2 用例 / 9 断言），在 GPU 入口 OS 退出事实 UNKNOWN 处保持 HALTED；p03～p10 NOT_PERFORMED，未完成37/67。
+原 GUI 已加载且 GPU 启动失败计数0；Node exit/close0不能替代 OS 退出事实。R7 保留 metadata-only，R8 根内进程/任务空，准确 SGTool 环境实例未终止。
+PS2、默认 PS5 最小 Node 对照均8/8取得有效事实；未复现原缺口。自制单GUI4180e171和5b4d8659的入口失败保留；后者停在guard_return后、未ready，原65秒看门狗触发，不能证明原缺失属性原因。
+已停止新增GUI/整批重试。原总控环境与隔离诊断环境存在明确非等价项，但因果仍 UNKNOWN。
+新 `GPU_EXIT_DIAGNOSTIC_SCOPE_PROPOSAL.md` 已备好：申请不可变 package-r3，在原总控入口只记录固定拒绝原因，保持环境、门、终止和原37/67；待负责人裁决，r3实现及执行 NOT_PERFORMED。
+最后只读 status：DCCS-CHAIZL-PC / build7601 / agent会话2、根内进程/任务空、锁inactive，根占用6112462136字节；目标生命周期仅按各原run事实理解。
+两份原WIN7-54 ZIP和package-r2的94件封存文件重新核验未变。旧FAIL/HALTED、UNKNOWN、首败和全部原输入保留。
+本轮无新提交、推送、冻结、发布或系统修改；M5仍BLOCKED_BY_STANDING_AUTHORIZATION，正式门A/B NOT_PERFORMED。
+证据沿用整合工作树 `outputs/a9-39-w52-package-prep/controller-w54-r2/`。下文保留原时点记录。
+
+## WIN7-54 观察器修复通过短链，完整开发总控执行中
+
+本轮修复仅位于候选外 controller-r2，产品 ZIP、原生组件和原 r1 包未改。
+源码为9b385246a6fff911162e8effaf15a12de76903a8，ZIP为3737852aa9525ff3f3871b9c09fce9115e2462fa31da3baa32a20f992d0f0b86。
+72项开发机合同检查、20项实机PowerShell 2.0自检及只读独审通过。
+原p04短链cb7bcf43的6用例/7断言PASS，31件原始文件核验一致。
+38条有效OS退出事实与4条退出事实UNKNOWN的代际结束分别记录。
+新完整DEV总控7b442abc正在执行，结果UNKNOWN；旧a46f89ee保持HALTED。
+M1～M4与M6补充检查待新run；不把旧WIN7-52结果改签为当前候选PASS。
+不提交、推送、冻结或发布；M5和正式门A/B未执行。
+证据见整合工作树outputs/a9-39-w52-package-prep/controller-w54-r2/。
+下文保留各原时点记录。
+
+## WIN7-54 short DEV PASS; controller exit observer repair approved (2026-10-23 UTC)
+
+Source9b385246a6fff911162e8effaf15a12de76903a8; ZIP3737852aa9525ff3f3871b9c09fce9115e2462fa31da3baa32a20f992d0f0b86, two clean builds byte-equal.
+DEV026a7170 original p06/p05:6cases9assertions PASS,55rawfiles verified.
+Full DEVa46f89ee remains HALTED at R6-p04. Product p04sixcases PASS; first task failure was null ExitTime at writer-registry.ps1:228.
+R7 metadata-only/R8failed; later stages NOT_PERFORMED. Old candidate failures retained.
+Owner approved ADR-0265 candidate-external controller-r2 repair.9 local narrow checks PASS and read-only independent0P0/0P1; actual PS2 selfcheck in progress.
+Same WIN7-54 ZIP unchanged. No commit/push/freeze/M5/formal GateA/B/system settings or termination expansion.
+Existing WIN7-52 M1/M2/M3/M4/M6 results retain original bindings; no re-signing as WIN7-54.
+Evidence: integration worktree outputs/a9-39-w52-package-prep/controller-w54-r2/ and A9-39 section11.8.117.
+Earlier entries below are historical snapshots.
+
 ## WIN7-53 短链 FAIL 已定位，WIN7-54 修正开发检查通过（2026-10-23 UTC）
 
 WIN7-53/source068b5e7 的 DEV run cc49e091 在原 B2-CONT-03 A01 FAIL。
