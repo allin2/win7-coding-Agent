@@ -1,5 +1,89 @@
 # 项目状态流水（历史）
 
+## 受控清理修复开发检查通过，准备 WIN7-53（2026-10-23 UTC）
+
+负责人已批准 ADR-0264 的受控清理及固定夹具系统进程例外。
+主代理完成 smoke、driver 和合同测试修复。
+开发机完整合同684项、打包合同9项PASS。
+最后worker补齐后60项受影响检查PASS；与完整合同重叠，不相加计数。
+独审0P0/0P1。即将按批准范围本地提交并双构建WIN7-53。
+新候选实机NOT_PERFORMED；WIN7-52的M4/M1开发PASS保留原run e1e87b62。
+M2/M3/M6保持各自旧run，M6限组件跨读。
+完整新候选总控与正式门A/B仍NOT_PERFORMED，M5禁令保持。
+开发根保留，未终止根外实例；没有推送、冻结或发布。
+准确材料见整合工作树A9-39 §11.8.113～114和outputs/a9-39-w52-package-prep/。
+下方记录按原时点理解。
+
+## WIN7-52 M4、M1 开发实机通过；完整总控待终止边界裁决（2026-10-23 UTC）
+
+主代理完成 ADR-0263 的准确 SogouExe 分类修复。
+开发机针对性合同检查 72 项 PASS，独审 0P0/0P1。
+工具 SHA-256 为 6afd0549…；修复尚未提交。
+候选仍为 WIN7-52/source908da8c…，ZIPf782f465…，字节未变。
+
+Win7 DEV 新 run e1e87b62：原 M4 三项、M1 十一项 PASS。
+每组 GUI 自然退出 0，postflight.related 为空。
+实际 Node16.17.1 的 32 项分类合成准入先于 GUI 完成。
+26 件实机原始文件逐项大小及 SHA 一致。
+环境 SGTool 存活有记录，不写成全部进程为零。
+旧 M4 两次 FAIL 和旧实例映像 UNKNOWN 保留。
+
+开发机总控绑定检查和 63 项合同检查 PASS。
+新 run b513a6ab 未派发，完整 R0～R8 为 NOT_PERFORMED。
+必跑中断调用 taskkill /T；release 清理也未限定映像。
+ENGINEERING_03 §7 明确禁止根外终止，故派发为 BLOCKED。
+同一只读独审确认没有可用的固定入口安全钩子。
+主代理已提出受控清理修复、新候选及严格夹具实例例外，等待负责人裁决。
+见整合工作树 outputs/a9-39-w52-package-prep/CONTROLLER_SCOPED_CLEANUP_REPAIR_PROPOSAL.md。
+
+M2/M3/M6 保留各自原 WIN7-52 DEV PASS；M6 限组件跨读。
+M5 为 BLOCKED_BY_STANDING_AUTHORIZATION；正式门 A/B 为 NOT_PERFORMED。
+最近已回收 status 显示开发根仍在，约 1.067GB，根内进程/任务空、锁 inactive。
+开发根本轮尚未再次关闭；上轮 CLEANUP_COMPLETE 只作历史快照。
+本轮未提交、推送、冻结或终止根外实例。
+准确证据见 A9-39 §11.8.108～112 与 M4_M1_WIN7_DEV_VERIFIED.json。
+下方记录按原时点理解。
+
+## M4直接映像已定位，准确环境分类提案待裁决（2026-10-23 UTC）
+
+Win7 DEV直接证据绑定WIN7-52/source908da8c…、ZIPf782f465…，新run3529c0f5。M4三业务断言PASS、GUI自然退出0；组FAIL保持。同次原WMIC列表直接确认两个related实例均为C:\Program Files (x86)\SogouInput\SogouExe\SogouExe.exe，ImageSource=executable_path，已保存PID/父PID/会话/创建时间。10件原始文件大小/SHA核验一致。旧run19b28f78原映像UNKNOWN及原FAIL保留。
+
+准确分类超出现行ADR-0258的SGTool规则，提案待负责人明确裁决；两条实现路径尚未修改。建议只允许一个准确完整映像与有效目标身份，其他进程及failed列表继续FAIL。见整合工作树A9-39 §11.8.106～107、outputs/a9-39-w52-package-prep/M4_ENVIRONMENT_CLASSIFICATION_PROPOSAL.md及M4_DIRECT_IMAGE_VERIFIED.json。
+
+M2/M3/M6保留原WIN7-52开发实机PASS；M1 NOT_PERFORMED，M5 BLOCKED_BY_STANDING_AUTHORIZATION，正式R0～R8及门A/B NOT_PERFORMED。开发根按本轮工作重建并保留，最近根内进程/任务0、锁inactive，约583MB；上轮关闭成功仅为历史快照。未结束根外进程，未提交、推送、冻结或发布。下方记录按原时点理解。
+
+## M2 开发实机闭环，开发根收尾完成；M4 后检仍 FAIL（2026-10-23 UTC）
+
+Win7 DEV直接证据绑定WIN7-52/source908da8c…、ZIPf782f465…：M2六Stage/13断言、M3两Stage/11断言、M6十场景/5断言PASS；M6限组件跨读。M4业务3/3 PASS，但原进程后检含两个SogouExe.exe，准确映像UNKNOWN，故M4组FAIL保持。M1 NOT_PERFORMED，M5 BLOCKED_BY_STANDING_AUTHORIZATION；正式R0～R8及门A/B NOT_PERFORMED。
+
+负责人批准只对准确绑定的SGTool5372收尾。执行前该PID已自然结束，ALREADY_ENDED，Terminate调用0次；动作结果大小/SHA已核验。00:30:32.681Z原close成功，00:30:39.604Z独立status确认C:\A9-DEV不存在、root_bytes=0、根内进程/任务空、锁null，收尾CLEANUP_COMPLETE。首次close失败及原M4 FAIL保留，常设授权和M4分类未扩展。
+
+候选/输入保持，未冻结、推送或发布。证据见整合工作树A9-39 §11.8.104～105、outputs/a9-39-w52-package-prep/BOUND_CLEANUP_AND_CLOSURE_VERIFIED.json及REPORT.md。后续缺口为M4原失败时进程映像取证；下方记录均按原时点理解。
+
+## M2 开发实机闭环；M4 后检与开发根收尾待处理（2026-10-22 UTC）
+
+Win7 DEV直接证据：WIN7-52/source908da8c…、ZIPf782f465…保持。M2六Stage/13断言、M3两Stage/11断言、M6十场景/5断言通过；分别42、24、14件回收资料逐项大小/SHA一致。M6限组件交叉读取，旧夹具只继承字节，不继承结果。M2修复已在当前候选开发实机闭环，正式验收未签发。
+
+同候选M4补跑三条业务断言PASS，但进程后检记录两个尚未获准排除的SogouExe.exe，故M4组FAIL，M1 NOT_PERFORMED；没有改分类或改判。M5仍BLOCKED_BY_STANDING_AUTHORIZATION，新候选正式R0～R8、门A/B均NOT_PERFORMED。原失败和默认产品目录历史影响UNKNOWN保留。
+
+首次close未完成，独立后检根内进程/任务0、锁null，剩约8.5KB隔离输入法文件。新查询确认SGTool5372仍存活，四文件共享冲突；未读内容或结束根外进程。单实例收尾提案已备，等待负责人明确决定；常设授权不允许自行终止该根外映像。未冻结、推送或发布。准确记录见A9-39 §11.8.100～103及整合工作树outputs/a9-39-w52-package-prep/REPORT.md。下方按原时点理解。
+
+## WIN7-52 M2、M3 开发实机通过，M6 继续（2026-10-22 UTC）
+
+Win7 DEV直接证据：候选WIN7-52/source908da8c…、ZIPf782f465…保持。M2原六Stage/13断言和M3 Review主流程/重启两Stage/11断言全部PASS，父/GUI自然退出0。M2回收42件、M3回收24件，逐件大小/SHA一致。原失败与默认目录历史影响UNKNOWN保留，正式验收不改判。
+
+目标地址按负责人更新为192.168.1.9，原SSH主机键严格核对。原A07先因候选外PATH漏wbem收尾ERROR，新run补路径并做实际正反能力检查后完整通过。整组执行保留原driver与判据，只以候选外根内直接进程启动包装替代不适用常设授权的taskkill /T超时分支；实际均未触发强制终止。环境SGTool按既有ADR登记，不当作0存活。
+
+当前继续M6十场景/五断言，输入字节按锁精确继承，实机结果重新执行；M5仍BLOCKED_BY_STANDING_AUTHORIZATION。WIN7-52新总控R0～R8与正式门A/B均NOT_PERFORMED，未冻结、未推送或发布。准确记录见整合工作树A9-39 §11.8.100～101与outputs/a9-39-w52-package-prep/。下方记录按原时点理解。
+
+## M2 Runner 本地修复完成，WIN7-52 待实机复验（2026-10-22 UTC）
+
+开发机：修复已提交908da8c，751项受影响检查通过，独审0P0/0P1。WIN7-52双构建逐字节一致，ZIP SHA-256 f782f465d0e5bbc4c2f21be96d7d30a52f6bed3e4d5d2374e0b2179f53d72efc。唯一产品运行时变化是Runner传输层，原生组件字节未变；旧WIN7-51保留。未推送，候选未冻结。
+
+Win7开发通道：新run dc26b6e1的首个只读预检在SSH banner交换超时。独立TCP读取能连接22端口，仍无SSH banner。新候选上传、启动及实机复验均NOT_PERFORMED；没有产品重试，也未重启服务或修改系统设置。当前目标/开发根状态UNKNOWN，close未完成。旧17:11Z存活0快照不是当前状态。
+
+M2实机问题尚未关闭，历史FAIL/HALTED保留，正式门A/B、M5、Alpha2/RC未签发。下一步为目标SSH/网络恢复后新status→800件闭包/身份准入→原audit_output真实窗口Stage→受影响M2与合同项。源和不可变材料已备，见整合工作树outputs/a9-39-w52-package-prep/REPORT.md及A9-39 §11.8.99。下方记录按原时点理解。
+
 ## M2 Runner 修复完成，WIN7-52 本地验证中（2026-10-22 UTC）
 
 Win7 DEV直接证据绑定WIN7-51/source74ac9ef7…、run c61b8a27：tool_output审计SQL失败后2ms出现未处理EPIPE，原驱动结果缺失，诊断INCOMPLETE。历史600秒FAIL/HALTED保留，M2正式验收NOT_PERFORMED。回收16件大小/SHA一致；当前执行窗口存活0、unknown_creation0。默认产品目录历史影响UNKNOWN保持。

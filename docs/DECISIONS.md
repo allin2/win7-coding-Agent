@@ -3159,3 +3159,21 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 事实：WIN7-51 Win7 DEV真实audit_output Stage在SQLITE_CONSTRAINT_TRIGGER后观察到未处理EPIPE；开发机相同Runner的真实OS管道最小反例堆栈指向取消stdin.end。具体Win7写点UNKNOWN，M2旧FAIL/HALTED保持。
 - 决定：A9-39新增native-transport.ts、native-transport.test.ts与a9-audit-integrity.test.ts三条精确路径。首次写入前处理stdin异步错误，保留首个审计失败，request/cancel/release统一fail-closed且有界结算；不以kill或stdin关闭证明清理。主代理实现、独立审核；通过后本地提交、双干净构建拟WIN7-52并在既有开发通道范围内复验。新候选创建前核号，WIN7-51包/首失败/历史证据不改。
 - 边界：不改协议、权限、持久化格式、原生组件、依赖及正式判据。不批准推送、发布、冻结或门A/B；不解除M5禁令。DEV结果不能提升为正式PASS。
+
+## ADR-0263 M4后检将准确直接映像SogouExe记录为环境进程
+
+- 状态：Accepted（2026-10-23）。负责人对M4_ENVIRONMENT_CLASSIFICATION_PROPOSAL.md完整提案回复“批准按提案实施”；收据及提案SHA见A9-39 §11.8.108。
+- 事实：WIN7-52开发通道单次run3529c0f5的M4三业务断言PASS、GUI自然退出0，组FAIL。与原postflight相同WMIC列表直接确认两related实例为C:\Program Files (x86)\SogouInput\SogouExe\SogouExe.exe、ImageSource=executable_path，PID/父PID/创建时间/会话已保存并与前退树一致。旧19b28f78原映像UNKNOWN及全部FAIL不改判。
+- 决定：只扩展a9-alpha2-supplement.cjs的postflight，名称为SogouExe.exe、直接来源executable_path、ExecutablePath和ImagePath均准确等于上述单一路径（名称/路径不区分大小写），且PID/父PID、非空DMTF创建时间、与授权目标一致的会话有效时，记入environment而不计related；保存原映像、PID/父PID、会话、创建时间和来源。缺失、命令行回退、错名/路径/会话、非法身份均不豁免。原SGTool规则、完整后代遍历、未知子孙与helper判据及failed失败门不变。合同反例在a9-batch2-contract.test.ts。
+- 验证与执行：主代理实施，授权一个只读子代理独审本次变更和关键证据；审核通过后用新不可变输入/run、同一WIN7-52，在ENGINEERING_03常设授权内先M4，再M1与开发总控。编排器在候选外，以新SHA绑定，不重建候选或原生。安全/身份/完整性/未知生命周期失败停止下游，同类未闭环连续两轮先最小诊断。
+- 放弃的保证：不再证明该准确环境进程在封存期间没有写入证据根；仍保存其身份和环境分类证据。此取舍仅覆盖上述单一映像，不扩大到目录内其他文件名或其他输入法。
+- 边界：不批准提交、推送、冻结、正式门A/B、M5、系统设置或根外进程终止；原ADR-0256/0258/0259正文保留，旧失败和UNKNOWN保持。
+
+## ADR-0264 开发总控使用受控实例清理；固定夹具的三个系统映像获有界终止例外
+
+- 状态：Accepted（2026-10-23）。负责人对 CONTROLLER_SCOPED_CLEANUP_REPAIR_PROPOSAL.md 回复“批准选项 A（推荐）”。完整范围与提案 SHA 见 OWNER_SCOPED_CLEANUP_APPROVAL.json。
+- 事实：WIN7-52 的 M4/M1 开发复验 PASS。原总控必跑中断使用 taskkill /T，release 清理也未限定映像；ENGINEERING_03 §7 禁止根外终止。新总控 b513a6ab 仅完成本地绑定与63项合同检查，实际执行 NOT_PERFORMED。
+- 决定：仅开放 smoke、driver、batch2 合同测试的受控清理修复，以及既有候选身份同步。取消无边界树终止。根内实例重新核对身份；根外只允许本 run 固定 batch2 Shell 夹具准确绑定的 C:\Windows\System32\cmd.exe、C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe 和 C:\Windows\System32\PING.EXE。run/阶段/夹具摘要、工具调用或handle、PID/父PID/创建时间、SID、会话和直接映像须齐全，终止前重读；未知或错配即停止。不能凭父进程、名称、命令行推断映像或树差异授权。间接退出须纳入守卫；搜狗、其他映像和其他run不获批准。
+- 执行：主代理实施，复用一个只读子代理独审。通过后本地提交任务相关明确路径、双干净构建新候选；先真实运行时守卫准入，再原中断/release短链，再原37场景/67断言与R0～R8。新编号创建前核号。候选字节和原FAIL/HALTED不覆盖。
+- 放弃的保证：ENGINEERING_03 根外禁止仅对上述明确绑定的三个夹具映像产生例外；有效期仍至2026-10-28T00:00:00Z。WMI重读与按PID终止之间非原子，不能声明原子身份保证。边界无法确认时不派发或停止下游，不以等待或放宽断言替代清理证明。
+- 边界：不改业务、Runner、原生、依赖、协议和原阶段判据。不批准推送、发布、冻结、M5、真实配置/凭据读取、系统设置/服务或正式门A/B。DEV结果不提升为正式PASS。原Accepted ADR及ENGINEERING_03正文保留。

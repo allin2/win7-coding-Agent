@@ -716,6 +716,15 @@ function prepareDriverRuntime(candidateRoot, runRoot) {
   fs.writeFileSync(path.join(appRoot, 'package.json'), `${JSON.stringify({ name: 'a9-batch2-driver', version: '1.0.0', main: 'main.cjs', private: true }, null, 2)}\n`, 'utf8');
   return { electronPath: path.join(runtimeRoot, 'electron.exe'), appRoot, driverSha256: sha256File(driverSource) };
 }
+function prepareCleanupWorker(runtime) {
+  const cleanupPowerShell = path.join(path.dirname(runtime.electronPath), 'cleanup-tools', 'powershell.exe');
+  fs.mkdirSync(path.dirname(cleanupPowerShell), { recursive: true });
+  const systemPowerShell = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+  if (process.platform !== 'win32' || !fs.existsSync(systemPowerShell)) throw new Error('A9_BATCH2_CLEANUP_POWERSHELL_UNAVAILABLE');
+  copyRuntimeFile(systemPowerShell, cleanupPowerShell);
+  if (sha256File(systemPowerShell) !== sha256File(cleanupPowerShell)) throw new Error('A9_BATCH2_CLEANUP_POWERSHELL_COPY_MISMATCH');
+  return cleanupPowerShell;
+}
 function copyTree(source, target) {
   fs.mkdirSync(target, { recursive: true });
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
@@ -727,13 +736,273 @@ function copyTree(source, target) {
 
 // One process by id, never its tree: a process the product released is no longer a child of anything the suite owns, and only an
 // instance whose id and creation stamp were checked is passed here (finishReleaseEvidence).
-function killProcess(pid) {
-  if (process.platform === 'win32') childProcess.spawnSync('taskkill.exe', ['/PID', String(Number(pid)), '/F'], { windowsHide: true, timeout: 30000 });
-  else { try { process.kill(pid, 'SIGKILL'); } catch (_error) { /* gone */ } }
+function killProcess(pid, scope) {
+  if (!scope || typeof scope.terminate !== 'function') throw new Error('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
+  return scope.terminate(pid, false);
 }
-function killTree(pid) {
-  if (process.platform === 'win32') childProcess.spawnSync('taskkill.exe', ['/PID', String(Number(pid)), '/T', '/F'], { windowsHide: true, timeout: 30000 });
-  else { try { process.kill(pid, 'SIGKILL'); } catch (_error) { /* gone */ } }
+function killTree(pid, scope) {
+  if (!scope || typeof scope.terminate !== 'function') throw new Error('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
+  return scope.terminate(pid, true);
+}
+
+// ADR-0264. These are instance-bound fixture exceptions, never a general system-image allowlist.
+const CLEANUP_ROOT = 'c:\\a9-dev\\';
+const CLEANUP_SID = 'S-1-5-21-1708701742-428676696-1831205153-1001';
+const CLEANUP_EXPIRES = Date.parse('2026-10-28T00:00:00Z');
+const FIXTURE_IMAGES = Object.freeze({ cmd: 'C:\\Windows\\System32\\cmd.exe',
+  powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', ping: 'C:\\Windows\\System32\\PING.EXE' });
+function cleanupInteger(value) { return (typeof value === 'number' || typeof value === 'string') && /^[1-9][0-9]*$(?![\s\S])/.test(String(value)) && Number.isSafeInteger(Number(value)); }
+function cleanupStamp(value) {
+  if (typeof value !== 'string' || !/^[0-9]{14}\.[0-9]{6}[+-][0-9]{3}$(?![\s\S])/.test(value)) return false;
+  const a = [value.slice(0, 4), value.slice(4, 6), value.slice(6, 8), value.slice(8, 10), value.slice(10, 12), value.slice(12, 14)].map(Number);
+  const date = new Date(Date.UTC(a[0], a[1] - 1, a[2], a[3], a[4], a[5]));
+  return a[0] >= 1601 && date.getUTCFullYear() === a[0] && date.getUTCMonth() + 1 === a[1] && date.getUTCDate() === a[2]
+    && date.getUTCHours() === a[3] && date.getUTCMinutes() === a[4] && date.getUTCSeconds() === a[5];
+}
+function cleanupIdentity(row) {
+  if (!row || !cleanupInteger(row.ProcessId) || !cleanupInteger(row.ParentProcessId) || !cleanupInteger(row.SessionId)
+    || !cleanupStamp(row.CreationDate) || row.ImageSource !== 'executable_path' || typeof row.ExecutablePath !== 'string'
+    || row.ExecutablePath !== row.ImagePath || !row.ExecutablePath || /[\x00-\x1f|]/.test(row.ExecutablePath)
+    || path.win32.normalize(row.ExecutablePath) !== row.ExecutablePath || !/^[A-Za-z]:\\/.test(row.ExecutablePath)
+    || /[:*?"<>]/.test(row.ExecutablePath.slice(2)) || row.ExecutablePath.split('\\').some((part) => /[. ]$/.test(part))
+    || typeof row.Name !== 'string' || path.win32.basename(row.ExecutablePath).toLowerCase() !== row.Name.toLowerCase()) return null;
+  return { pid: Number(row.ProcessId), parent: Number(row.ParentProcessId), session: Number(row.SessionId),
+    name: row.Name, image: row.ExecutablePath, created: row.CreationDate };
+}
+function sameCleanupIdentity(a, b) {
+  return Boolean(a && b && a.pid === b.pid && a.parent === b.parent && a.session === b.session && a.name === b.name
+    && a.created === b.created && a.image === b.image && a.sid === b.sid);
+}
+function cleanupEnvironment(item) {
+  const image = item.image.toLowerCase();
+  return (item.name.toLowerCase() === 'sgtool.exe' && /^c:\\program files \(x86\)\\sogouinput\\[^\x00-\x1f]+\\sgtool\.exe$(?![\s\S])/.test(image))
+    || (item.name.toLowerCase() === 'sogouexe.exe' && image === 'c:\\program files (x86)\\sogouinput\\sogouexe\\sogouexe.exe');
+}
+function cleanupPsString(value) { return `'${String(value).replace(/'/g, "''")}'`; }
+// WMI recheck -> Terminate is not atomic. The receipt records that limit; no PID-only fallback is permitted.
+function cleanupWmi(pid, expected, spawnSync = childProcess.spawnSync, worker = process.env.A9_BATCH2_CLEANUP_POWERSHELL) {
+  if (!cleanupInteger(pid)) throw new Error('A9_BATCH2_CLEANUP_PID_INVALID');
+  if (spawnSync === childProcess.spawnSync && (!worker || !/^[A-Za-z]:\\/.test(worker) || path.win32.basename(worker).toLowerCase() !== 'powershell.exe'
+    || path.win32.normalize(worker) !== worker || !fs.existsSync(worker) || sha256File(worker) !== sha256File(FIXTURE_IMAGES.powershell))) throw new Error('A9_BATCH2_CLEANUP_WORKER_NOT_BOUND');
+  const checks = expected ? Object.entries({ ProcessId: expected.pid, ParentProcessId: expected.parent, SessionId: expected.session,
+    Name: expected.name, ExecutablePath: expected.image, CreationDate: expected.created }).map(([key, value]) => `[string]$p.${key} -ceq ${cleanupPsString(value)}`).join(' -and ') : '';
+  const script = `$ErrorActionPreference='Stop'\nfunction Facts($p) { $s=$p.GetOwnerSid(); $o=$p.GetOwner(); if ($s.ReturnValue -ne 0 -or $o.ReturnValue -ne 0 -or $o.User -ine 'agent') { throw 'OWNER_UNKNOWN' }; return ([string]$p.ProcessId+'|'+[string]$p.ParentProcessId+'|'+[string]$p.SessionId+'|'+[string]$p.Name+'|'+[string]$p.ExecutablePath+'|'+[string]$p.CreationDate+'|'+[string]$s.Sid) }\n`
+    + `$r=@(Get-WmiObject Win32_Process -Filter 'ProcessId=${Number(pid)}'); if ($r.Count -eq 0) { [Console]::WriteLine('GONE'); exit 0 }; if ($r.Count -ne 1) { throw 'AMBIGUOUS' }; $p=$r[0]; $f=Facts $p\n`
+    + (expected ? `if (-not (${checks}) -or $f.Split('|')[6] -cne ${cleanupPsString(expected.sid)}) { throw 'IDENTITY_CHANGED' }; $r=@(Get-WmiObject Win32_Process -Filter 'ProcessId=${Number(pid)}'); if ($r.Count -eq 0) { [Console]::WriteLine('GONE'); exit 0 }; if ($r.Count -ne 1) { throw 'AMBIGUOUS' }; $p=$r[0]; if (-not (${checks}) -or (Facts $p) -cne $f) { throw 'IDENTITY_CHANGED' }; $t=$p.Terminate(); if ($t.ReturnValue -ne 0) { throw 'TERMINATE_FAILED' }; [Console]::WriteLine('TERMINATED|'+$f)`
+      : "[Console]::WriteLine('FACTS|'+$f)");
+  const result = spawnSync(worker, ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+    { windowsHide: true, encoding: 'utf8', timeout: COMMAND_TIMEOUT_MS, maxBuffer: 16384 });
+  if (result.error || result.status !== 0) throw new Error('A9_BATCH2_CLEANUP_WMI_FAILED');
+  const text = String(result.stdout || '').trim();
+  if (text === 'GONE') return { status: 'ALREADY_ENDED' };
+  const fields = text.split('|');
+  if (fields.length !== 8 || !['FACTS', 'TERMINATED'].includes(fields[0])) throw new Error('A9_BATCH2_CLEANUP_WMI_UNKNOWN');
+  const item = cleanupIdentity({ ProcessId: fields[1], ParentProcessId: fields[2], SessionId: fields[3], Name: fields[4],
+    ExecutablePath: fields[5], ImagePath: fields[5], ImageSource: 'executable_path', CreationDate: fields[6] });
+  if (!item || fields[7] !== CLEANUP_SID) throw new Error('A9_BATCH2_CLEANUP_OWNER_MISMATCH');
+  return { status: fields[0], identity: { ...item, sid: fields[7] } };
+}
+function fixtureCommandInvocation(kind, name, candidateRoot) {
+  const command = fixtures.shellCommand(kind, { name });
+  const build = require(path.join(candidateRoot, 'resources', 'app', 'runner', 'dist', 'trusted-shell-runner.js')).buildTrustedShellInvocation;
+  return { command, args: build(kind, FIXTURE_IMAGES[kind], command).args.join(' ') };
+}
+function matchesFixtureCommand(line, image, args) {
+  if (typeof line !== 'string') return false;
+  const prefix = line.startsWith('"') ? `"${image}" ` : `${image} `;
+  return line.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase() && line.slice(prefix.length) === args;
+}
+// The driver supplies the actual tool_start and optional handle. Command text is checked only in memory.
+function captureFixtureCleanup(input, exec = realExec, owner = cleanupWmi) {
+  const spec = input.fixture === 'released-hold' ? { call: 'b2-rel-1', tool: 'start_process' } : input.fixture === 'long-running' ? { call: 'b2-unk-1', tool: 'shell' } : null;
+  const invocation = fixtureCommandInvocation(input.kind, input.fixture, input.candidateRoot);
+  const event = input.toolEvent;
+  if (!spec || !event || event.callId !== spec.call || event.toolName !== spec.tool || !event.args || event.args.command !== invocation.command
+    || !input.turnId || !input.runId || !input.phase || !input.mode || !cleanupInteger(input.driverPid)) throw new Error('A9_BATCH2_FIXTURE_CALL_NOT_BOUND');
+  const listing = listProcesses(exec); const commands = listCommandLines(exec);
+  if (listing.failed || commands.failed) throw new Error('A9_BATCH2_FIXTURE_PROCESS_UNKNOWN');
+  const root = listing.rows.find((row) => Number(row.ProcessId) === input.driverPid);
+  const driver = cleanupIdentity(root);
+  if (!driver) throw new Error('A9_BATCH2_FIXTURE_DRIVER_UNKNOWN');
+  const tree = liveDescendants(listing.rows, [driver]);
+  const members = new Set(tree.map((item) => item.pid));
+  const matches = listing.rows.filter((row) => members.has(Number(row.ProcessId)) && row.ImageSource === 'executable_path'
+    && String(row.ExecutablePath).toLowerCase() === FIXTURE_IMAGES[input.kind].toLowerCase()
+    && matchesFixtureCommand(commands.byPid.get(String(row.ProcessId)), row.ExecutablePath, invocation.args));
+  if (matches.length !== 1 || (input.fixture === 'released-hold' && (!input.handle || matches[0].ProcessId !== String(input.handle.pid) || !input.handle.handleId))) throw new Error('A9_BATCH2_FIXTURE_ROOT_NOT_UNIQUE');
+  const selected = [matches[0], ...liveDescendants(listing.rows, [cleanupIdentity(matches[0])]).map((item) => listing.rows.find((row) => Number(row.ProcessId) === item.pid))];
+  const instances = selected.map((row, index) => {
+    const identity = cleanupIdentity(row);
+    if (!identity || identity.session !== input.session || (index > 0 && (identity.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase()
+      || !/^"?(?:c:\\windows\\system32\\)?ping(?:\.exe)?"?\s+-n\s+2\s+127\.0\.0\.1\s*$(?![\s\S])/i.test(commands.byPid.get(String(identity.pid)) || '')))) throw new Error('A9_BATCH2_FIXTURE_DESCENDANT_NOT_BOUND');
+    const facts = owner(identity.pid);
+    if (index > 0 && facts.status === 'ALREADY_ENDED') return null;
+    if (facts.status !== 'FACTS' || !sameCleanupIdentity({ ...identity, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_FIXTURE_IDENTITY_CHANGED');
+    return facts.identity;
+  }).filter(Boolean);
+  return { schema_version: 1, run_id: input.runId, phase: input.phase, mode: input.mode, driver_pid: input.driverPid,
+    fixture: input.fixture, shell_kind: input.kind, command_sha256: sha256Bytes(Buffer.from(invocation.command, 'utf8')),
+    call_id: spec.call, tool_name: spec.tool, turn_id: input.turnId, handle: input.handle || null, root_pid: instances[0].pid,
+    instances, observed_at: new Date().toISOString() };
+}
+function createCleanupScope(ctx, runtime, mode, hooks = {}) {
+  const exec = hooks.exec || realExec; const owner = hooks.owner || ((pid, expected) => cleanupWmi(pid, expected, childProcess.spawnSync, runtime.cleanupPowerShell));
+  const receipt = path.join(ctx.attemptDir, `${mode}-cleanup-events.jsonl`);
+  const bindingFile = path.join(ctx.attemptDir, `${mode}-cleanup-binding.json`);
+  const tracked = new Map(); let driver = null; let bindingDigest = null; let events = 0;
+  const dev = String(ctx.runRoot).toLowerCase().startsWith(CLEANUP_ROOT);
+  const imageUnder = (image, root) => image.toLowerCase().startsWith(`${String(root).toLowerCase().replace(/\\+$/, '')}\\`);
+  const rootImage = (image) => dev ? image.toLowerCase().startsWith(CLEANUP_ROOT)
+    : imageUnder(image, ctx.candidateRoot) || imageUnder(image, path.win32.dirname(runtime.electronPath));
+  const invocationFor = hooks.invocation || fixtureCommandInvocation;
+  const log = (event) => { if (++events > 64) throw new Error('A9_BATCH2_CLEANUP_EVIDENCE_LIMIT'); fs.appendFileSync(receipt, `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`, 'utf8'); };
+  const admission = () => {
+    if (!ctx.request || !ctx.request.target || ctx.request.target.account_sid !== CLEANUP_SID
+      || ctx.request.target.session_id !== 2 || String(ctx.request.target.machine_name).toLowerCase() !== 'dccs-chaizl-pc'
+      || String((hooks.hostname || os.hostname)()).toLowerCase() !== 'dccs-chaizl-pc'
+      || (dev ? Date.now() >= CLEANUP_EXPIRES || !String(ctx.candidateRoot).toLowerCase().startsWith(CLEANUP_ROOT)
+        : String(ctx.request.evidence_root).toLowerCase() !== String(ctx.runRoot).toLowerCase()
+          || !ctx.request.bindings || !/^[a-f0-9]{40}$/.test(ctx.request.bindings.source_commit || '')
+          || ['continue_unknown_interrupt', 'release_exit'].includes(mode))) throw new Error('A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH');
+  };
+  const snapshot = () => { const found = listProcesses(exec); if (found.failed || !usableProcessListing(found)) throw new Error('A9_BATCH2_CLEANUP_LISTING_UNKNOWN'); return found.rows; };
+  const rememberBinding = () => {
+    if (!fs.existsSync(bindingFile)) return;
+    const bytes = fs.readFileSync(bindingFile); if (bytes.length > 65536) throw new Error('A9_BATCH2_CLEANUP_BINDING_LIMIT');
+    const digest = sha256Bytes(bytes);
+    if (bindingDigest) { if (digest !== bindingDigest) throw new Error('A9_BATCH2_CLEANUP_BINDING_CHANGED'); return; }
+    const b = JSON.parse(bytes.toString('utf8'));
+    const spec = b.fixture === 'released-hold' ? { call: 'b2-rel-1', tool: 'start_process' } : b.fixture === 'long-running' ? { call: 'b2-unk-1', tool: 'shell' } : null;
+    const expected = spec && invocationFor(b.shell_kind, b.fixture, ctx.candidateRoot);
+    if (!spec || b.schema_version !== 1 || b.run_id !== ctx.runId || b.phase !== ctx.phase || b.mode !== mode || !driver || b.driver_pid !== driver.pid
+      || b.call_id !== spec.call || b.tool_name !== spec.tool || !b.turn_id || b.command_sha256 !== sha256Bytes(Buffer.from(expected.command, 'utf8'))
+      || !Array.isArray(b.instances) || b.instances.length < 1 || b.instances.length > 32 || !b.instances.some((item) => item.pid === b.root_pid)
+      || (b.fixture === 'released-hold' && (!b.handle || b.handle.pid !== b.root_pid || !b.handle.handleId))) throw new Error('A9_BATCH2_CLEANUP_BINDING_MISMATCH');
+    const rows = snapshot(); const liveDriver = cleanupIdentity(rows.find((row) => Number(row.ProcessId) === driver.pid));
+    const commands = listCommandLines(exec);
+    if (!sameCleanupIdentity(driver, liveDriver && { ...liveDriver, sid: CLEANUP_SID }) || commands.failed) throw new Error('A9_BATCH2_CLEANUP_BINDING_NOT_OBSERVED');
+    const descendants = liveDescendants(rows, [driver]);
+    for (const item of b.instances) {
+      if (!cleanupInteger(item.pid) || !cleanupInteger(item.parent) || !cleanupStamp(item.created) || item.sid !== CLEANUP_SID || item.session !== 2
+        || !Object.values(FIXTURE_IMAGES).some((image) => image.toLowerCase() === String(item.image).toLowerCase())) throw new Error('A9_BATCH2_CLEANUP_BOUND_IDENTITY_INVALID');
+      const live = cleanupIdentity(rows.find((row) => Number(row.ProcessId) === item.pid));
+      if (item.pid !== b.root_pid && !live) { tracked.set(`${item.pid}:${item.created}`, item); continue; }
+      if (!sameCleanupIdentity(item, live && { ...live, sid: CLEANUP_SID }) || !descendants.some((p) => p.pid === item.pid && p.created === item.created)
+        || (item.pid === b.root_pid ? item.image.toLowerCase() !== FIXTURE_IMAGES[b.shell_kind].toLowerCase()
+          || !matchesFixtureCommand(commands.byPid.get(String(item.pid)), item.image, expected.args)
+          : item.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase() || !liveDescendants(rows, [b.instances.find((p) => p.pid === b.root_pid)]).some((p) => p.pid === item.pid))) throw new Error('A9_BATCH2_CLEANUP_BOUND_PROCESS_MISMATCH');
+      const facts = owner(item.pid);
+      if (item.pid !== b.root_pid && facts.status === 'ALREADY_ENDED') { tracked.set(`${item.pid}:${item.created}`, item); continue; }
+      if (facts.status !== 'FACTS' || !sameCleanupIdentity(item, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_BOUND_OWNER_MISMATCH');
+      tracked.set(`${item.pid}:${item.created}`, item);
+    }
+    bindingDigest = digest; log({ action: 'BIND_FIXTURE', binding_sha256: digest, call_id: b.call_id, turn_id: b.turn_id, instances: [...tracked.values()] });
+  };
+  const rememberPings = (rows) => {
+    const parents = [...tracked.values()].filter((item) => [FIXTURE_IMAGES.cmd, FIXTURE_IMAGES.powershell].some((image) => item.image.toLowerCase() === image.toLowerCase()));
+    if (!parents.length) return;
+    for (const parent of parents) {
+      const current = rows.find((row) => Number(row.ProcessId) === parent.pid);
+      if (current && !sameCleanupIdentity(parent, { ...cleanupIdentity(current), sid: CLEANUP_SID })) throw new Error('A9_BATCH2_CLEANUP_PARENT_IDENTITY_CHANGED');
+    }
+    const commands = listCommandLines(exec);
+    if (commands.failed) throw new Error('A9_BATCH2_CLEANUP_PING_COMMAND_UNKNOWN');
+    for (const child of liveDescendants(rows, parents)) {
+      const item = cleanupIdentity(rows.find((row) => Number(row.ProcessId) === child.pid));
+      if (!item || item.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase() || item.session !== 2
+        || !/^"?(?:c:\\windows\\system32\\)?ping(?:\.exe)?"?\s+-n\s+2\s+127\.0\.0\.1\s*$(?![\s\S])/i.test(commands.byPid.get(String(child.pid)) || '')) throw new Error('A9_BATCH2_CLEANUP_PING_NOT_BOUND');
+      const key = `${item.pid}:${item.created}`;
+      if (!tracked.has(key)) { const facts = owner(item.pid); if (facts.status === 'ALREADY_ENDED') continue;
+        if (facts.status !== 'FACTS' || !sameCleanupIdentity({ ...item, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_PING_IDENTITY_CHANGED');
+        tracked.set(key, facts.identity); }
+    }
+  };
+  const gone = (identity, rows) => {
+    const current = rows.find((row) => Number(row.ProcessId) === identity.pid);
+    if (current && !cleanupIdentity(current)) throw new Error('A9_BATCH2_CLEANUP_EXIT_IDENTITY_UNKNOWN');
+    return !current || current.CreationDate !== identity.created;
+  };
+  const terminateOne = (item) => {
+    log({ action: 'TERMINATE_INTENT', identity: item });
+    const result = owner(item.pid, item);
+    if (result.status !== 'TERMINATED' && result.status !== 'ALREADY_ENDED') throw new Error('A9_BATCH2_CLEANUP_TERMINATE_UNKNOWN');
+    log({ action: result.status, identity: item });
+    if (!gone(item, snapshot())) throw new Error('A9_BATCH2_CLEANUP_EXIT_NOT_OBSERVED');
+  };
+  const drainCommandChildren = () => {
+    let clean = 0;
+    for (let round = 0; round < 8 && clean < 2; round++) {
+      const rows = snapshot(); rememberPings(rows);
+      const roots = [...tracked.values()].filter((item) => item.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase());
+      if (roots.some((item) => !gone(item, rows))) throw new Error('A9_BATCH2_CLEANUP_COMMAND_STILL_ACTIVE');
+      const children = [...tracked.values()].filter((item) => item.image.toLowerCase() === FIXTURE_IMAGES.ping.toLowerCase() && !gone(item, rows));
+      log({ action: 'COMMAND_DESCENDANTS_AFTER_EXIT', round, children });
+      if (children.length) { clean = 0; for (const item of children) terminateOne(item); } else clean++;
+    }
+    if (clean < 2) throw new Error('A9_BATCH2_CLEANUP_DESCENDANTS_NOT_QUIESCENT');
+  };
+  return {
+    admit() {
+      admission(); const facts = owner(process.pid); const groups = exec('whoami_groups');
+      if (facts.status !== 'FACTS' || facts.identity.session !== 2 || facts.identity.sid !== CLEANUP_SID
+        || !rootImage(facts.identity.image) || groups.status !== 0 || groups.error || parseIntegrity(groups.stdout) !== 'Medium') throw new Error('A9_BATCH2_CLEANUP_RUNTIME_IDENTITY_UNKNOWN');
+      log({ action: 'RUNTIME_ADMISSION', node: process.versions.node, identity: facts.identity, integrity: 'Medium' });
+    },
+    observeBinding() { admission(); rememberBinding(); },
+    bind(pid) {
+      admission(); const rows = snapshot(); const item = cleanupIdentity(rows.find((row) => Number(row.ProcessId) === pid));
+      const facts = item && owner(pid);
+      if (!item || item.image.toLowerCase() !== String(runtime.electronPath).toLowerCase() || !facts || facts.status !== 'FACTS'
+        || !sameCleanupIdentity({ ...item, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_DRIVER_NOT_BOUND');
+      driver = facts.identity; log({ action: 'BIND_DRIVER', identity: driver });
+    },
+    terminate(pid, tree) {
+      admission(); if (!driver || !cleanupInteger(pid)) throw new Error('A9_BATCH2_CLEANUP_DRIVER_NOT_BOUND');
+      rememberBinding(); const rows = snapshot(); rememberPings(rows);
+      const row = rows.find((item) => Number(item.ProcessId) === pid);
+      if (!row) { log({ action: 'ALREADY_ENDED', pid }); return; }
+      const root = cleanupIdentity(row);
+      if (!root) throw new Error('A9_BATCH2_CLEANUP_TARGET_UNKNOWN');
+      const connected = new Set([driver.pid, ...liveDescendants(rows, [driver]).map((item) => item.pid)]);
+      const selected = tree ? [root, ...liveDescendants(rows, [root]).map((item) => cleanupIdentity(rows.find((r) => Number(r.ProcessId) === item.pid)))] : [root];
+      if (selected.some((item) => !item)) throw new Error('A9_BATCH2_CLEANUP_DESCENDANT_UNKNOWN');
+      const allowed = []; const environment = [];
+      for (const item of selected) {
+        if (cleanupEnvironment(item)) { environment.push(item); continue; }
+        const bound = tracked.get(`${item.pid}:${item.created}`);
+        const inside = rootImage(item.image) && (connected.has(item.pid)
+          || (item.image.toLowerCase().startsWith(`${path.win32.dirname(runtime.electronPath).toLowerCase()}\\`) && item.created >= driver.created));
+        if (item.session !== 2 || (!inside && (!dev || !bound || !sameCleanupIdentity(bound, { ...item, sid: CLEANUP_SID })))) throw new Error('A9_BATCH2_CLEANUP_TARGET_NOT_AUTHORIZED');
+        const facts = owner(item.pid);
+        if (facts.status === 'ALREADY_ENDED') continue;
+        if (facts.status !== 'FACTS' || !sameCleanupIdentity({ ...item, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_IDENTITY_CHANGED');
+        allowed.push(facts.identity);
+      }
+      // The native helper owns KILL_ON_JOB_CLOSE. Refuse it if an unapproved descendant could be reclaimed indirectly.
+      for (const item of allowed.filter((p) => p.name.toLowerCase() === 'spike02_helper.exe')) {
+        const descendants = liveDescendants(rows, [item]);
+        if (descendants.some((child) => !allowed.some((target) => target.pid === child.pid && target.created === child.created)
+          && !tracked.has(`${child.pid}:${child.created}`))) throw new Error('A9_BATCH2_CLEANUP_JOB_SCOPE_UNKNOWN');
+      }
+      log({ action: 'AUTHORIZED_TARGETS', targets: allowed, environment, non_atomic_recheck: true });
+      // Stop command roots first. Once observed gone they cannot create another PING; retain historical parent identity for orphan discovery.
+      const commandRoots = allowed.filter((item) => tracked.has(`${item.pid}:${item.created}`) && item.image.toLowerCase() !== FIXTURE_IMAGES.ping.toLowerCase());
+      for (const item of commandRoots) terminateOne(item);
+      if (commandRoots.length) drainCommandChildren();
+      const remaining = allowed.filter((item) => !tracked.has(`${item.pid}:${item.created}`) || !commandRoots.length);
+      while (remaining.length) {
+        const at = remaining.findIndex((item) => !remaining.some((child) => child.parent === item.pid && child.pid !== item.pid));
+        if (at < 0) throw new Error('A9_BATCH2_CLEANUP_PARENT_CYCLE');
+        const item = remaining.splice(at, 1)[0];
+        if (item.name.toLowerCase() === 'spike02_helper.exe') {
+          const current = snapshot(); rememberPings(current);
+          if ([...tracked.values()].some((target) => !gone(target, current)) || liveDescendants(current, [item]).length) throw new Error('A9_BATCH2_CLEANUP_JOB_NOT_EMPTY');
+          log({ action: 'HELPER_JOB_COMMANDS_GONE', identity: item });
+        }
+        terminateOne(item);
+      }
+    },
+  };
 }
 
 // taskkill /T lists the children of a process once. When the main process dies, Chromium can restart a helper (the network service) in
@@ -813,14 +1082,30 @@ function launchDriver(runtime, env, options, spawn = childProcess.spawn) {
     let killedBy = null;
     let dialogClick = null;
     let finished = false;
+    let cleanupError = null;
     child.stdout.on('data', (chunk) => { stdout = (stdout + chunk).slice(-262144); });
     child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-262144); });
-    const timer = setTimeout(() => { if (!finished) { killedBy = 'timeout'; killTree(child.pid); } }, options.timeoutMs);
+    const terminate = (reason) => {
+      killedBy = reason;
+      try { killTree(child.pid, options.cleanupScope); }
+      catch (error) {
+        cleanupError = String(error && error.message || error).slice(0, 300);
+        // A refused cleanup is unknown lifecycle. Return a failure without waiting forever or terminating an unapproved process.
+        if (typeof child.unref === 'function') child.unref();
+        for (const stream of [child.stdout, child.stderr]) if (typeof stream.unref === 'function') stream.unref();
+        complete(null, null);
+      }
+    };
+    const timer = setTimeout(() => { if (!finished) terminate('timeout'); }, options.timeoutMs);
     const poll = setInterval(() => {
       if (finished) return;
-      if (options.killMarker && !killedBy && fs.existsSync(options.killMarker)) { killedBy = 'marker'; killTree(child.pid); }
+      if (options.killMarker && !killedBy && fs.existsSync(options.killMarker)) terminate('marker');
+      if (finished) return;
       if (options.dialogMarker && !dialogClick && fs.existsSync(options.dialogMarker)) {
-        dialogClick = { at: new Date().toISOString(), ...(options.clickDialog ? options.clickDialog(child.pid) : { status: null, stdout: '', stderr: 'no click helper' }) };
+        try {
+          if (options.cleanupScope) options.cleanupScope.observeBinding();
+          dialogClick = { at: new Date().toISOString(), ...(options.clickDialog ? options.clickDialog(child.pid) : { status: null, stdout: '', stderr: 'no click helper' }) };
+        } catch (error) { cleanupError = String(error && error.message || error).slice(0, 300); complete(null, null); }
       }
     }, 200);
     const complete = (code, signal) => {
@@ -828,8 +1113,9 @@ function launchDriver(runtime, env, options, spawn = childProcess.spawn) {
       finished = true;
       clearTimeout(timer);
       clearInterval(poll);
+      if (cleanupError) { if (typeof child.unref === 'function') child.unref(); for (const stream of [child.stdout, child.stderr]) if (typeof stream.unref === 'function') stream.unref(); }
       resolve({ code: code === null ? null : code, signal: signal || null, killed_by: killedBy, duration_ms: Date.now() - started, started_at: new Date(started).toISOString(),
-        ended_at: new Date().toISOString(), stdout, stderr, pid: child.pid, dialog_click: dialogClick });
+        ended_at: new Date().toISOString(), stdout, stderr, pid: child.pid, dialog_click: dialogClick, ...(cleanupError ? { cleanup_error: cleanupError } : {}) });
     };
     child.on('close', complete);
     child.on('exit', (code, signal) => {
@@ -849,6 +1135,11 @@ function launchDriver(runtime, env, options, spawn = childProcess.spawn) {
       resolve({ code: null, signal: null, killed_by: killedBy, duration_ms: Date.now() - started, stdout, stderr, pid: child.pid, dialog_click: dialogClick,
         spawn_error: String(error && error.message ? error.message : error).slice(0, 300) });
     });
+    if (options.cleanupScope) {
+      try { options.cleanupScope.bind(child.pid); }
+      catch (error) { cleanupError = String(error && error.message || error).slice(0, 300); if (typeof child.unref === 'function') child.unref();
+        for (const stream of [child.stdout, child.stderr]) if (typeof stream.unref === 'function') stream.unref(); complete(null, null); }
+    }
   });
 }
 
@@ -970,7 +1261,8 @@ async function runDriverPhase(ctx, hooks) {
   const exec = (hooks && hooks.exec) || realExec;
   fs.mkdirSync(ctx.attemptDir, { recursive: true });
   let runtime;
-  try { runtime = (hooks && hooks.runtime) || prepareDriverRuntime(ctx.candidateRoot, ctx.runRoot); }
+  try { runtime = (hooks && hooks.runtime) || prepareDriverRuntime(ctx.candidateRoot, ctx.runRoot);
+    if (!(hooks && hooks.launchDriver)) runtime.cleanupPowerShell = prepareCleanupWorker(runtime); }
   catch (error) {
     // A runtime copy that cannot be prepared is a named phase failure with its error, not a controller crash without a phase result.
     writeJson(path.join(ctx.attemptDir, 'driver-launches.json'), { schema_version: 1, driver_sha256: null, launches: [],
@@ -988,6 +1280,7 @@ async function runDriverPhase(ctx, hooks) {
   fs.writeFileSync(path.join(workspaceRoot, 'calc.ts'), 'export function add(a: number, b: number) { return a - b; }\n', 'utf8');
   const controllerScript = path.join(ctx.candidateRoot, 'validation', 'a9-batch2-desktop-controller.ps1');
   const launches = [];
+  const cleanupScopes = new Map();
   const productLog = [];
   let identityAssertion = null;
   try {
@@ -1017,6 +1310,8 @@ async function runDriverPhase(ctx, hooks) {
         A9_BATCH2_FIXTURE_URL: `http://127.0.0.1:${port}/v1`, A9_BATCH2_FIXTURE_CONTROL: `http://127.0.0.1:${port}/__b2`, A9_BATCH2_PROVIDER_LOG: providerLog,
         A9_BATCH2_PRODUCT_MAIN: path.join(ctx.candidateRoot, 'resources', 'app', 'product', 'main.js'),
         A9_BATCH2_CANDIDATE_ROOT: ctx.candidateRoot, A9_BATCH2_SECRET_LITERAL: fixtures.testOnlySecret(),
+        A9_BATCH2_TARGET: JSON.stringify(ctx.request.target),
+        A9_BATCH2_CLEANUP_POWERSHELL: runtime.cleanupPowerShell,
         WIN7AGENT_A9_DATAROOT: selectedData,
         ...(isolatedRoot ? { LOCALAPPDATA: path.join(isolatedRoot, 'profile'), WIN7AGENT_PORTABLE: '0',
           A9_BATCH2_FIXTURES: path.join(ctx.candidateRoot, 'validation', 'a9-batch2-fixtures.cjs'),
@@ -1029,8 +1324,12 @@ async function runDriverPhase(ctx, hooks) {
       const modeSettings = spec.corruptModeSettings ? corruptModeSettings(dataRoot) : null;
       if (modeSettings) env.A9_BATCH2_MODE_SETTINGS_CORRUPTED = modeSettings.corrupted ? '1' : '0';
       let exit;
+      const cleanupScope = hooks && hooks.launchDriver ? null : createCleanupScope(ctx, runtime, mode);
+      let admissionError = null;
+      if (cleanupScope && cleanupScopes.size === 0) { try { cleanupScope.admit(); } catch (error) { admissionError = String(error && error.message || error).slice(0, 300); } }
+      if (cleanupScope) cleanupScopes.set(mode, cleanupScope);
       try {
-        exit = await launch(runtime, env, { timeoutMs: spec.timeoutMs, killMarker, dialogMarker,
+        exit = admissionError ? { code: null, signal: null, killed_by: null, duration_ms: 0, pid: null, stdout: '', stderr: '', cleanup_error: admissionError } : await launch(runtime, env, { timeoutMs: spec.timeoutMs, killMarker, dialogMarker, cleanupScope,
           clickDialog: (pid) => (hooks && hooks.clickDialog ? hooks.clickDialog(pid, spec.dialogButton) : clickExitDialog(controllerScript, pid, spec.dialogButton)) });
       } finally {
         // The next mode must start from the original settings whatever happened to this one.
@@ -1041,13 +1340,16 @@ async function runDriverPhase(ctx, hooks) {
       if (spec.caseId && fs.existsSync(prequitPath)) prequit = JSON.parse(fs.readFileSync(prequitPath, 'utf8'));
       const postExit = spec.caseId ? await phase2PostExit(prequit, ctx.request.target.account_sid, exec, hooks && hooks.wait) : null;
       const treeAbsent = postExit && postExit.observed === true;
-      const strays = exit.killed_by ? await sweepDriverStrays(exec, path.join(ctx.runRoot, 'driver-electron'), hooks && hooks.strays) : null;
+      const strays = exit.killed_by && !exit.cleanup_error ? await sweepDriverStrays(exec, path.join(ctx.runRoot, 'driver-electron'),
+        (hooks && hooks.strays) || { kill: (pid) => killProcess(pid, cleanupScope) }) : null;
       launches.push({ mode, code: exit.code, signal: exit.signal, killed_by: exit.killed_by, duration_ms: exit.duration_ms, started_at: exit.started_at, ended_at: exit.ended_at,
         ...(spec.caseId ? { tree_absent: treeAbsent, post_exit: postExit, sid: prequit && prequit.sid } : {}),
         spawn_error: exit.spawn_error || null, pid: exit.pid, dialog_click: exit.dialog_click || null,
+        ...(exit.cleanup_error ? { cleanup_error: exit.cleanup_error, failed: true } : {}),
         ...(strays ? { strays } : {}),
         ...(modeSettings ? { mode_settings: { files_found: modeSettings.files_found, corrupted: modeSettings.corrupted, original_sha256: modeSettings.original_sha256, error: modeSettings.error, restore: modeSettings.restore } } : {}) });
       productLog.push(`==== ${mode} (exit=${exit.code}; killed_by=${exit.killed_by}) ====\n${exit.stdout}\n${exit.stderr}\n`);
+      if (exit.cleanup_error) break;
       let driverResult = null;
       if (fs.existsSync(driverResultFile)) { try { driverResult = JSON.parse(fs.readFileSync(driverResultFile, 'utf8')); } catch (_error) { driverResult = null; } }
       if (driverResult && Array.isArray(driverResult.assertions)) applyAssertions(ctx, driverResult.assertions);
@@ -1066,7 +1368,8 @@ async function runDriverPhase(ctx, hooks) {
     await fixture.close();
   }
   if (ctx.phase === 'p03-chain') finishChainEvidence(ctx, launches, identityAssertion, exec, dataRoot);
-  if (ctx.phase === 'p05-session-bg') await finishReleaseEvidence(ctx, launches, exec, hooks);
+  if (ctx.phase === 'p05-session-bg') await finishReleaseEvidence(ctx, launches, exec,
+    hooks || { killProcess: (pid) => killProcess(pid, cleanupScopes.get('release_exit')) });
   const failedLaunch = launches.find((item) => item.failed);
   return finishPhase(ctx, failedLaunch ? `DRIVER_${failedLaunch.mode.toUpperCase()}_FAILED` : ctx.contractError ? 'DRIVER_CONTRACT_MISMATCH' : null);
 }
@@ -1315,6 +1618,7 @@ module.exports = {
   phase2PostExit, ProviderFixture, PHASE2_MODES, DRIVER_MODES, DRIVER_PLANS, FIXED_COMMANDS, prepareDriverRuntime, copyRuntimeFile, parseCsvLineStrict, readWmicTable, usableProcessListing, findDriverStrays, sweepDriverStrays, launchDriver, realExec, MIN_FREE_BYTES,
   CORRUPT_MODE_SETTINGS, findModeSettingsFile, corruptModeSettings, restoreModeSettings,
   chainIdentityAssertion, finishChainEvidence, finishReleaseEvidence, removeReleasedCommand, aliveByIdentity, liveDescendants, releaseStatus, killProcess, clickExitDialog, toolParameterNames, recoveryUnknownCount, killTree,
+  cleanupIdentity, sameCleanupIdentity, cleanupEnvironment, cleanupWmi, matchesFixtureCommand, fixtureCommandInvocation, captureFixtureCleanup, createCleanupScope,
 };
 
 if (require.main === module) {

@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-52 (proposed; recheck before freeze)
+Candidate: WIN7-53 (proposed; WIN7-52 retained; recheck before freeze)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262
-Revision: r54 (2026-10-22 UTC; owner approved M2 Runner control-pipe repair and WIN7-52; primary implements, independent review; local commit/double build/dev revalidation after review; §11.8.97)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264
+Revision: r56 (2026-10-23 UTC; owner approved ADR-0264 scoped harness cleanup, fixed-fixture system-process exception, local commit/double build/new candidate DEV validation; no push/freeze/M5/formal gates)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -2866,3 +2866,184 @@ GUI达到85秒诊断预算后被其直接父进程终止；Node父启动器自�
 首次消费者联跑因主代理过早恢复生成目录，载入历史dist并得到schemaVersion2。该失败原样保存。重新编译当前Runner后仅复验失败消费者，6项通过；完成后才恢复入场干净的跟踪dist。候选构建另行从当前src编译，生成物不提交。测试夹具曾缺Workspace.freezeTurnBaseline，两轮失败与定位保留，补齐合成边界后真实SQLite交接通过，不弱化产品判据。
 
 本次本地提交仅包含已获准产品/测试、WIN7-52身份同步和任务相关文档（含入场已存在的M2历史记录）。旧WIN7-51、所有诊断原始字节和主工作区其他修改保护。Win7新候选执行NOT_PERFORMED，正式门A/B、M5、冻结、推送与发布边界保持。材料见outputs/a9-39-w52-package-prep/checks/、real-pipe-r1/、INDEPENDENT_REVIEW.json及COMPILED_OUTPUT_PROTECTION.json。
+
+#### 11.8.99 WIN7-52 双构建通过，新实机预检被 SSH 通道阻断（2026-10-22 UTC）
+
+开发机：本地提交908da8c14dc7de2a0cd3d5d235f5875774952d35，19条任务相关路径，未推送。两个独立干净输出目录构建的ZIP逐字节一致，SHA-256 f782f465d0e5bbc4c2f21be96d7d30a52f6bed3e4d5d2374e0b2179f53d72efc，800文件。相对WIN7-51，唯一产品运行时变化为resources/app/runner/dist/native-transport.js；原生组件字节未变，输入闭包精确哈希相同，相关旧原生证据只作INHERITED_EVIDENCE。新候选的身份/闭包仍须直接上机核验，不能继承Win7或M2 PASS。候选未冻结。
+
+新run dc26b6e1-e89d-41ec-b843-38dfb0cd2a0b 的同原Stage候选外观察入口已重绑定并封装。观察行为和原驱动正文不变，本地能力检查通过。17:54:56Z的首个只读status在SSH banner交换超时，TRANSPORT_FAILED/255；17:55:49Z受限只读TCP检查能连接22端口，但5秒内仍无SSH banner。没有上传或启动WIN7-52，没有产品重试。原失败在TARGET_PRECHECK_FAILURE.json与通道原始日志保留，未改目标SSH服务或系统设置。
+
+当前目标状态UNKNOWN，开发根未完成close；17:11:27Z旧快照的相关存活0不得提升为当前状态。旧c61诊断16件取证和数据库副本已回收核验；未回收的旧driver结果/断言7本来不存在。需要目标SSH/网络恢复后，先新status，再按新run执行候选准入与audit_output最短链路；之后按影响扩展M2与合同必跑项。新候选实机、M2关闭与正式验收均NOT_PERFORMED，旧FAIL/HALTED不改判。
+
+本节为候选外证据补录，未重建已形成的候选。准确材料：outputs/a9-39-w52-package-prep/DOUBLE_BUILD_AND_IMPACT.json、UI_INPUT_SEAL.json、PROBE_REBIND_REVIEW.json、TRANSPORT_DIAGNOSIS.json与REPORT.md。M5、正式门A/B、冻结、推送与发布边界保持。
+
+#### 11.8.100 IP 恢复后 WIN7-52 原 A07 Stage 完整通过（2026-10-22 UTC）
+
+负责人确认“已恢复，地址变为192.168.1.9”。保留HostKeyAlias192.168.1.11与StrictHostKeyChecking=yes，重新核准DCCS-CHAIZL-PC/build7601、普通agent会话2、旧holder inactive及根内进程/任务0。WIN7-52上传/远端SHA一致，800件候选闭包、原生与工具钉在真实Electron/SQLite运行时直接核验。
+
+Win7 DEV首run dc26b6e1：原A07业务断言PASS，审计失败约1秒自然返回，无uncaught EPIPE；但driver整体ERROR/A9_36_PREQUIT_TREE_UNKNOWN。原始取证显示wmic_failures=1、tree空。定位到候选外launcher固定PATH遗漏System32/wbem，原driver按名称spawnSync(wmic.exe)失败；未改候选或原driver，不将该ERROR改判。
+
+新不可变run d9f68926-0806-4a10-80a6-9ae24e054529只补launcher PATH，并在相同Electron/agent进程、产品启动前执行正反能力检查：旧PATH为ENOENT，新PATH退出0且本进程CreationDate有效。随后原audit_output Stage DONE，A2-M2-VERIFICATION-A07 PASS；驱动4095ms，父/GUI自然退出0，无协作Stop或强制终止，trace完整，无uncaught EPIPE。16件回收大小/SHA逐件一致。独立当前存活查询无未知创建时间，仅ADR-0256/0258认可的SGTool.exe环境进程；不终止它，不将其记为0存活。
+
+结论限WIN7-52/source908da8c…、ZIPf782f465…的Win7 DEV原A07 Stage，M2整组及正式验收尚NOT_PERFORMED。原600秒FAIL/HALTED、dc26 ERROR及默认目录历史影响UNKNOWN保留。下一步按影响用原六Stage/13断言做M2 DEV回归，原600秒单Stage判据、原driver正文与原编排器不变，无M5凭据/配置读取。材料沿既有outputs/a9-39-w52-package-prep/A07_WIN7_DEV_VERIFIED.json、UI_R1_RECOVERY_VERIFIED.json及UI_R2_BINDING.json保存。
+
+#### 11.8.101 WIN7-52 M2 与 M3 整组开发实机检查通过（2026-10-22 UTC）
+
+Win7 DEV直接证据：source908da8c…、WIN7-52 ZIPf782f465…保持。M2 run eb3228a4-12c5-45f0-938e-c29339a58f08 的原六Stage、13断言全部PASS；当前800件闭包/身份/真实SQLite加载通过，每Stage自然退出0、无强制终止、postflight相关进程为空，主窗口86.207秒。42件回收文件逐件大小/SHA一致。独立执行窗口存活查询创建时间未知0，只保留ADR-0256/0258认可的SGTool环境进程；环境存活不写成0。
+
+M3 run14a30ec9-bbb3-492e-9d18-09b591497e9f 的原Review主流程与restart两Stage、11断言全部PASS，父/GUI自然退出0、每Stage postflight通过。详细证据回收进行中，元数据已核SHA及绑定。原M2失败、dc26收尾ERROR与默认产品目录历史影响UNKNOWN保持，不改判。
+
+候选外整组入口只复用原supplement.run与原driver、Stage计划、断言及600秒单Stage判据。预执行核对发现原smoke超时调用taskkill /T不符合开发通道仅根内映像的终止边界；未执行的aef506b3封装保留NOT_PERFORMED。新不可变入口在内存中替换smoke.launchDriver为根内直接ChildProcess启动包装，不修改候选文件；正常返回形状保持，超时/未知关闭一律失败，无taskkill或根外终止。包装已做针对性开发机检查，实际M2/M3未用超时终止。ledger/1.json仅是原runStage读取的started_ms计时锚，显式DEV_CHANNEL/非正式，不签发、验证或消耗任何正式authority/request。
+
+M2问题已获得当前候选开发实机回归闭环；不能提升为正式M2、门A/B或Alpha2 PASS。M6随后以同一候选及精确锁定的冻结WIN7-42继续，M5仍BLOCKED_BY_STANDING_AUTHORIZATION。材料见outputs/a9-39-w52-package-prep/M2_WIN7_DEV_VERIFIED.json、M3_WIN7_DEV_VERIFIED.json、M2_FULL_R2_LOCAL_REVIEW.json及M6_LOCAL_REVIEW.json。
+
+#### 11.8.102 WIN7-52 M6 组件交叉读取通过，M4 后检保留 FAIL（2026-10-22 UTC）
+
+Win7 DEV直接证据：M6 run25317efe-f6e4-41c2-8207-59b873e11f36，候选/source/ZIP保持908da8c…/WIN7-52/f782f465…。冻结WIN7-42包与797件复制项逐件核SHA；当前候选800件闭包直接核验。六份夹具和baseline、两版persistence及原生字节精确匹配，只继承输入字节；10个原组件探针、5断言全部PASS。探针使用各自包的Electron22.3.27/Node16.17.1/ABI110和真实SQLite，全部退出0，夹具前后不变，postflight相关进程0，独立当前执行窗口存活0。14件结果/探针文件逐项大小/SHA一致。这是组件级跨读，不是整产品升级/回退，也不签正式PASS。
+
+为使M4/M1不借用旧候选结果，另以新run19b28f78-e421-4a9a-8915-7cb6036772cb按原m4→m1顺序检查。m4原3断言PASS、driver DONE/exit0，但原postflight.related记录SogouExe.exe PID4788（父4600）、7380（父5372），故组FAIL；m1未启动，NOT_PERFORMED。原prequit记录创建时间与父链一致、wmic_failures0、stale_parent_links空；不把本例直接解释成旧PID父链。后来的独立当前窗口查询仅剩已知SGTool5372，两SogouExe已不在该窗口当前进程表。原postflight没有保存其ImagePath/ImageSource，保持UNKNOWN；不能仅凭名字加入环境豁免。首失败9件逐项核SHA，未重跑整批、延长等待、改分类或改判。
+
+现有ADR-0256/0258仅豁免准确路径下SGTool.exe。新名字的分类变更不在本轮批准范围，M4门与其下游保持停止。若继续，先用候选外单次固定观察补直接ExecutablePath/ImageSource、创建时间与身份，再提交准确提案，不记命令行、不改原throw或Related。见M4_POSTFLIGHT_FIRST_FAILURE.md。M2/M3/M6原29条开发断言通过的绑定不变；M5仍BLOCKED_BY_STANDING_AUTHORIZATION，WIN7-52正式总控R0～R8及门A/B NOT_PERFORMED，未冻结或推送。
+
+#### 11.8.103 开发根首次 close 部分完成，单实例收尾待负责人决定（2026-10-22 UTC）
+
+close前只读清单5149文件/2844767950字节，文件ReadOnly项0。所有本轮关键取证与候选保存在开发机。原close动作18:39:04Z失败，REMOTE_ACTION_FAILED/1，release_error=LOCK_NOT_OWNED；首失败保留，不写CLEANUP_COMPLETE。独立status确认根内进程/任务0、锁null、开发根仍在，文件字节8546。该状态不等于根已关闭。
+
+剩余元数据表明：隔离HOME的SogouPY日志及mmkv共四个文件、父目录仍在。18:41:56Z新WMI确认SGTool.exe PID5372、父4600、创建20261023023416.432400+480、owner agent/SID1001/session2、准确映像C:\Program Files (x86)\SogouInput\16.7.0.4673\SGTool.exe。四文件独占打开均共享冲突0x80070020，字节读取0；未用未登记工具证明直接句柄归属，不读取日志/mmkv内容。首次元数据脚本因PS作用域遮蔽未记录行，作为无效证据保留；改用显式ArrayList且空清单fail-closed后取得有效清单。
+
+ENGINEERING_03 §7明确禁止终止根外映像；SGTool环境分类不解除禁止。本轮仅准备terminate-bound-sgtool.pending.ps1及BOUND_SGTOOL_CLEANUP_PROPOSAL.md，未执行Terminate。实际PS2语法和一个正控、十个反控通过，错误PID/父PID/创建时间/路径/SID/会话/owner均拒绝。材料明确最后WMI重读到Terminate非原子竞态。已向负责人请求只对该准确实例的一次性例外；未答复前保留隔离残留，停止依赖该权限的动作。常设授权、系统设置、其他输入法实例和正式门均保持。
+
+### 11.8.104 负责人批准本轮准确绑定 SGTool 实例的一次性收尾（2026-10-23 UTC）
+
+负责人明确答复“批准仅终止该实例并收尾”。授权仅覆盖192.168.1.9上DCCS-CHAIZL-PC的SGTool.exe PID5372、父4600、agent/SID1001、session2、创建20261023023416.432400+480、搜狗16.7.0.4673准确映像；执行前两次读取并核对全部身份，不符即停，实例已结束则不终止替代进程。最多一次Terminate，随后回收结果、调用原close及独立status。
+
+授权绑定terminate-bound-sgtool.pending.ps1的SHA-256 d2034f4417ee04618d5171d7bf8173a9a8f19d135f9d3e7d993365d3566fad28；收据为outputs/a9-39-w52-package-prep/OWNER_BOUND_CLEANUP_APPROVAL.json。该答复是本轮单实例例外，不变更常设授权、其他实例、系统设置、M4分类判据、候选字节或正式门。原close和M4首失败保留。以下执行结果另行记录，不由批准推定PASS。
+
+### 11.8.105 单实例已自然结束，开发根关闭及独立后检通过（2026-10-23 UTC）
+
+本轮一次性授权后，固定脚本执行前查询发现PID5372已不存在，结果ALREADY_ENDED；Terminate调用0次，未终止替代实例。动作结果178字节已下载，SHA-256 303d4d5716c0d4d58d0ac6757d914cceb2e8f9760ad41acabcca16e4ff2e351a。开发机首次内容断言错误地预设terminated=true而拒绝该记录；查明其为合同允许的ALREADY_ENDED后，按相同原始字节验证terminated=false/already_ended=true。没有重试远端动作。
+
+00:30:32.681Z原close完成，随后00:30:39.604Z独立status确认DCCS-CHAIZL-PC/build7601/agent会话2，C:\A9-DEV不存在、root_bytes=0、根内进程/任务空、锁null、extraction_lifecycle_unknown=false。收尾CLEANUP_COMPLETE，证据层级仅Win7 DEV。准确记录为outputs/a9-39-w52-package-prep/BOUND_CLEANUP_AND_CLOSURE_VERIFIED.json；原18:39Z close首失败及M4组FAIL保留。
+
+WIN7-52/source908da8c、ZIPf782f465…及执行输入保持；M2/M3/M6开发实机PASS、M4 FAIL、M1 NOT_PERFORMED、M5 BLOCKED_BY_STANDING_AUTHORIZATION不变。正式总控R0～R8及门A/B NOT_PERFORMED，未冻结、推送或发布。下一步只定位M4准确进程映像的证据缺口，不以自然退出或收尾成功解除M4门。
+
+### 11.8.106 继续处理M4进程归属证据缺口，单次候选外观察（2026-10-23 UTC）
+
+负责人本轮要求“继续修复”。成功条件先限定为取得与原M4后检同一次WMIC列表返回的SogouExe/SGTool直接ExecutablePath、ImageSource、PID/父PID、创建时间与会话，保持原判据；不凭名称放行或补签19b28f78的FAIL。实际树codex/a9-alpha2-integration-r2@908da8c，入场只三份既有收尾文档修改；主工作树既有dirty/untracked均保留。沿用原A9-39台账和ENGINEERING_03有效常设授权，目标192.168.1.9/严格原主机键/agent会话2/C:\A9-DEV。先新status确认身份、根/锁/任务/进程与空间，再上传同一WIN7-52及固定11输入。
+
+变化仅候选外取证：postflight-image-observer.cjs截取原smoke.listProcesses返回的指定两种名称行，记录直接映像元数据，返回原对象；不保存CommandLine，不改变related/environment或原throw。每次最多16行、每条16384字节、最多4次/总65536字节，记录失败即停止。开发机11项针对性检查PASS，覆盖透传同对象、直接身份、命令行回退不落盘、缺失UNKNOWN、原失败/异常保留、上限及记录失败；不冒充独审或产品证据。相同检查在当前包Electron/Node16.17.1下先于GUI运行，失败则不启动产品。
+
+新run3529c0f5-5bc7-4644-bdaa-b2e0620831e6，仅原M4一Stage/3断言；原600000ms判据保持，父包装有界660秒、任务等待720秒。身份/闭包/未知生命周期失败停止下游；不自动整批重试，不运行M1/M2/M3/M5/M6。用原准确包和未改原生，不重建；M2/M3/M6旧结果只保留原run绑定，不重签当前新run结果。新输入M4_IMAGE_SEAL.json和有限动作M4_IMAGE_PLAN.json已固定；证据位于既有outputs/a9-39-w52-package-prep。环境分类若确需扩展，先用直接证据形成准确提案供负责人裁决；此次观察不授权该语义改变。未提交、推送、冻结或进入正式门A/B。
+
+### 11.8.107 M4同次后检直接映像已确认，准确分类提案待裁决（2026-10-23 UTC）
+
+WIN7-52/source908da8c、ZIPf782f465…保持。单次run3529c0f5-5bc7-4644-bdaa-b2e0620831e6：Node16.17.1中观察组件11项合成准入PASS；真实身份/800件闭包/工具与原生钉值均通过；原M4三断言PASS、GUI自然退出0/5478ms。原postflight.related仍有两个SogouExe实例，所以组FAIL、协调器自然退出1，未强杀或改判。
+
+同一次原WMIC列表中PID6456/父4312和7528/父11144、session2、创建20261023085002.152400+480及20261023085002.272400+480；两者直接ExecutablePath和ImagePath均C:\Program Files (x86)\SogouInput\SogouExe\SogouExe.exe，ImageSource严格executable_path。观察器返回原对象，未改分类/断言/throw/等待。后续00:51:25Z当前窗口快照中两者已结束，两个SGTool环境实例仍在，未知创建时间0；快照只证明当时存活，不改早先FAIL。旧19b28f78原实例映像UNKNOWN保持。
+
+回收10件原始结果、原驱动/fixture/前退树/观察及生命周期记录，逐项大小/SHA一致，见outputs/a9-39-w52-package-prep/M4_DIRECT_IMAGE_VERIFIED.json。提案M4_ENVIRONMENT_CLASSIFICATION_PROPOSAL.md仅申请postflight和合同测试两路径：准确SogouExe完整路径、直接映像、有效同会话身份才记环境，错误/未知来源、其他子孙和failed列表继续FAIL；新增ADR须明确接受封存期间该环境进程可能写入证据根的取舍。已向负责人请求明确裁决，尚未修改两条实现路径或派发独审子代理。
+
+沿用A9-39/ENGINEERING_03台账与新run固定输入。最近status为根内进程/任务0、锁本持有者inactive、根约583MB，保留开发根等待裁决后复用；上轮CLEANUP_COMPLETE只是上轮关闭快照，本轮根已按新授权工作重建。没有终止根外实例或修改系统设置。M1、M5、正式门A/B未执行边界保持；M2/M3/M6保留原DEV直接PASS。
+
+### 11.8.108 负责人批准M4准确环境分类修复及开发复验（2026-10-23 UTC）
+
+负责人对M4_ENVIRONMENT_CLASSIFICATION_PROPOSAL.md明确回复“批准按提案实施”。新ADR-0263已核号并登记；OWNER_M4_CLASSIFICATION_APPROVAL.json绑定原提案SHA。C14本轮只开放a9-alpha2-supplement.cjs的postflight准确SogouExe分类及a9-batch2-contract.test.ts反例，另更新既有任务/ADR/索引/状态与原材料。主代理实施、一个只读子代理独审；通过后同WIN7-52新输入/run执行M4，成功后继续M1及开发总控。
+
+实际源908da8c，入场三份原有收尾文档dirty；产品ZIP、包内800件、原生输入与历史FAIL/HALTED不变。先最窄开发合同/语法与身份反例，再实际Electron/Node16.17.1能力准入和原M4真实窗口；没有提交、推送、冻结、M5、正式门A/B、根外进程终止或系统修改授权。开发根可按常设授权复用，但每次重新确认目标、普通agent、身份/包闭包、锁、进程/任务和空间。
+
+### 11.8.109 M4准确分类本地检查与独审通过，新不可变输入准备复验（2026-10-23 UTC）
+
+候选外postflight准确分类已实现：严格双路径、直接来源、精确名称、有效整数身份/目标会话及完整日历DMTF时间。新environment保存创建时间和来源；原SGTool分支、先构建完整后代集合、未知子孙/其他残留及failed门均保持。实现SHA-256为6afd05493c47988cd51db40f8370da7998cbd1a9deec67691d70aa07ca1919da。
+
+开发机定向合同72 PASS、578 skipped，未宣称全套通过；源为M4_POSTFLIGHT_TEST_R3.json。首次CLI错取根node_modules、R2三项新夹具Windows转义失败均保留；改用实际shell依赖并修正夹具后通过。未变化产品消费者未联跑，不编译或修改dist。授权只读子代理m4_classification_review独审0P0/0P1/无阻塞P2，确认可进入同WIN7-52 DEV M4；未自行改文件、重跑套件、联网或再次委派。见M4_INDEPENDENT_REVIEW.json。
+
+旧已执行seal文件与远端run输入不覆盖；其引用的tracked编排器现为获准新修订，旧字节已从908da8c原blob另存并逐项大小/SHA核对，M4_FIX_BEFORE_SOURCE_BINDING.json记录恢复映射，不重绑旧seal。新输入全部使用新诊断目录的独立拷贝，避免后续源码修订改变已执行输入。
+
+新rune1e87b62-1696-4609-bfee-93c03c951cae，固定12件输入，M4_M1_VERIFIED_SEAL.json与M4_M1_VERIFIED_PLAN.json已封装。先真实Node16.17.1执行32项准确分类合成准入，然后原M4；成功后才原M1，共两Stage/14业务断言，原每Stage600000ms不变，父包装1260秒/任务1320秒。新status确认目标/build/agent会话2、原holder inactive、根内进程/任务0和空间充足；同ZIP重新准入，不重建原生。新执行结果另记，旧FAIL/HALTED、默认目录历史影响UNKNOWN和M5/正式门边界保持。
+
+### 11.8.110 M4准确分类开发实机闭环，M1补齐（2026-10-23 UTC）
+
+WIN7-52/source908da8c、ZIPf782f465…与包内800件保持。新rune1e87b62-1696-4609-bfee-93c03c951cae在Win7普通agent/session2/Medium下通过实际Node16.17.1的32项分类合成准入，再通过原M4三断言和M1十一断言。两GUI自然退出0，分别4966/38110ms；两阶段postflight.failed=false/related=[]，父包装自然退出0，未触发强制终止。M4两个SogouExe按ADR-0263记environment，直接映像/创建时间/来源与同次原WMIC观察逐项一致。
+
+原driver、fixture、前退树、结果、同次映像观察、启动与生命周期资料共26件回收，逐件大小/SHA一致，准确记录M4_M1_WIN7_DEV_VERIFIED.json。独立当前窗口快照unknown_creation=0，只有两个准确SGTool环境实例，未将环境进程记为0。旧19b28f78和3529c0f5的FAIL不改判；旧原映像UNKNOWN保持。M2/M3/M6保留原run开发直接结果，不冒充新工具修订已重新执行的结果。M5仍受禁止，正式门A/B及冻结、提交、推送均未执行。
+
+### 11.8.111 WIN7-52开发总控本地准入完成，根外终止边界核对中（2026-10-23 UTC）
+
+在新.acceptance/a9-39/w52-dev-controller-package-r1复制现有92件候选外工具，旧包逐字节保持。只按WIN7-52实际两ZIP重算源、manifest/Kit/输入锁、801条条目表和闭包，目标IP按负责人改为192.168.1.9、原主机键不变；历史拒绝库存46→54，保持原条目并追加本轮前缀。新工具未覆盖旧执行输入。
+
+新开发描述符b513a6ab-4d54-4365-bbfd-7ac791d0c0c1，--local-only为PASS/R1_BEFORE_NO_CONNECTION/ssh_calls0；身份、旧run拒绝、远端目录、上传渲染及输入等63项工具合同PASS/0FAIL。它们只是开发机工具准入，不能提升为R0～R8目标通过。新总控尚未连接目标或激活执行。
+
+执行前静态检查发现：原包内smoke的launchDriver在必跑中断marker及超时分支调用taskkill /T；release收尾也按PID/创建时间终止所跟踪树中的实例。当前ENGINEERING_03及本次批准明确不包括根外映像终止，实际Sogou实例已知会成为GUI后代。因此暂停总控派发，请原获准只读独审者核对是否存在不改变候选/不绕过固定controller与request合同的既有安全执行钩子。未实施额外包内修复或改授权、未执行这些终止分支，也不以跳过中断/release场景替代完整合同。新旧资料、旧FAIL及正式门边界保持。
+
+### 11.8.112 M4/M1开发复验闭环；完整总控确认受终止授权边界阻断（2026-10-23 UTC）
+
+同一获准只读独审完成具体边界核对。
+原套件 killTree 直接调用 taskkill /T /F。
+必跑中断 marker 会进入该分支，并非仅有潜在超时。
+removeReleasedCommand 的逐实例清理也未限定映像。
+树差异和 PID/创建时间不能单独证明授权。
+ENGINEERING_03 §7只允许开发根内映像终止，并明确禁止根外映像终止。
+本轮批准未增加该权限。
+
+固定 main 调用 runDriverPhase(ctx)，不传内部 hooks。
+原 controller/request/IPC 没有支持的守卫入口。
+禁杀、跳过场景、延长等待或改判据不能代替原合同。
+因此新 run b513a6ab 未派发或激活，执行 NOT_PERFORMED。
+派发状态 BLOCKED，不登记产品 FAIL 或 HALTED。
+开发机本地绑定与63项合同 PASS 不能提高此结论。
+独审未联网、修改文件或重复运行测试。
+
+主代理准备 CONTROLLER_SCOPED_CLEANUP_REPAIR_PROPOSAL.md。
+提案只申请 smoke、driver、合同测试的清理修复及必要身份同步。
+新候选需本地提交、双构建，再走最短真实中断/release链路。
+原release夹具使用系统Shell，CMD还使用PING。
+仅根内过滤不足以证明释放后的清理通过。
+因此提案同时申请本run固定夹具准确绑定的三个系统映像例外。
+名称、路径、run/阶段/夹具、工具调用或handle、PID/父PID/创建时间、SID和会话须齐全。
+其他根外实例、搜狗、未知后代及未知生命周期仍拒绝。
+WMI核验至按PID终止之间的非原子竞态须明确，不声称原子保证。
+提案尚待负责人裁决，不扩大当前C14或常设授权。
+
+本轮M4/M1已按§11.8.110获得Win7 DEV直接PASS。
+26件原始文件大小/SHA一致，旧FAIL/UNKNOWN保持。
+M2/M3/M6保持各自原run；M6限组件跨读。
+M5 BLOCKED_BY_STANDING_AUTHORIZATION，正式门A/B NOT_PERFORMED。
+最近已回收status显示根内进程/任务空、锁inactive、根约1.067GB。
+本轮保留开发根，未再次close或终止根外实例。
+未提交、推送、冻结或发布。
+准确材料沿用outputs/a9-39-w52-package-prep及原STATUS/STATUS_LOG。
+
+### 11.8.113 负责人批准总控受控清理修复及新候选开发复验（2026-10-23 UTC）
+
+负责人明确回复“批准选项 A（推荐）”。提案SHA与完整例外范围见OWNER_SCOPED_CLEANUP_APPROVAL.json，ADR-0264已核号登记。
+C14本轮仅开放release/win7-product-v3/a9-batch2-smoke.cjs、src/shell/tests/product/a9-batch2-driver-entry.cjs、src/shell/tests/product/a9-batch2-contract.test.ts的受控清理责任。既有M4修改保留并与本轮相关文档一并审核、提交；候选身份沿原白名单同步。当前分支codex/a9-alpha2-integration-r2、HEAD908da8c保持。
+
+根外例外仅覆盖本run固定batch2 Shell夹具准确绑定的System32 CMD、WindowsPowerShell v1.0 PowerShell及PING。有效期、目标普通agent/SID1001/会话2、严格主机键与C:\A9-DEV边界沿用；不授权其他路径、搜狗或未知实例。执行前重新核对完整身份，明确非原子竞态。不能确认间接退出影响范围即停止。
+主代理实施并做必要检查，复用一个只读子代理独审；通过后本地提交、双干净构建新候选，先实际运行时守卫及原中断/release短链，再原37/67与R0～R8。原候选、失败和未派发描述符保留。推送、发布、冻结、M5、正式门A/B及系统修改未获授权。
+
+### 11.8.114 受控清理实现、开发机检查与独审通过（2026-10-23 UTC）
+
+主代理完成ADR-0264三路径最小修复。
+固定夹具通过真实tool_start命令、run/phase/mode/turn/call和handle绑定实际唯一Shell实例。
+仅直接映像、有效完整身份及重新WMI读取符合时逐实例Terminate，不调用taskkill /T。
+历史CMD/PowerShell身份保留，根结束后出现的PING仍须绑定、清理并观察消失。
+未知后代或父PID复用停止清理。
+命令根先结束并获gone观察，再取得两轮子孙clean，helper终止前另作新快照且须无后代。
+WMI读取与Terminate仍非原子，该限制保留。
+
+WMI取证worker使用当前run内同字节PowerShell副本。
+复制及SHA核对先于GUI；失败不启动产品。
+实际运行时准入还核主机、SID、会话、Medium及开发期限。
+正式根沿既有request.evidence_root绑定，只保留根内操作；本轮DEV系统例外不会启用到正式模式，需该例外的正式模式在GUI前拒绝。
+本轮不执行正式入口，也不声称正式验收能力已证明。
+
+开发机完整batch2合同684项PASS。
+最后worker补齐后60项受影响检查PASS；这些检查重叠，不相加为唯一项数。
+打包合同9项PASS，另增加旧WIN7-52授权拒绝反例。
+首轮ADS反例失败及输入锁下划线身份未同步失败保留；相应修复后定向复验完成。
+独立只读审核0P0/0P1，最终三源码SHA绑定SCOPED_CLEANUP_INDEPENDENT_REVIEW.json。
+
+WIN7-53已核本地refs/构建目录未占用，沿既有身份路径同步，原生输入不变。
+按已批准范围本地提交任务相关明确路径，再做双干净构建。
+此时新候选实机NOT_PERFORMED；旧WIN7-52的M1/M2/M3/M4/M6开发结果保持原run。
+旧FAIL/HALTED和所有原包不覆盖。

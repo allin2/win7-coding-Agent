@@ -1464,6 +1464,22 @@ async function runDriver() {
   const findRecovery = async (taskId) => ((await snapshot()).recoveryTasks || []).find((item) => item.taskId === taskId) || null;
   const lastTurnOf = (evts) => { const started = evts.filter((e) => e.eventType === 'turn_started'); return started.length ? started[started.length - 1].turnId : null; };
 
+  // ADR-0264: persist a fixed-fixture/tool/actual-process binding before interruption or answering the release dialog.
+  // The smoke independently checks this record while this driver is still alive, before permitting any system-process cleanup.
+  async function bindFixtureCleanup(fixture, evts, handle) {
+    const snap = await snapshot(); const kind = snap.shell && snap.shell.kind === 'powershell' ? 'powershell' : 'cmd';
+    const turnId = lastTurnOf(evts);
+    const callId = fixture === 'released-hold' ? 'b2-rel-1' : 'b2-unk-1';
+    const tool = evts.find((event) => event.eventType === 'tool_start' && event.turnId === turnId && eventData(event).callId === callId);
+    const smoke = require(path.join(candidateRoot, 'validation', 'a9-batch2-smoke.cjs'));
+    const target = JSON.parse(env.A9_BATCH2_TARGET || '{}');
+    const binding = smoke.captureFixtureCleanup({ fixture, kind, candidateRoot, runId: env.A9_BATCH2_RUN_ID,
+      phase: env.A9_BATCH2_PHASE, mode: MODE, driverPid: process.pid, session: target.session_id,
+      turnId, toolEvent: tool && eventData(tool), handle: handle || null });
+    out(`${MODE}-cleanup-binding.json`, binding);
+    return binding;
+  }
+
   // A failed WMIC query is counted, never turned into an empty-but-valid process list. Every verdict that reads a process tree
   // checks `wmicFailures` and answers UNKNOWN when any query failed.
   let wmicFailures = 0;
@@ -1752,6 +1768,7 @@ async function runDriver() {
     const pre = { kind, conversationId: conv, turnId, taskId: task ? task.task_id : null, taskStatus: task ? task.status : null, turnStatus: turnStatus(turnId),
       approval, counters: c, toolEvents: toolEventCount(turnId), fileExists: fs.existsSync(path.join(workspaceRoot, 'b2-hold.txt')), provider_lines: providerLines().length };
     out(preName, pre);
+    if (kind !== 'approval') await bindFixtureCleanup('long-running', evts, null);
     marker(`${MODE}.ready`, { pid: process.pid, kind });
     await sleep(120000);
   }
@@ -2265,11 +2282,14 @@ async function runDriver() {
     const active = snap.managedProcesses.filter((item) => ['running', 'starting'].includes(item.lastProbeStatus));
     const infrastructure = (item) => /^(electron|conhost|spike02_helper)\.exe$/i.test(item.name || '');
     const tree = myTree();
-    const commandTree = newProcesses(baselineTree, tree).filter((item) => !infrastructure(item));
     const live = active.find((item) => item.handleId === handle.handleId) || null;
+    const cleanupBinding = await bindFixtureCleanup('released-hold', (await events(await conversationId(), 1000)).events, live ? { handleId: live.handleId, pid: live.pid } : null);
+    const commandTree = cleanupBinding.instances;
     out('release-exit-before.json', { driver_pid: process.pid, handle: live ? { handleId: live.handleId, pid: live.pid, status: live.lastProbeStatus, ownership: live.ownershipState || null } : null,
       active_count: active.length, tree, command_tree: commandTree, handle_pid_in_command_tree: live ? commandTree.some((item) => item.pid === live.pid) : false,
-      stale_parent_links: Array.from(staleParentLinks.values()), wmic_failures: wmicFailures });
+      stale_parent_links: Array.from(staleParentLinks.values()), wmic_failures: wmicFailures,
+      cleanup_binding: { file: `${MODE}-cleanup-binding.json`, call_id: cleanupBinding.call_id, command_sha256: cleanupBinding.command_sha256 },
+      new_tree_not_used_as_authority: newProcesses(baselineTree, tree).filter((item) => !infrastructure(item)) });
     const writeDone = () => writeJson(resultFile, { schema_version: 1, mode: MODE, status: 'DONE', error: null, assertions: results, evidence: evidenceIndex, ipc: ipcLog.slice(-50), dialogs: dialogLog, duration_ms: Date.now() - startedAt });
     const dumpOwnership = (trigger) => {
       let rows = null;

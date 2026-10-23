@@ -419,6 +419,20 @@ function stageLayout(phaseRoot, stage) {
 }
 // Processes of one launch: its tree (by recorded parent links), anything running from the isolated roots or the candidate, and the helper by name.
 function postflight(smoke, a, rootPids, imageRoots) {
+  // ADR-0263 is limited to one directly observed image and complete target-session identity.
+  const exactSogouImage = String.raw`C:\Program Files (x86)\SogouInput\SogouExe\SogouExe.exe`.toLowerCase();
+  const validInteger = (value, minimum) => (typeof value === 'number' || (typeof value === 'string' && /^[0-9]+(?![\s\S])/.test(value)))
+    && Number.isSafeInteger(Number(value)) && Number(value) >= minimum;
+  const validCreated = (value) => {
+    if (typeof value !== 'string') return false;
+    const match = /^([0-9]{4})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})([0-9]{2})\.([0-9]{6})[+-][0-9]{3}(?![\s\S])/.exec(value);
+    if (!match || Number(match[1]) < 1601) return false;
+    const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+      && date.getUTCHours() === hour && date.getUTCMinutes() === minute && date.getUTCSeconds() === second;
+  };
+  const targetSession = a && a.target && a.target.session_id;
   const listing = smoke.listProcesses(smoke.realExec);
   const roots = new Set(rootPids.filter((pid) => Number.isSafeInteger(pid)));
   for (let round = 0; round < listing.rows.length; round++) for (const p of listing.rows) if (roots.has(Number(p.ParentProcessId))) roots.add(Number(p.ProcessId));
@@ -430,7 +444,12 @@ function postflight(smoke, a, rootPids, imageRoots) {
     const row = { pid: Number(p.ProcessId), parent: Number(p.ParentProcessId), name: p.Name, session: Number(p.SessionId) };
     // ADR-0256/0258/0259: exact path and a non-command-line image source; no traversal/device/alternate-stream aliases or trailing characters.
     if (p.ImageSource !== 'command_line' && /^C:\\Program Files \(x86\)\\SogouInput\\(?:(?!\.{1,2}\\)[^\\/:*?"<>|\x00-\x1f]+\\)*SGTool\.exe(?![\s\S])/i.test(image)) environment.push({ ...row, image: String(p.ImagePath) });
-    else related.push(row);
+    else if (typeof p.Name === 'string' && p.Name.toLowerCase() === 'sogouexe.exe' && p.ImageSource === 'executable_path'
+      && typeof p.ExecutablePath === 'string' && p.ExecutablePath.toLowerCase() === exactSogouImage && image === exactSogouImage
+      && validInteger(p.ProcessId, 1) && validInteger(p.ParentProcessId, 1) && validCreated(p.CreationDate)
+      && validInteger(p.SessionId, 1) && validInteger(targetSession, 1) && Number(p.SessionId) === Number(targetSession)) {
+      environment.push({ ...row, image: String(p.ExecutablePath), created: p.CreationDate, image_source: p.ImageSource });
+    } else related.push(row);
   }
   return { failed: listing.failed, related, environment };
 }

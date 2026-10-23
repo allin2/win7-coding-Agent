@@ -191,8 +191,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-52', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-52', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-52.zip',
+    candidate: 'WIN7-53', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-53', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-53.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -217,7 +217,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-52 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-53 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
   test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'win7-51', '', null, undefined])('candidate label %s is refused', (value) => {
@@ -288,7 +288,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-52');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-53');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -309,7 +309,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-52\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-53\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -907,13 +907,13 @@ describe('A9-36 independent supplemental request and inputs', () => {
     else expect(check).toThrow('A9_36_EXECUTOR_IDENTITY');
     expect(spawnSync).toHaveBeenCalledTimes(accepted ? 5 : 3);
   });
-  const postflightFor = (rows: any[], failed = false) => {
+  const postflightFor = (rows: any[], failed = false, target: any = { session_id: 2 }, rootPids = [5644]) => {
     const context: any = { module: { exports: {} }, Buffer, process: { pid: 9000 },
       require: (name: string) => name === './a9-alpha2-supplement-request.cjs' ? req : require(name) };
     vm.runInNewContext(fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement.cjs'), 'utf8') + '\nmodule.exports.postflight = postflight;', context);
     const realExec = jest.fn(() => { throw new Error('must not execute processes'); });
     const listProcesses = jest.fn(() => ({ failed, rows }));
-    const result = context.module.exports.postflight({ listProcesses, realExec }, {}, [5644], ['C:\\A9-DEV\\']);
+    const result = context.module.exports.postflight({ listProcesses, realExec }, { target }, rootPids, ['C:\\A9-DEV\\']);
     expect(listProcesses).toHaveBeenCalledWith(realExec); expect(realExec).not.toHaveBeenCalled();
     return result;
   };
@@ -969,6 +969,62 @@ describe('A9-36 independent supplemental request and inputs', () => {
       { pid: 8001, parent: 1, name: 'spike02_helper.exe', session: 2 },
     ]);
     expect(result.environment).toEqual([{ pid: 7080, parent: 5644, name: 'SGTool.exe', session: 2, image }]);
+    expect(supplement.postflightClean(result)).toBe(false);
+  });
+  const exactSogouExe = "C:\\Program Files (x86)\\SogouInput\\SogouExe\\SogouExe.exe";
+  const directSogouExe = { ProcessId: '7080', ParentProcessId: '5644', Name: 'SogouExe.exe', SessionId: '2',
+    ImagePath: exactSogouExe, ExecutablePath: exactSogouExe, ImageSource: 'executable_path', CreationDate: '20261023085002.152400+480' };
+  test.each([exactSogouExe, exactSogouExe.toUpperCase()])('ADR-0263 accepts only the exact directly identified SogouExe image: %s', image => {
+    const row = { ...directSogouExe, Name: 'SOGOUeXE.EXE', ImagePath: image, ExecutablePath: image };
+    for (const failed of [false, true]) {
+      const result = postflightFor([row], failed);
+      expect(result).toEqual({ failed, related: [], environment: [{ pid: 7080, parent: 5644, name: row.Name, session: 2,
+        image, created: row.CreationDate, image_source: 'executable_path' }] });
+      expect(supplement.postflightClean(result)).toBe(!failed);
+    }
+  });
+  test.each([
+    { ImageSource: 'command_line' }, { ImageSource: 'none' }, { ImageSource: undefined },
+    { ExecutablePath: undefined }, { ExecutablePath: '' }, { Name: 'other.exe' }, { Name: 'SogouExe.exe\n' },
+    { CreationDate: undefined }, { CreationDate: '' }, { CreationDate: '20261023085002.152400+480\n' },
+    { CreationDate: '20260230085002.152400+480' }, { CreationDate: '20261323085002.152400+480' },
+    { CreationDate: '20261023245002.152400+480' }, { CreationDate: '16000101000000.000000+000' },
+    { ProcessId: undefined }, { ProcessId: '' }, { ProcessId: 0 }, { ProcessId: -1 }, { ProcessId: 7080.5 }, { ProcessId: true }, { ProcessId: '7080\n' },
+    { ProcessId: '9007199254740992' }, { ParentProcessId: '' }, { ParentProcessId: 0 }, { ParentProcessId: -1 },
+    { SessionId: '' }, { SessionId: undefined }, { SessionId: 0 }, { SessionId: -1 }, { SessionId: 2.5 }, { SessionId: true }, { SessionId: '2\n' }, { SessionId: 3 },
+  ])('ADR-0263 keeps missing, false or mismatched identity related: %p', changes => {
+    const row = { ...directSogouExe, ...changes };
+    // Select the recorded PID directly when testing an invalid parent; invalid PIDs remain selected via their valid parent.
+    const result = postflightFor([row], false, { session_id: 2 }, 'ParentProcessId' in changes ? [7080] : [5644]);
+    expect(result.related).toHaveLength(1); expect(result.environment).toEqual([]);
+    expect(supplement.postflightClean(result)).toBe(false);
+  });
+  test.each([
+    "C:\\Program Files (x86)\\SogouInputX\\SogouExe\\SogouExe.exe",
+    "C:\\Program Files (x86)\\SogouInput\\Other\\SogouExe.exe",
+    "C:\\Program Files (x86)\\SogouInput\\SogouExe\\..\\SogouExe\\SogouExe.exe",
+    "C:\\Program Files (x86)\\SogouInput\\SogouExe\\SogouExe.exe:stream",
+    "\\\\?\\C:\\Program Files (x86)\\SogouInput\\SogouExe\\SogouExe.exe",
+    "C:/Program Files (x86)/SogouInput/SogouExe/SogouExe.exe", exactSogouExe + '\n', exactSogouExe + ' ',
+  ])('ADR-0263 refuses similar paths, aliases and trailing data: %s', image => {
+    for (const changes of [{ ImagePath: image }, { ExecutablePath: image }, { ImagePath: image, ExecutablePath: image }]) {
+      const result = postflightFor([{ ...directSogouExe, ...changes }]);
+      expect(result.related).toHaveLength(1); expect(result.environment).toEqual([]); expect(supplement.postflightClean(result)).toBe(false);
+    }
+  });
+  test.each([undefined, null, {}, { session_id: '' }, { session_id: 0 }, { session_id: -1 }, { session_id: 2.5 }, { session_id: true }, { session_id: 3 }])(
+    'ADR-0263 requires a valid matching authority session: %p', target => {
+      // Explicit undefined must not activate the helper default.
+      const result = postflightFor([directSogouExe], false, target === undefined ? {} : target);
+      expect(result.related).toHaveLength(1); expect(result.environment).toEqual([]); expect(supplement.postflightClean(result)).toBe(false);
+    });
+  test('ADR-0263 retains all descendants and other mandatory residues', () => {
+    const result = postflightFor([
+      { ProcessId: '7081', ParentProcessId: '7080', Name: 'child.exe', SessionId: '2', ImagePath: "C:\\Temp\\child.exe" }, directSogouExe,
+      { ProcessId: '8000', ParentProcessId: '1', Name: 'product.exe', SessionId: '2', ImagePath: "C:\\A9-DEV\\product.exe" },
+      { ProcessId: '8001', ParentProcessId: '1', Name: 'spike02_helper.exe', SessionId: '2', ImagePath: '' },
+    ]);
+    expect(result.environment).toHaveLength(1); expect(result.related.map((r: any) => r.pid)).toEqual([7081, 8000, 8001]);
     expect(supplement.postflightClean(result)).toBe(false);
   });
   test('actual real-model network seam retains TLS verification, enforces limits and keeps only hashes of the system message', () => {
@@ -1741,7 +1797,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-52', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-53', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -2613,7 +2669,7 @@ describe('A9-33 batch-2 smoke pieces', () => {
     const marker = path.join(dir, 'm.ready');
     const dialogMarker = path.join(dir, 'dialog.marker');
     const killed = fakeChild(2147483001);
-    const waiting = smoke.launchDriver(runtime, {}, { timeoutMs: 20000, killMarker: marker, dialogMarker, clickDialog: (pid: number) => ({ status: 0, stdout: `clicked ${pid}`, stderr: '' }) }, () => killed);
+    const waiting = smoke.launchDriver(runtime, {}, { timeoutMs: 20000, killMarker: marker, dialogMarker, cleanupScope: { bind: () => undefined, observeBinding: () => undefined, terminate: jest.fn() }, clickDialog: (pid: number) => ({ status: 0, stdout: `clicked ${pid}`, stderr: '' }) }, () => killed);
     fs.writeFileSync(dialogMarker, '{}');
     await new Promise((resolve) => setTimeout(resolve, 600));
     fs.writeFileSync(marker, '{}');
@@ -2672,13 +2728,13 @@ describe('A9-33 batch-2 smoke pieces', () => {
   });
 
   test('rehearsal 17: an actual release timeout stays a timeout after the exit event', async () => {
-    jest.useFakeTimers(); const kill = jest.spyOn(process, 'kill').mockImplementation(() => true);
+    jest.useFakeTimers(); const kill = jest.fn();
     const child = fakeChild(2147483093); let result: any = null;
-    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'release_exit' }, { timeoutMs: 1000 }, () => child).then((r: any) => { result = r; return r; });
+    const pending = smoke.launchDriver({ electronPath: 'electron.exe', appRoot: 'app' }, { A9_BATCH2_MODE: 'release_exit' }, { timeoutMs: 1000, cleanupScope: { bind: () => undefined, observeBinding: () => undefined, terminate: kill } }, () => child).then((r: any) => { result = r; return r; });
     try {
       jest.advanceTimersByTime(1000); child.emit('exit', 0, null); await Promise.resolve();
       expect(result).toMatchObject({ code: 0, killed_by: 'timeout' }); expect(kill).toHaveBeenCalledTimes(1);
-    } finally { child.emit('close', 0, null); await pending; kill.mockRestore(); jest.useRealTimers(); }
+    } finally { child.emit('close', 0, null); await pending; jest.useRealTimers(); }
   });
 
   function phaseContext(phase: string, index = 1) {
@@ -3440,13 +3496,11 @@ describe('A9-33 batch-2 smoke pieces', () => {
       expect(open.failure_class).toBe('DRIVER_RELEASE_EXIT_FAILED');
     });
 
-    test('process kill is by id and never by tree', () => {
-      const source = fs.readFileSync(path.join(releaseDir, 'a9-batch2-smoke.cjs'), 'utf8');
-      const body = /function killProcess\(pid\) \{([\s\S]*?)\n\}/.exec(source);
-      expect(body).not.toBeNull();
-      expect((body as RegExpExecArray)[1]).toContain("'/PID'");
-      expect((body as RegExpExecArray)[1]).toContain("'/F'");
-      expect((body as RegExpExecArray)[1]).not.toContain("'/T'");
+    test('unscoped process termination fails closed; both public paths dispatch through the explicit scope', () => {
+      expect(() => smoke.killProcess(42)).toThrow('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
+      expect(() => smoke.killTree(42)).toThrow('A9_BATCH2_CLEANUP_SCOPE_REQUIRED');
+      const terminate = jest.fn(); smoke.killProcess(42, { terminate }); smoke.killTree(43, { terminate });
+      expect(terminate.mock.calls).toEqual([[42, false], [43, true]]);
       expect(smoke.liveDescendants([], [])).toEqual([]);
     });
   });
@@ -6571,17 +6625,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0260/ADR-0261/ADR-0262: WIN7-52 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-52', candidate_tentative: true });
+  test('ADR-0260/ADR-0261/ADR-0262: WIN7-53 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-53', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-52'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_52');
+    expect(lock.provenance.candidate).toBe('WIN7-53'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_53');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-52', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-53', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-52'");
+    expect(request).toContain("a.candidate !== 'WIN7-53'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-52'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
+      expect(text).toContain('WIN7-53'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });
@@ -6934,4 +6988,149 @@ test('A9-39 ordinary packaged modes derive identity from the candidate fixtures 
     if (candidate === undefined) delete process.env.A9_BATCH2_CANDIDATE_ROOT; else process.env.A9_BATCH2_CANDIDATE_ROOT = candidate;
     if (override === undefined) delete process.env.A9_BATCH2_FIXTURES; else process.env.A9_BATCH2_FIXTURES = override;
   }
+});
+
+describe('ADR-0264 scoped cleanup authority', () => {
+  const sid = 'S-1-5-21-1708701742-428676696-1831205153-1001';
+  const stamp = (n = 0) => `202610230900${String(n).padStart(2, '0')}.123400+480`;
+  const command = fixtures.shellCommand('cmd', { name: 'released-hold' });
+  const args = `/d /s /c ${command}`;
+  const image = 'C:\\Windows\\System32\\cmd.exe';
+  const dirs: string[] = [];
+  function row(pid: number, parent: number, exe: string, second = 0): any {
+    return { ProcessId: String(pid), ParentProcessId: String(parent), Name: path.win32.basename(exe), ExecutablePath: exe,
+      SessionId: '2', CreationDate: stamp(second) };
+  }
+  function harness(extras: any[] = [], patch: any = {}) {
+    const attemptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cleanup-TEST_ONLY-')); dirs.push(attemptDir);
+    const runtime = { electronPath: 'C:\\A9-DEV\\scoped-run\\driver-electron\\electron.exe' };
+    let rows = [row(90, 80, 'C:\\Windows\\System32\\services.exe'), row(100, 90, runtime.electronPath), ...extras];
+    const commands = new Map<string, string>(rows.map((r: any) => [r.ProcessId, '']));
+    const killed: number[] = []; let listingFailed = false;
+    const ctx: any = { runId: 'test-run', phase: 'p05-session-bg', candidateRoot: 'C:\\A9-DEV\\candidate', runRoot: 'C:\\A9-DEV\\scoped-run', attemptDir,
+      request: { target: { account_sid: sid, machine_name: 'DCCS-CHAIZL-PC', session_id: 2 } } };
+    if (patch.target) Object.assign(ctx.request.target, patch.target);
+    const exec = (name: string) => {
+      if (name === 'wmic_processes' && patch.onList) rows = patch.onList(rows);
+      if (listingFailed) return { status: 1, stdout: '', error: 'TEST_ONLY' };
+      if (name === 'wmic_processes') {
+        const keys = ['CreationDate', 'ExecutablePath', 'Name', 'ParentProcessId', 'ProcessId', 'SessionId'];
+        return { status: 0, stdout: `Node,${keys.join(',')}\r\n${rows.map((r: any) => `TEST_ONLY,${keys.map((k) => r[k]).join(',')}`).join('\r\n')}\r\n` };
+      }
+      return { status: 0, stdout: rows.map((r: any) => `CommandLine=${commands.get(r.ProcessId) || ''}\r\nProcessId=${r.ProcessId}\r\n\r\n`).join('') };
+    };
+    const facts = (r: any) => ({ ...smoke.cleanupIdentity({ ...r, ImagePath: r.ExecutablePath, ImageSource: 'executable_path' }), sid });
+    const owner = (pid: number, expected?: any) => {
+      const current = rows.find((r: any) => Number(r.ProcessId) === pid);
+      if (!current) return { status: 'ALREADY_ENDED' };
+      const identity = facts(current);
+      if (expected) { if (!smoke.sameCleanupIdentity(expected, identity)) throw new Error('TEST_ONLY_IDENTITY_CHANGED'); killed.push(pid); rows = rows.filter((r: any) => Number(r.ProcessId) !== pid); if (patch.afterTerminate) rows = patch.afterTerminate(pid, rows); return { status: 'TERMINATED', identity }; }
+      return { status: 'FACTS', identity };
+    };
+    const scope = smoke.createCleanupScope(ctx, runtime, 'release_exit', { exec, owner, hostname: () => 'DCCS-CHAIZL-PC', invocation: () => ({ command, args }) });
+    const binding = () => ({ schema_version: 1, run_id: ctx.runId, phase: ctx.phase, mode: 'release_exit', driver_pid: 100,
+      fixture: 'released-hold', shell_kind: 'cmd', command_sha256: crypto.createHash('sha256').update(command).digest('hex'),
+      call_id: 'b2-rel-1', tool_name: 'start_process', turn_id: 'turn-TEST_ONLY', handle: { handleId: 'handle-TEST_ONLY', pid: 300 }, root_pid: 300,
+      instances: rows.filter((r: any) => [300, 301].includes(Number(r.ProcessId))).map(facts) });
+    const writeBinding = (b = binding()) => fs.writeFileSync(path.join(attemptDir, 'release_exit-cleanup-binding.json'), JSON.stringify(b));
+    return { ctx, scope, runtime, owner, exec, commands, killed, binding, writeBinding, facts,
+      rows: () => rows, setRows: (r: any[]) => { rows = r; }, failListing: () => { listingFailed = true; } };
+  }
+  afterAll(() => { for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true }); });
+  test('terminates bound root instances individually, leaves directly identified environment processes alive', () => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(400, 100, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 1)]);
+    h.scope.bind(100); h.scope.terminate(100, true); expect(h.killed).toEqual([200, 100]); expect(h.rows().map((r: any) => r.ProcessId)).toEqual(['90', '400']);
+  });
+  test.each([
+    ['unknown outside descendant', row(400, 100, 'C:\\Windows\\System32\\calc.exe', 1), 'TARGET_NOT_AUTHORIZED'],
+    ['unbound system shell', row(300, 100, image, 1), 'TARGET_NOT_AUTHORIZED'],
+    ['job closure would reclaim an environment process', row(400, 200, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 2), 'JOB_SCOPE_UNKNOWN'],
+  ])('%s rejects the whole termination before any attempt', (_label, extra, error) => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), extra]);
+    h.scope.bind(100); expect(() => h.scope.terminate(100, true)).toThrow(error); expect(h.killed).toEqual([]);
+  });
+  test.each([{ account_sid: 'wrong' }, { session_id: 3 }, { session_id: '2' }, { machine_name: 'other' }])('wrong target refuses admission %j', (target) => {
+    const h = harness([], { target }); expect(() => h.scope.bind(100)).toThrow('AUTHORITY_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test('query failure does not prove absence or authorize cleanup', () => { const h = harness(); h.scope.bind(100); h.failListing(); expect(() => h.scope.terminate(100, true)).toThrow('LISTING_UNKNOWN'); expect(h.killed).toEqual([]); });
+  test.each(['20260230090000.000000+480', '20261023090000.000000+480\n', '', 'unknown'])('invalid creation identity is refused: %j', (created) => {
+    const h = harness(); h.rows().find((r: any) => r.ProcessId === '100').CreationDate = created; expect(() => h.scope.bind(100)).toThrow(/DRIVER_NOT_BOUND|LISTING_UNKNOWN/); expect(h.killed).toEqual([]);
+  });
+  test.each(['C:\\A9-DEV\\x\\..\\driver-electron\\electron.exe', 'C:\\A9-DEV\\x\\electron.exe:stream', '\\\\?\\C:\\A9-DEV\\x\\electron.exe'])('non-canonical direct image is refused: %s', (exe) => {
+    expect(smoke.cleanupIdentity({ ...row(100, 90, exe), ImagePath: exe, ImageSource: 'executable_path' })).toBeNull();
+  });
+  function released() {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2), row(301, 300, 'C:\\Windows\\System32\\PING.EXE', 3)]);
+    h.commands.set('300', `${image} ${args}`); h.commands.set('301', 'ping -n 2 127.0.0.1'); h.scope.bind(100); h.writeBinding(); return h;
+  }
+  test('release binding is checked before dialog, then the exact released root and child can be removed after driver exit', () => {
+    const h = released(); h.scope.observeBinding(); h.setRows(h.rows().filter((r: any) => !['100', '200'].includes(r.ProcessId)));
+    h.scope.terminate(300, false); h.scope.terminate(301, false); expect(h.killed).toEqual([300, 301]);
+  });
+  test.each(['run_id', 'phase', 'mode', 'call_id', 'command_sha256', 'turn_id'])('wrong or missing %s cannot authorize system processes', (field) => {
+    const h = released(); const b: any = h.binding(); b[field] = field === 'turn_id' ? '' : 'wrong'; h.writeBinding(b);
+    expect(() => h.scope.observeBinding()).toThrow('BINDING_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test('a system path alone and a forged command digest do not prove the actual command', () => {
+    const h = released(); h.commands.set('300', `${image} /d /s /c echo unrelated`); expect(() => h.scope.observeBinding()).toThrow('BOUND_PROCESS_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test('the command handle must bind the actual command root', () => { const h = released(); const b = h.binding(); b.handle.pid = 301; h.writeBinding(b); expect(() => h.scope.observeBinding()).toThrow('BINDING_MISMATCH'); expect(h.killed).toEqual([]); });
+  test('a changed binding cannot replace a previously observed instance', () => { const h = released(); h.scope.observeBinding(); const b = h.binding(); b.turn_id = 'replacement'; h.writeBinding(b); expect(() => h.scope.terminate(300, false)).toThrow('BINDING_CHANGED'); expect(h.killed).toEqual([]); });
+  test('PID reuse remains refused even with an unchanged earlier binding', () => { const h = released(); h.scope.observeBinding(); h.rows().find((r: any) => r.ProcessId === '300').CreationDate = stamp(9); expect(() => h.scope.terminate(300, false)).toThrow('PARENT_IDENTITY_CHANGED'); expect(h.killed).toEqual([]); });
+  test('new PING is bound below the still-identical fixed command; another shell descendant is refused', () => {
+    const h = released(); h.scope.observeBinding(); h.setRows([...h.rows().filter((r: any) => r.ProcessId !== '301'), row(302, 300, 'C:\\Windows\\System32\\PING.EXE', 4)]); h.commands.set('302', 'ping -n 2 127.0.0.1');
+    h.scope.terminate(302, false); expect(h.killed).toEqual([302]);
+    h.setRows([...h.rows(), row(303, 300, image, 5)]); h.commands.set('303', `${image} /c echo other`);
+    expect(() => h.scope.terminate(300, false)).toThrow('PING_NOT_BOUND'); expect(h.killed).toEqual([302]);
+  });
+  test.each([0, 1])('orphan PING first observed %i samples after CMD termination is bound and removed', (delay) => {
+    let parentGone = false; let samples = 0;
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+      afterTerminate: (pid: number, rows: any[]) => { if (pid === 300) parentGone = true; return rows; },
+      onList: (rows: any[]) => parentGone && samples++ === delay ? [...rows, row(302, 300, 'C:\\Windows\\System32\\PING.EXE', 4)] : rows,
+    });
+    h.commands.set('300', `${image} ${args}`); h.commands.set('302', 'ping -n 2 127.0.0.1'); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
+    h.scope.terminate(300, false); expect(h.killed).toEqual([300, 302]);
+  });
+  test('unknown orphan after command exit blocks instead of becoming a clean round', () => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+      afterTerminate: (pid: number, rows: any[]) => pid === 300 ? [...rows, row(399, 300, 'C:\\Windows\\System32\\calc.exe', 4)] : rows,
+    });
+    h.commands.set('300', `${image} ${args}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
+    expect(() => h.scope.terminate(300, false)).toThrow('PING_NOT_BOUND'); expect(h.killed).toEqual([300]);
+  });
+  test('helper is never closed with a newly observed unknown job descendant', () => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+      afterTerminate: (pid: number, rows: any[]) => pid === 300 ? [...rows, row(399, 200, 'C:\\Windows\\System32\\calc.exe', 4)] : rows,
+    });
+    h.commands.set('300', `${image} ${args}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
+    expect(() => h.scope.terminate(100, true)).toThrow('JOB_NOT_EMPTY'); expect(h.killed).toEqual([300]);
+  });
+  test('WMI worker uses two fresh reads, full expected identity and only single-instance Terminate', () => {
+    const h = harness(); const identity = h.facts(h.rows().find((r: any) => r.ProcessId === '100')); const spawn = jest.fn((_file, argv) => {
+      const script = Buffer.from(argv[argv.length - 1], 'base64').toString('utf16le');
+      expect((script.match(/Get-WmiObject Win32_Process/g) || []).length).toBe(2); expect(script).toContain('GetOwnerSid'); expect(script).toContain('$p.Terminate()'); expect(script).not.toContain('taskkill');
+      return { status: 0, stdout: `TERMINATED|100|90|2|electron.exe|${identity.image}|${identity.created}|${sid}\r\n` };
+    });
+    expect(smoke.cleanupWmi(100, identity, spawn).status).toBe('TERMINATED'); expect(spawn).toHaveBeenCalledTimes(1);
+    expect(() => smoke.cleanupWmi(true, identity, spawn)).toThrow('PID_INVALID');
+    expect(() => smoke.cleanupWmi(100, identity, () => ({ status: 0, stdout: '' }))).toThrow('WMI_UNKNOWN');
+    expect(() => smoke.cleanupWmi(100, identity, () => ({ status: 1, stdout: '' }))).toThrow('WMI_FAILED');
+  });
+  test('cleanup WMI cannot start an unbound system PowerShell worker', () => {
+    expect(() => smoke.cleanupWmi(100, undefined, childProcess.spawnSync, undefined)).toThrow('WORKER_NOT_BOUND');
+    const source = fs.readFileSync(path.join(releaseDir, 'a9-batch2-smoke.cjs'), 'utf8');
+    expect(source).toContain("copyRuntimeFile(systemPowerShell, cleanupPowerShell)");
+    expect(source).toContain("runtime.cleanupPowerShell = prepareCleanupWorker(runtime)");
+    expect(source).toContain('A9_BATCH2_CLEANUP_POWERSHELL: runtime.cleanupPowerShell');
+  });
+  test('launch refusal is bounded, preserves unknown cleanup and never calls a raw kill fallback', async () => {
+    jest.useFakeTimers(); const raw = jest.spyOn(process, 'kill');
+    const child: any = new EventEmitter(); child.pid = 111; child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.unref = jest.fn(); child.stdout.unref = jest.fn(); child.stderr.unref = jest.fn();
+    try {
+      const waiting = smoke.launchDriver({ electronPath: 'TEST_ONLY', appRoot: 'TEST_ONLY' }, {}, { timeoutMs: 1000 }, () => child);
+      jest.advanceTimersByTime(1000); expect(await waiting).toMatchObject({ code: null, killed_by: 'timeout', cleanup_error: 'A9_BATCH2_CLEANUP_SCOPE_REQUIRED' });
+      expect(raw).not.toHaveBeenCalled(); expect(child.unref).toHaveBeenCalled();
+    } finally { raw.mockRestore(); jest.useRealTimers(); }
+  });
 });

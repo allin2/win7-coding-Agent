@@ -114,14 +114,14 @@
     "developer_package_integrity": "NOT_PERFORMED",
     "product_assembly": "NOT_PERFORMED",
     "win10": "PASS_D013_V26_RETURN_REVIEWED",
-    "win7": "NOT_PERFORMED_WIN7_52",
+    "win7": "NOT_PERFORMED_WIN7_53",
     "alpha": "NOT_PERFORMED"
   },
   "generated_at": "2026-10-12T00:00:00.000Z",
   "provenance": {
     "task": "A9-39",
     "development_only": false,
-    "candidate": "WIN7-52",
+    "candidate": "WIN7-53",
     "candidate_tentative": true,
     "decision": "ADR-0250, ADR-0251 (ADR-0155 remains Proposed)",
     "rule": "formal candidate lock; release authority and independent pin are external to the candidate and are bound only at gate A"

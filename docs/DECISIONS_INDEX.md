@@ -219,3 +219,5 @@
 | ADR-0260 | 驱动在后台进程状态变化后经界面刷新；页面滞后登记为 KL-13 并延期到 RC；新建候选 WIN7-50 取代 WIN7-49 | Accepted |
 | ADR-0261 | M2 Provider 完整性断言读取同 turn 持久化结果；新建 WIN7-51 | Accepted |
 | ADR-0262 | M2 Runner 控制管道异步错误有界失败；新候选 WIN7-52 | Accepted |
+| ADR-0263 | M4后检将准确直接映像SogouExe记录为环境进程 | Accepted |
+| ADR-0264 | 开发总控受控实例清理及三个固定夹具系统映像的有界终止例外 | Accepted |
