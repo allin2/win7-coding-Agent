@@ -191,8 +191,8 @@ describe('A9-36 independent supplemental request and inputs', () => {
     w42_persistence_sha256: req.W42_PERSISTENCE_SHA, cand_persistence_sha256: H('candidate persistence'), native_sha256: H('native module'),
     w42_root: `${RUN}\\m6\\WIN7-42`, fixtures_root: `${RUN}\\inputs\\m6`, fixture_files: Object.fromEntries(req.M6_FIXTURE_FILES.map((n: string) => [n, H(n)])), now: req.M6_NOW });
   const baseAuthority = () => ({ schema_version: 1, task: 'A9-36', status: 'OWNER_APPROVED', run_id: '0daf288c-7d26-4ebc-b17c-40bc9702ce13',
-    candidate: 'WIN7-54', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
-    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-54', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-54.zip',
+    candidate: 'WIN7-55', source: crypto.createHash('sha1').update('candidate source').digest('hex'), runtime_sha256: H('runtime'), package_sha256: H('package'), manifest_sha256: H('manifest'),
+    candidate_root: 'C:\\A9-W43\\frozen\\WIN7-55', run_root: RUN, zip_path: 'C:\\A9-W43\\frozen\\WIN7-55.zip',
     target: { machine: 'DCCS-CHAIZL-PC', sid: 'S-1-5-21-1708701742-428676696-1831205153-1001', session_id: 5, integrity: 'Medium', elevated: false, in_job: false },
     inputs: Object.fromEntries(req.INPUTS.map((n: string) => [n, H(n)])), phases: ['m4', 'm1', 'm2', 'm3', 'm6', 'm5'], max_requests: 6, max_wall_seconds: 7200,
     expires_at: '2026-10-15T20:00:00Z', provider: { base_url: 'https://api.deepseek.com', model: 'deepseek-v4-flash', max_turns: 3, max_requests: 40, max_response_bytes: 1048576 },
@@ -217,7 +217,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     ['source', 'ba042757a04f428cb3db3ccd10888a7bebe97d3b'],
     ['package_sha256', 'ae1d4bb109df68c2f23e08cb4b927f2168f7a1f645969643f35101bf8f9da96e'],
     ['manifest_sha256', '520bda7e34cade8c611d8d28120a46b046519b462e3df8978968efc45e07c7df'],
-  ])('retired WIN7-45 %s is individually refused even under the WIN7-54 label', (key, value) => {
+  ])('retired WIN7-45 %s is individually refused even under the WIN7-55 label', (key, value) => {
     expect(() => req.validateAuthority(changedAuthority(key, value), now)).toThrow('A9_36_RETIRED_CANDIDATE');
   });
   test.each(['WIN7-42', 'WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'win7-51', '', null, undefined])('candidate label %s is refused', (value) => {
@@ -288,7 +288,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     fs.appendFileSync(diskFile, '\n');
     expect(() => boundReq.loadBound(authorityFile, pin, a.target, now)).toThrow('A9_36_PIN');
     expect(() => boundReq.loadBound(authorityFile, pin.toUpperCase(), a.target, now)).toThrow('A9_36_PIN');
-    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-54');
+    expect(boundReq.loadBound(authorityFile, req.fileHash(diskFile), a.target, now).candidate).toBe('WIN7-55');
   });
   test('candidate manifest source and label must equal the authority before loading any candidate code', () => {
     const dir = root(); const zip = path.join(dir, 'candidate.zip'); const manifestFile = path.join(dir, 'release-manifest.json'); fs.writeFileSync(zip, 'candidate ZIP fixture');
@@ -309,7 +309,7 @@ describe('A9-36 independent supplemental request and inputs', () => {
     const withM6 = (patch: any) => ({ ...baseAuthority(), m6: { ...baseM6(), ...patch } });
     for (const patch of [{ w42_source: 'f'.repeat(40) }, { w42_zip_sha256: 'e'.repeat(64) }, { w42_manifest_sha256: 'e'.repeat(64) }, { now: '2026-10-16T12:00:00.001Z' }, { now: new Date(0).toISOString() },
       { w42_root: 'C:\\elsewhere\\WIN7-42' }, { w42_zip_path: 'C:\\elsewhere\\WIN7-42.zip' }, { fixtures_root: `${RUN}\\inputs\\other` }, { fixtures_root: `${RUN}\\m6` }, { w42_root: `${RUN}\\inputs\\m6\\WIN7-42` },
-      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-54\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
+      { w42_root: 'C:\\A9-W43\\frozen\\WIN7-55\\inner' }, { fixture_files: { ...baseM6().fixture_files, 'baseline.json': 'zz' } }, { fixture_files: { 'F42.sqlite': 'e'.repeat(64) } },
       { fixture_files: { ...baseM6().fixture_files, 'extra.sqlite': 'e'.repeat(64) } }, { unexpected: 1 }]) {
       expect(() => req.validateAuthority(withM6(patch), now)).toThrow();
     }
@@ -1797,7 +1797,7 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-54', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-55', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
     expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
   });
 
@@ -6625,17 +6625,17 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0260/ADR-0261/ADR-0262: WIN7-54 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-54', candidate_tentative: true });
+  test('ADR-0260/ADR-0261/ADR-0262: WIN7-55 current labels include the A9-36 request and validation document', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-55', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-54'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_54');
+    expect(lock.provenance.candidate).toBe('WIN7-55'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_55');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-54', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-55', candidateTentative: true, batch2: true");
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
-    expect(request).toContain("a.candidate !== 'WIN7-54'");
+    expect(request).toContain("a.candidate !== 'WIN7-55'");
     for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
-      expect(text).toContain('WIN7-54'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
+      expect(text).toContain('WIN7-55'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
     }
     expect(fs.readFileSync(path.join(releaseDir, 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md'), 'utf8')).toContain('WIN7-42');
   });
@@ -7003,12 +7003,19 @@ describe('ADR-0264 scoped cleanup authority', () => {
   }
   function harness(extras: any[] = [], patch: any = {}) {
     const attemptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cleanup-TEST_ONLY-')); dirs.push(attemptDir);
-    const runtime = { electronPath: 'C:\\A9-DEV\\scoped-run\\driver-electron\\electron.exe' };
+    const root = patch.formal ? 'C:\\A9-W46\\run\\f01e\\run' : 'C:\\A9-DEV\\scoped-run';
+    const candidate = patch.formal ? 'C:\\A9-W46\\run\\f01e\\deploy\\candidate' : 'C:\\A9-DEV\\candidate';
+    const runtime = { electronPath: `${root}\\driver-electron\\electron.exe` };
     let rows = [row(90, 80, 'C:\\Windows\\System32\\services.exe'), row(100, 90, runtime.electronPath), ...extras];
     const commands = new Map<string, string>(rows.map((r: any) => [r.ProcessId, '']));
     const killed: number[] = []; let listingFailed = false;
-    const ctx: any = { runId: 'test-run', phase: 'p05-session-bg', candidateRoot: 'C:\\A9-DEV\\candidate', runRoot: 'C:\\A9-DEV\\scoped-run', attemptDir,
+    const ctx: any = { runId: 'test-run', phase: 'p05-session-bg', candidateRoot: candidate, runRoot: root, attemptDir,
       request: { target: { account_sid: sid, machine_name: 'DCCS-CHAIZL-PC', session_id: 2 } } };
+    if (patch.formal) {
+      ctx.request.expires_at = '2026-10-28T00:00:00.000Z';
+      ctx.request.evidence_root = root;
+      ctx.request.bindings = { source_commit: '9b385246a6fff911162e8effaf15a12de76903a8' };
+    }
     if (patch.target) Object.assign(ctx.request.target, patch.target);
     const exec = (name: string) => {
       if (name === 'wmic_processes' && patch.onList) rows = patch.onList(rows);
@@ -7175,5 +7182,15 @@ describe('ADR-0264 scoped cleanup authority', () => {
       jest.advanceTimersByTime(1000); expect(await waiting).toMatchObject({ code: null, killed_by: 'timeout', cleanup_error: 'A9_BATCH2_CLEANUP_SCOPE_REQUIRED' });
       expect(raw).not.toHaveBeenCalled(); expect(child.unref).toHaveBeenCalled();
     } finally { raw.mockRestore(); jest.useRealTimers(); }
+  });
+  test.each(['release_exit', 'continue_unknown_interrupt'])('formal root admits %s and terminates only the bound fixture instances', (mode) => {
+    const h = harness([row(200, 100, 'C:\\A9-W46\\run\\f01e\\deploy\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], { formal: true, mode });
+    h.commands.set('300', `${image} ${h.fixedArgs}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
+    h.scope.terminate(300, false); expect(h.killed).toEqual([300]);
+  });
+  test.each(['release_exit', 'continue_unknown_interrupt'])('formal root %s refuses an unbound system shell even when the driver is bound', (mode) => {
+    const h = harness([row(200, 100, 'C:\\A9-W46\\run\\f01e\\deploy\\candidate\\spike02_helper.exe', 1), row(300, 100, image, 1)], { formal: true, mode });
+    h.commands.set('300', `${image} /d /s /c echo unrelated`); h.scope.bind(100); h.writeBinding();
+    expect(() => h.scope.observeBinding()).toThrow('BOUND_PROCESS_MISMATCH'); expect(h.killed).toEqual([]);
   });
 });

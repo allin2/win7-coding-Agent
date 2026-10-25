@@ -9,8 +9,8 @@ Target Version: 0.3.0-alpha.2
 Candidate: WIN7-54 (development candidate; not frozen; WIN7-53 FAIL retained)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264, ADR-0265, ADR-0266, ADR-0267, ADR-0268, ADR-0269, ADR-0270, ADR-0271, ADR-0272, ADR-0273, ADR-0274, ADR-0275, ADR-0276, ADR-0277, ADR-0278
-Revision: r83 (2026-10-23 UTC; owner approved freeze/gate-A preparation proposal r3; ADR-0278 appended, supplement contract patched; double build/freeze/packages pending)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264, ADR-0265, ADR-0266, ADR-0267, ADR-0268, ADR-0269, ADR-0270, ADR-0271, ADR-0272, ADR-0273, ADR-0274, ADR-0275, ADR-0276, ADR-0277, ADR-0278, ADR-0279, ADR-0280, ADR-0281, ADR-0282, ADR-0283
+Revision: r96 (2026-10-25 UTC; ADR-0284 LAN-only and root-cause-before-retry; formal runs eaa7fc92 and 8b4df730 HALTED at p05 by candidate formal-branch cleanup refusal; fix path pending owner decision; r95 was used by the STATUS repair-10 entry)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
@@ -3634,3 +3634,110 @@ G1～G9待负责人裁决。ADR-0278未追加，合同补丁未应用，冻结�
 已追加ADR-0278。合同补丁bc36ff3c…已应用，A9_ALPHA2_SUPPLEMENT_VALIDATION.md由b48f8e91…变为2c2b3aa0…，与审核时副本结果一致。合同测试对该文件的文字规则以grep自查：含WIN7-54与WIN7-42，无WIN7-46～51；jest未运行。§3.2登记增补路径。
 
 下一步依次为本地提交、双构建补记录、冻结、两个正式包、G9彩排与close。正式门A/B、推送均NOT_PERFORMED。产品/native/ZIP不变。
+
+### 11.8.159 双构建补记录、冻结、正式总控包彩排与正式补充包
+
+本地提交67a518a只含docs五份与合同，未推送。从9b385246在两个新干净工作树双构建，两份产物均等于3737852a…，与原w54-build-1逐字节相同；记录见w54-build-preparation/DOUBLE_BUILD.json。冻结目录.acceptance/candidates/WIN7-54/共11件只读文件，IDENTITY.sha256为9ce7a0c5…，逐件核对OK。
+
+正式总控包w54-gate-a-package由codex从controller-r4复制。首轮发现执行文件写死双run、旧run根和旧目录；按G9在批准目录内修改23件执行文件。Sonnet只读审核0P0/0P1，三项反证全部变红。正式草稿run 6e2e7334，未签。
+
+总控开发模式彩排首次run 7e48cc21在R1 HALTED：开发根9.7 GB，超出容量统计上限（DEV_CAPACITY_UNKNOWN），目标机未写入。主代理在常设授权r1内提前执行close：首次删除后剩32个只读Git对象，清除只读后再次close，root_exists=false、进程与任务为0。之后恢复开发根与LOCK（holder w54-g9）。新run 32a41046于16:50:04Z～17:15:28Z完成，p01～p10与GPU门PASS，37用例/67断言PASS，R7回收1584件、R8任务与进程为0（Win7 DEV通道）。正式签名校验与C:\A9-W46路径未彩排。
+
+正式补充包w54-formal-supplement-package由codex生成。r5驱动把编码证据写死为DEV，主代理裁决派生驱动，只把证据模式改为取自描述符，缺失即拒绝；派生驱动c24ddf17…用于六组。本地139项测试、两模式verify与G9比对PASS；DEV样例run 74c89f69，正式草稿run f19b452f未签。独立审核进行中，补充组彩排、门A前close与门A材料均NOT_PERFORMED。没有真实模型请求，没有触碰正式根。
+
+### 11.8.160 补充组开发模式彩排：五组PASS，M5仅A02 FAIL
+
+补充包修复轮2（M5终审失败判FAIL、材料门接线测试、准入回执送达、累计口径取自授权、DENY_SET相等）经Sonnet复审0P0/0P1，四项反证全部变红。
+
+首次run f1efd45d在R1 HALTED：close后缺C:\A9-DEV\supp与supp-cand父目录，目标未写入。主代理用开发通道建出两个父目录后，新run 4424c5f7于19:44Z～19:54Z运行（Win7 DEV通道）。m4、m1、m2（6 Stage）、m3（2 Stage）、m6均PASS。
+
+M5前主代理于19:52Z核对DeepSeek官方价格页，峰值费率未变（输入0.3、输出1.2美元/百万token），按台账写入准入回执（当日已发58次）；运行器校验后经一次管理SSH送达，M5门READY。M5 rehearsal PASS；main中A01、A03、A04、A05、A06 PASS，A02 FAIL。J1回答6处calc.py引用中，第3处calc.py:2未附完整原行，其余5处匹配，与r4 A02首败同类。编码设置与恢复PASS；22请求全部结算，保守费用上界US$0.0615729，累计响应1,600,310字节；R7/R8 PASS、残留任务0。
+
+当日计数80次；记录承诺上界由941,012,400增至1,002,585,300 nanoUSD，实际账单UNKNOWN。G9批准的一次M5彩排已消耗。A02在r4、r5与本次三次真实运行中两次失败，正式M5无自动重跑；处置待负责人裁决。门A前close、门A材料、正式门A/B均NOT_PERFORMED。
+
+### 11.8.161 ADR-0279：收紧J1提示词，M5再彩排待恢复网络
+
+负责人原话见ADR-0279，选乙。主代理改合同§3 M5-A02备注列，合同SHA由2c2b3aa0…变为7e913556…。codex修复轮3只把J1插入一句，派生驱动由c24ddf17…变为1c100119…；同步合同副本、拒绝集（补入7e48cc21、32a41046、f1efd45d、4424c5f7）与DEV授权累计口径（1,002,585,300→2,002,585,300）。本地182项测试与两模式verify PASS；Sonnet只读审核0P0/0P1，两项反证变红。新DEV样例run 03b16326零网络检查PASS，正式草稿run 8a8adb6d未签。
+
+2026-10-24T01:28Z起，开发机地址为10.56.152.145，不在验收机所在的192.168.1.x网段；本机代理TUN接管该网段并伪造TCP连接，SSH握手超时。M5再彩排、门A前close与门A材料均NOT_PERFORMED，待开发机回到验收机网络。日界门要求M5在2026-10-24T22:55Z前启动，当日计数从0起。
+
+### 11.8.162 开发通道改走Tailscale与SFTP超时按字节换算
+
+负责人指示“走tailscale连接win7实机”，依据另一会话的实测：Win7 Tailscale地址100.80.221.58（节点dccs-chaizl-PC），经中继转发，往返391～466 ms，上传平均229,853 B/s、最低分段179,810 B/s。开发通道命令改带WIN7_DEV_HOST=100.80.221.58，工具默认值、HostKeyAlias=192.168.1.11、known_hosts与身份核对不变。正式门A/B是否走中继另行裁决，不在本范围。
+
+主代理判断不需追加ADR：只换开发通道连接路径，不改接口、数据格式、兼容性或产品安全模型；SSH仍严格核对主机键。已知风险：中继速度波动；tailnet访问策略为默认全放行，节点win-2jq66je4htq身份UNKNOWN，由负责人另行处理。
+
+02:18Z经Tailscale只读status PASS：DCCS-CHAIZL-PC/7601，agent会话2，开发根2.88 GB，锁空闲，进程与任务为0。补充包整批SFTP上传原固定600秒超时，计划上传212,924,910字节经中继需约926～1184秒。codex修复轮4改为max(600秒, ceil(字节/150000)秒)，上传与下载均按计划字节换算，总传输预算10800秒与恢复截止约束不变；本地202项测试PASS，主会话看diff（小改动、不涉安全）。新DEV样例run 82b00613经Tailscale执行中。
+
+### 11.8.163 Tailscale上的两次补充组运行均未到达M5
+
+run 82b00613（02:24Z～02:43Z）：上传212,924,910字节用时932秒PASS，R1～R5 PASS；m4后检R6 HALTED（RELATED_PROCESS_REMAINS）。残留为14个夸克浏览器进程，创建于01:42～01:43Z，早于本run约42分钟，按registered_generation被收养。推断根因：后代追踪未比较创建先后，父PID 5932被本run进程复用时误收养（5932当前持有者未记录，UNKNOWN）。夸克未终止。R7/R8 PASS。
+
+修复轮5给后代收养加“子进程创建时间不早于父进程”检查，缺失时间仍失败关闭，拒绝集补入82b00613；本地223项测试PASS，Sonnet只读审核0P0/0P1，三项反证变红。主代理用开发通道只读ps片段在目标机验证时间转换：PS 5.1/CLR 4.0可用，UTC换算正确。
+
+run 1555035b（02:55Z～03:06Z）：上传约536秒后远端重置连接（Connection reset by peer，relay hkg），SFTP_UPLOAD HALTED，未进入任何组，R8 PASS、残留任务0。两次运行真实模型请求均为0。按执行要求未自动重试。下一步待负责人裁决，M5须在2026-10-24T22:55Z前启动。
+
+### 11.8.164 ADR-0279 M5再彩排PASS，门A前close完成
+
+负责人选择经Tailscale中继再试一次。run 61811bb0（03:12Z～03:47Z，Win7 DEV通道，relay hkg）：上传212,924,910字节用时992秒；m4、m1、m2（6 Stage）、m3（2 Stage）、m6 PASS。M5前主代理于03:35Z核对DeepSeek官方价格页，峰值费率未变，按台账写入准入回执（10-24已发0次），送达后剩余8668秒。M5 rehearsal与main PASS，A01～A06全部PASS；A02为ADR-0279收紧提示词后首次通过，单次PASS不证明稳定。编码设置与恢复PASS；24请求全部结算，保守费用上界US$0.0749454，累计响应2,441,182字节；R7/R8 PASS，残留任务NONE。核验SUPPLEMENT_REHEARSAL_61811bb0_WIN7_DEV_VERIFIED.json。
+
+当日计数24次；记录承诺上界由1,002,585,300增至1,077,530,700 nanoUSD，实际账单UNKNOWN。PID复用修复在实机生效：夸克浏览器仍运行，m4后检残留为0。
+
+门A前close：清除32个只读文件后执行close，root_exists=false、进程与任务为0、锁随根删除（03:5xZ）。下一步生成门A材料；正式门A/B、推送NOT_PERFORMED。
+
+### 11.8.165 ADR-0280：正式执行允许经中继；总控中继彩排在上传中断
+
+负责人原话见ADR-0280。codex总控修复轮2把SSH/SFTP目标改为白名单{192.168.1.9, 100.80.221.58}，由描述符决定；R3上传与R7回收超时改为max(原值, ceil(字节/150000)+2×文件数)秒。按原回收上限推出总墙钟23100→42887秒、负责人窗口28800→57600秒，均为封顶值；其余判据不变，拒绝集补入7个已消耗DEV run。Sonnet只读审核实现无误，指出白名单与预检wrapper两处测试盲区（P1）；修复轮3补精确断言与ssh argv整段精确匹配，主会话看diff。本地19个测试文件、29条检查PASS。
+
+总控中继彩排run d6ec647f（05:17Z～05:21Z）：R1、R2 PASS；R3上传候选ZIP约172秒后连接关闭（未到779秒超时），HALTED；未进入测试阶段，R8 PASS、任务与进程为0。经中继的4次大文件上传：2次成功（932秒、992秒），2次中断（536秒reset、172秒closed）。Tailscale仍经DERP hkg，未建立直连。按执行要求未自动重试，待负责人裁决。正式门A/B、推送NOT_PERFORMED。
+
+### 11.8.166 ADR-0281：两个包的SFTP有界续传
+
+负责人原话见ADR-0281。总控修复轮4与补充包修复轮6：仅在传输层失败（退出255、连接关闭或重置）时用新会话reput/reget续传，每批最多3个会话；完整性、主机键、身份或协议错误不续传；续传后逐件核大小与SHA。控制会话与阶段级仍零自动重跑。
+
+总控包：本地19个测试文件、29条检查PASS；sftp会话上限1→3；按最坏情况推出总墙钟42887→85341秒、负责人窗口57600→100800秒（封顶值）；拒绝集补入d6ec647f；新DEV run 0fbfbfc2，正式草稿be318efc未签。补充包：修复轮6被外部中断后由同一会话续做，核对确认无需恢复；265项测试、两模式verify、G9与PowerShell审计PASS；拒绝集补入1555035b、61811bb0；新DEV run 9b13496b（累计口径1,077,530,700→2,077,530,700），正式草稿0ad5f950未签。两包独立审核进行中，中继彩排、close与门A材料NOT_PERFORMED。
+
+### 11.8.167 两包续传审核通过；总控中继彩排在续传中超时
+
+补充包修复轮6经Sonnet只读审核0P0/0P1，8个反证变体全部变红；transport_total_seconds 10800→18000。总控修复轮4审核核心逻辑通过，唯一P1为JSON_CONTRACTS.md旧预算残留；修复轮5改为当前值并加50个反例的反向断言，首次120秒复核计入既有600秒，预算不变（85341/100800）；主会话看diff，并用补充包封存清单核对147件一致。
+
+总控中继彩排run d62f471f（06:50Z～07:08Z）：第1次上传约5分钟后Connection closed（退出255），判定为传输断开并续传；第2次reput在779秒内未完成，被本机超时终止（无断线信息），按设计不再续传，R3 HALTED。未进入测试阶段，R8 PASS、任务与进程为0。开发根仅增加约58.6 MB，估算吞吐约54 KB/s，低于此前实测平均229,853 B/s。Tailscale仍经DERP hkg，未建立直连。续传判定在实机按设计工作。按执行要求未自动重试，待负责人裁决。
+
+### 11.8.168 中继开跑前测速门
+
+负责人原话：“继续走中继，但每次开跑前先用小文件测速，只有上传速度 ≥200 KB/s 时才启动彩排；不达标就等待或改回局域网。”主代理经开发通道put上传10,000,000字节随机文件计时（含SSH握手，结果偏保守），记录于relay-speed-gate/SPEED_GATE_LOG.jsonl。07:13Z首测167.93秒、59,549 B/s，不达标，未启动彩排；后台每30分钟复测，达标才启动总控彩排，补充组彩排开跑前另测一次。补充组M5须在22:55Z前启动，约20:30Z仍不达标则M5顺延。测速门属执行规程，不改接口、数据格式或安全模型，不追加ADR。
+
+### 11.8.169 ADR-0282/0283、续传缺陷与交接
+
+负责人原话见ADR-0282、ADR-0283。超时速度下限150→40 KB/s，测速门槛200→50 KB/s；补充组合同第43行改为“负责人窗口≤18小时（ADR-0282）”，合同SHA 7e913556…→2849759409e1…。总控包预算封顶为总墙钟122250秒、负责人窗口140400秒；补充包运输57600秒、授权窗口64800秒。两包随后清理旧值并同步合同SHA，审核通过。
+
+09:14Z测速75,843 B/s达标后，总控中继彩排run 98fe9513：第1、2次上传断线并按设计续传，第3次reput已传完候选ZIP，随后对尚未开始的文件执行reput，远端无文件，退出1，按非传输错误停止，R3 HALTED；R8 PASS、任务与进程为0。缺陷：续传对剩余全部文件一律reput/reget（两包同类）。修复轮9改为按回显选择后，审核指出最后回显文件仍可能远端不存在；主会话决定修复轮10在续传前经管理SSH只读查询远端状态再选put/reput/跳过，总控另补真实回显重放测试。总控修复轮10运行中，补充包修复轮10待派。
+
+2026-10-24T10:25Z负责人要求交接。交接书outputs/a9-39-handoff/HANDOFF_2026-10-24.md列出状态、在跑任务、后续步骤、待裁决事项与操作要点。正式门A/B、推送NOT_PERFORMED。
+
+### 11.8.170 门A正式执行两次HALTED；ADR-0284；p05根因定位
+
+本节由Claude主会话按负责人2026-10-25裁决登记，证据为Win7实机原始记录，开发机只读核对；候选WIN7-54，源码`9b385246…`，ZIP`3737852a…`。执行会话对修复轮11～14与下列run的完整登记NOT_PERFORMED，本节只列裁决所需事实。
+
+| 时间 UTC | run | 结果 | 证据 |
+|---|---|---|---|
+| 10-25 03:13～03:42 | 总控DEV 1099daa6（局域网，修复轮13，工具`fd90fadd…`） | 37/67 PASS，R7 1585件 | `outputs/win7-dev/formal/1099daa6/RUN_RESULT.json` |
+| 10-25 12:55～13:07 | 补充组DEV 221d81b9（局域网） | 六组PASS，M5 A01～A06 PASS，20请求，上界56,910,300 nanoUSD | `outputs/a9-39-w54-formal-packages/supplement/SUPPLEMENT_REHEARSAL_221D81B9_PASS.json` |
+| 10-25 13:52 | 负责人确认门A预检包`cad08420…`与最终载荷`213a5964…` | 回执已记录 | `gate-a/repair-13/inputs/formal/eaa7fc92/signing-final-r1/OWNER_RECEIPT.json` |
+| 10-25 13:57～14:10 | 正式eaa7fc92（工具`fd90fadd…`） | R6-p05-session-bg HALTED | `gate-a/run-rehearsal-formal-eaa7fc92.stdout` |
+| 10-25 14:30 | 修复轮14重生成输入，工具`395764c9…`；回执记录负责人确认载荷`992315ef…` | 未定位原因 | `gate-a/RELAY_REHEARSAL_HANDOFF_R14.json` |
+| 10-25 14:32～14:44 | 正式8b4df730 | 同一步同原因HALTED | `gate-a/run-rehearsal-formal-8b4df730.stdout` |
+
+根因：候选内`validation/a9-batch2-smoke.cjs`的`admission()`在非`c:\a9-dev\`根下对`release_exit`、`continue_unknown_interrupt`一律抛`A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH`。正式根`C:\A9-W46\run\<run>`必然触发；p05的`release_exit`在13 ms内失败，驱动随后报`ECONNREFUSED`，R6返回`TASK_NONZERO_OR_STILL_RUNNING`，外层标签写TRANSPORT。p06的`continue_unknown_interrupt`按代码推断同样失败，未实际执行。该拒绝符合ADR-0264只授权开发总控的范围；彩排全在`C:\A9-DEV\`下运行，正式分支从未执行。`CLEANUP_EXPIRES`写死2026-10-28T00:00Z，到期后开发根彩排同样失败。完整分析见`outputs/a9-39-p05-formal-root-cause/REPORT.md`。
+
+负责人裁决（ADR-0284）：正式执行与彩排只走局域网；正式失败先定位再重试；建议4～9写入ENGINEERING_04草稿。修复路径另行裁决，裁决前不再发起WIN7-54正式执行。门B、推送NOT_PERFORMED。
+
+### 11.8.171 ADR-0285：WIN7-55最小修复提案r3获批，换发候选
+
+本节由Claude主会话按负责人2026-10-25裁决登记。负责人原话：“批准 WIN7-55 最小修复提案 r3。”提案与交接见 `outputs/a9-39-w55-proposal/`；r2原文未获批准，不执行。
+
+- 根因（承接11.8.170）：候选 `release/win7-product-v3/a9-batch2-smoke.cjs` 的 `admission()` 在非 `c:\a9-dev\` 根下对 `release_exit`、`continue_unknown_interrupt` 一律抛 `A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH`。
+- 决定（ADR-0285）：夹具清理准入统一正式/开发分支；到期改读阶段请求 `expires_at`（900秒），删除常量 `CLEANUP_EXPIRES`；只改 smoke.cjs 3 处，合同测试加 2 个正例；换发 WIN7-55，退役加入 WIN7-54。
+- C14 授权：`release/win7-product-v3/a9-batch2-smoke.cjs`、`src/shell/tests/product/a9-batch2-contract.test.ts`（均在 §3 十路径白名单内），以及 `9b38524` 同范围的候选身份文件，用于 ADR-0285 修复。
+- 执行顺序：ADR-0285登记 → 实施改动与测试 → 独立审核（只报P0/P1）→ 本地提交与两次干净构建、核号冻结WIN7-55 → 两包改绑WIN7-55（只改身份）、拒绝集加入eaa7fc92/8b4df730 → 局域网开发根DEV总控彩排一次（37/67）→ 门A材料交负责人确认后正式执行总控与补充组。
+- 不做：总控包侧绕开、跳过release_exit/continue_unknown_interrupt、放宽判据、改阶段计划；r2的正式布局彩排/常设授权r2/工具分支清单/补充组重做彩排；改产品业务代码、Runner、原生、驱动。

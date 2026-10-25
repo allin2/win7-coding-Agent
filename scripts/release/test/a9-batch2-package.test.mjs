@@ -102,9 +102,9 @@ function inputsFor(root, repositoryRoot, kind) {
       storage_return_zip: { filename: 'storage.zip', version: '8.7.0', sha256: sha256File(storageZip), required_entry: 'output/runtime/node_modules/better-sqlite3/build/Release/better_sqlite3.node',
         required_entry_sha256: digest(sqlitePe), sqlite: '3.43.1', electron_abi: 110, profile: 'E22-SQLITE343-LOCAL-SSD' },
     },
-    gates: { win10: 'PASS_D013_V26_RETURN_REVIEWED', win7: batch2 ? 'NOT_PERFORMED_WIN7_54' : 'NOT_PERFORMED', alpha: 'NOT_PERFORMED' },
+    gates: { win10: 'PASS_D013_V26_RETURN_REVIEWED', win7: batch2 ? 'NOT_PERFORMED_WIN7_55' : 'NOT_PERFORMED', alpha: 'NOT_PERFORMED' },
     provenance: batch2
-      ? { task: 'A9-39', development_only: false, candidate: 'WIN7-54', candidate_tentative: true, decision: 'ADR-0250, ADR-0251 (ADR-0155 remains Proposed)' }
+      ? { task: 'A9-39', development_only: false, candidate: 'WIN7-55', candidate_tentative: true, decision: 'ADR-0250, ADR-0251 (ADR-0155 remains Proposed)' }
       : { task: 'A9-32', development_only: true },
     forbidden_payload_patterns: ['.git/', '.env', 'private.pem', 'winpty', 'node-pty', 'portable-data/', 'a9-state.db'],
   };
@@ -180,7 +180,7 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
   const state = sharedCandidate();
   const { built, root, repositoryRoot, inputs } = state;
   assert.equal(built.manifest.lock_id, 'A9-BATCH2-INPUTS-D013-V26-MANAGED');
-  assert.equal(built.manifest.candidate, 'WIN7-54');
+  assert.equal(built.manifest.candidate, 'WIN7-55');
   assert.equal(built.manifest.candidate_tentative, true);
   assert.equal(built.manifest.external_acceptance_eligible, true);
   assert.equal(built.manifest.status, 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS');
@@ -206,16 +206,16 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
     assert.deepEqual(fs.readFileSync(path.join(built.stage, ...staged.split('/'))), fs.readFileSync(path.join(repositoryRoot, source)), staged);
   }
   const kit = JSON.parse(fs.readFileSync(path.join(built.stage, integrity.KIT_FILE), 'utf8'));
-  assert.equal(kit.candidate_label, 'WIN7-54');
+  assert.equal(kit.candidate_label, 'WIN7-55');
   assert.equal(kit.candidate_tentative, true);
-  assert.equal(kit.kit_id, 'A9-39-WIN7-54-BATCH2-1');
+  assert.equal(kit.kit_id, 'A9-39-WIN7-55-BATCH2-1');
   assert.equal(kit.scope.task, 'A9-39');
   assert.equal(kit.scope.decision, 'ADR-0250, ADR-0251 (ADR-0155 remains Proposed)');
-  assert.equal(kit.scope.result_on_complete, 'A9_39_WIN7_54_BATCH2_EXECUTION_CAPABILITY_PASS');
+  assert.equal(kit.scope.result_on_complete, 'A9_39_WIN7_55_BATCH2_EXECUTION_CAPABILITY_PASS');
   assert.equal(inputs.lock.provenance.task, 'A9-39');
-  assert.equal(inputs.lock.provenance.candidate, 'WIN7-54');
+  assert.equal(inputs.lock.provenance.candidate, 'WIN7-55');
   assert.equal(inputs.lock.provenance.candidate_tentative, true);
-  assert.equal(inputs.lock.gates.win7, 'NOT_PERFORMED_WIN7_54');
+  assert.equal(inputs.lock.gates.win7, 'NOT_PERFORMED_WIN7_55');
   assert.ok(fs.existsSync(path.join(built.stage, 'evidence/contracts/A9_39_ALPHA2_FINAL_CANDIDATE.md')));
   assert.ok(fs.existsSync(path.join(built.stage, 'evidence/contracts/A9_33_BATCH_2_WIN7_ACCEPTANCE.md')));
   assert.equal(kit.authority, 'NOT_GRANTED_BY_PACKAGE');
@@ -228,7 +228,7 @@ test('batch-2 candidate is complete, reproducible and bound to its contract', ()
   for (const [name, hash] of Object.entries(kit.suite_sha256)) assert.equal(hash, sha256File(path.join(built.stage, ...name.split('/'))), name);
   const runtime = JSON.parse(fs.readFileSync(path.join(built.stage, 'resources/app/a9-runtime.json'), 'utf8'));
   assert.equal(runtime.lock_id, 'A9-BATCH2-INPUTS-D013-V26-MANAGED');
-  assert.equal(runtime.candidate, 'WIN7-54');
+  assert.equal(runtime.candidate, 'WIN7-55');
   // Runtime descriptor schema 1 carries candidate only; tentative belongs to manifest, kit and lock.
   assert.equal(Object.prototype.hasOwnProperty.call(runtime, 'candidate_tentative'), false);
   assert.equal(runtime.runner_helper_protocol, 3);
@@ -268,11 +268,11 @@ test('batch-2 integrity accepts the exact candidate and refuses every identity b
   assert.equal(runIntegrity(state, files, path.join(state.root, 'evidence-back')).status, 'PASS');
 });
 
-test('WIN7-54 integrity refuses WIN7-45, WIN7-47, WIN7-48, WIN7-49, WIN7-50, WIN7-51, WIN7-52 and WIN7-53 release authority even with an exact independent pin', () => {
+test('WIN7-55 integrity refuses WIN7-45, WIN7-47, WIN7-48, WIN7-49, WIN7-50, WIN7-51, WIN7-52 and WIN7-53 release authority even with an exact independent pin', () => {
   const state = sharedCandidate();
   const files = externalFiles(state);
-  assert.equal(integrity.AUTHORITY_KIND, 'WIN7_54_RELEASE_AUTHORITY');
-  assert.equal(integrity.AUTHORITY_STATUS, 'APPROVED_FOR_WIN7_54_VALIDATION');
+  assert.equal(integrity.AUTHORITY_KIND, 'WIN7_55_RELEASE_AUTHORITY');
+  assert.equal(integrity.AUTHORITY_STATUS, 'APPROVED_FOR_WIN7_55_VALIDATION');
   // Reject each stale identity separately, then the complete old authority identity.
   for (const [index, oldIdentity] of ['WIN7-45', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'WIN7-51', 'WIN7-52', 'WIN7-53'].flatMap((candidate) => {
     const prefix = candidate.replace('-', '_');

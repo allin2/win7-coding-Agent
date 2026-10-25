@@ -748,7 +748,6 @@ function killTree(pid, scope, reason) {
 // ADR-0264. These are instance-bound fixture exceptions, never a general system-image allowlist.
 const CLEANUP_ROOT = 'c:\\a9-dev\\';
 const CLEANUP_SID = 'S-1-5-21-1708701742-428676696-1831205153-1001';
-const CLEANUP_EXPIRES = Date.parse('2026-10-28T00:00:00Z');
 const FIXTURE_IMAGES = Object.freeze({ cmd: 'C:\\Windows\\System32\\cmd.exe',
   powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', ping: 'C:\\Windows\\System32\\PING.EXE' });
 function cleanupInteger(value) { return (typeof value === 'number' || typeof value === 'string') && /^[1-9][0-9]*$(?![\s\S])/.test(String(value)) && Number.isSafeInteger(Number(value)); }
@@ -861,10 +860,9 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
     if (!ctx.request || !ctx.request.target || ctx.request.target.account_sid !== CLEANUP_SID
       || ctx.request.target.session_id !== 2 || String(ctx.request.target.machine_name).toLowerCase() !== 'dccs-chaizl-pc'
       || String((hooks.hostname || os.hostname)()).toLowerCase() !== 'dccs-chaizl-pc'
-      || (dev ? Date.now() >= CLEANUP_EXPIRES || !String(ctx.candidateRoot).toLowerCase().startsWith(CLEANUP_ROOT)
+      || (dev ? Date.now() >= Date.parse(ctx.request.expires_at) || !String(ctx.candidateRoot).toLowerCase().startsWith(CLEANUP_ROOT)
         : String(ctx.request.evidence_root).toLowerCase() !== String(ctx.runRoot).toLowerCase()
-          || !ctx.request.bindings || !/^[a-f0-9]{40}$/.test(ctx.request.bindings.source_commit || '')
-          || ['continue_unknown_interrupt', 'release_exit'].includes(mode))) throw new Error('A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH');
+          || !ctx.request.bindings || !/^[a-f0-9]{40}$/.test(ctx.request.bindings.source_commit || ''))) throw new Error('A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH');
   };
   const snapshot = () => { const found = listProcesses(exec); if (found.failed || !usableProcessListing(found)) throw new Error('A9_BATCH2_CLEANUP_LISTING_UNKNOWN'); return found.rows; };
   const rememberBinding = () => {
@@ -976,7 +974,7 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
         const bound = tracked.get(`${item.pid}:${item.created}`);
         const inside = rootImage(item.image) && (connected.has(item.pid)
           || (item.image.toLowerCase().startsWith(`${path.win32.dirname(runtime.electronPath).toLowerCase()}\\`) && item.created >= driver.created));
-        if (item.session !== 2 || (!inside && (!dev || !bound || !sameCleanupIdentity(bound, { ...item, sid: CLEANUP_SID })))) throw new Error('A9_BATCH2_CLEANUP_TARGET_NOT_AUTHORIZED');
+        if (item.session !== 2 || (!inside && (!bound || !sameCleanupIdentity(bound, { ...item, sid: CLEANUP_SID })))) throw new Error('A9_BATCH2_CLEANUP_TARGET_NOT_AUTHORIZED');
         const facts = owner(item.pid);
         if (facts.status === 'ALREADY_ENDED') continue;
         if (facts.status !== 'FACTS' || !sameCleanupIdentity({ ...item, sid: CLEANUP_SID }, facts.identity)) throw new Error('A9_BATCH2_CLEANUP_IDENTITY_CHANGED');
