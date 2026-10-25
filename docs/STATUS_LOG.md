@@ -1,5 +1,9 @@
 # 项目状态流水（历史）
 
+## WIN7-55已冻结并两包改绑完成，待局域网DEV彩排（2026-10-25 UTC）
+
+A9-39 r98：WIN7-55双干净构建冻结（ZIP `7de63dd8…`、source `b4ce2be`、candidate WIN7-55、kit `A9-39-WIN7-55-BATCH2-1`；w55-build-3/4逐字节一致，与退役3737852a差11项）。两包改绑WIN7-55完成（总控24文件+拒绝集4 run；补充5文件+DENY_SET 4前缀+ZIP替换）；正式run重生成 f9ae2982；总控refresh材料哈希PASS；补充包14测试套件全PASS、总控包12测试套件PASS（run-rehearsal后台复核中）；补充`make-run --dev-channel --check-only` PASS、总控`--dev-channel --local-only` PASS（run b704cb3e）；目标机192.168.1.9局域网可达。下一步：局域网开发根DEV总控彩排一次（37/67）→门A材料交负责人确认→正式执行总控与补充组。门B、推送NOT_PERFORMED。下文为此前记录。
+
 ## WIN7-55最小修复已实施：r3三处+测试通过，待构建冻结（2026-10-25 UTC）
 
 A9-39 r97：负责人批准WIN7-55最小修复提案r3（ADR-0285登记，任务书§11.8.171）。根因（承接r96）：候选内`a9-batch2-smoke.cjs`在非`c:\a9-dev\`根下对`release_exit`、`continue_unknown_interrupt`拒绝清理授权。已实施：删常量`CLEANUP_EXPIRES`、到期改读请求`expires_at`、删除正式分支拒绝两模式条件、根外例外去掉`dev`要求；合同测试加正式根2正例+2反例，ADR-0264块45项与全文件695项PASS；身份同步WIN7-54→WIN7-55（fixtures/lock/README/VALIDATION/build/request/两测试），package.test.mjs 9项PASS；独立审核GLM-5.3-FlashX PASS_NO_P0P1；docs:check PASS。下一步：本地提交→两次干净构建核号冻结WIN7-55→两包改绑WIN7-55（只改身份）、拒绝集加入eaa7fc92/8b4df730→局域网开发根DEV总控彩排一次（37/67）→门A材料交负责人确认后正式执行总控与补充组。门B、推送NOT_PERFORMED。下文为此前记录。
