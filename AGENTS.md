@@ -18,17 +18,15 @@
 
 ## 2. 当前阶段与历史入口
 
-- 当前工作项、候选结论与阻断项只以 `docs/STATUS.md` 为入口；任务定位与实现授权状态以
-  `docs/tasks/README.md` 为准，本文件不写死“当前任务”（ADR-0134）。A9-09～A9-14 实现范围
-  不重新开放；历史任务的冻结事实和验收合同保留；新实施按 ADR-0290 登记范围，不借用历史授权。
-- WIN7-22 冻结裁决为 `A9_14_WIN7_22_GO_FOR_ALPHA`（`0.3.0-alpha.1` 内部 Alpha，非 RC）；
-  交付分支为 `codex/a9-win7-22-cmd-verbatim`，不是要求切换当前工作分支。
-  WIN7-19 保持历史里程碑，WIN7-20/WIN7-21 保持不可变 `FIX_BEFORE_ALPHA`；
-  v24/v25 与全部历史候选和证据均须保留，不得复用失败候选改判。
+- 当前可试用版本、工作项、候选结论与阻断项只以 `docs/STATUS.md` 为入口；任务定位与实现授权状态以
+  `docs/tasks/README.md` 为准，本文件不写死当前任务或候选（ADR-0134、ADR-0291）。历史任务（含 A9-09～A9-14）
+  实现范围不重新开放；新实施按 ADR-0290 登记范围，不借用历史授权。
+- 已签结论、冻结候选和历史 FAIL/UNKNOWN 不改判，失败候选不复用改判；全部历史候选和证据保留在本机或
+  [加密归档](docs/acceptance/EVIDENCE_ARCHIVE_RETRIEVAL.md)。历史里程碑与原裁决见 `docs/STATUS_LOG.md` 和对应任务书。
 - 后续验证按适用任务书与影响范围执行；稳定宿主项只轻量复核，未受影响能力只可按精确哈希
   继承并标为继承证据，不得冒充当前候选直接 PASS。状态补录依据为 ADR-0112。
-- ADR-0096 将 Alpha 1 限定为 Full Access 与 Read Only；完整 Review 延期至 `0.3.0-alpha.2`。
-  WIN7-10 可见但无后端的 Review 必须 fail-closed，不计入支持能力或 Review PASS，不得提升为 Full Access。
+- 完整 Review 尚未签发（ADR-0096、ADR-0143、ADR-0286）。可见但无后端的 Review 必须 fail-closed，
+  不计入支持能力或 Review PASS，不得提升为 Full Access。
 - A9 的 Full Access、TrustedShell 和真实 Git 运行在可信工作区，不是安全沙箱。
   对 C08/C09/C20 的局部替代仅以 ADR-0089 和对应任务书为准；Schema IPC、Core/Policy、
   目标绑定批准与审计、取消、输出上限、进程树清理、凭据脱敏、TLS、checkpoint、Renderer 隔离和 Win7 实机硬门继续有效。
@@ -36,12 +34,12 @@
 ## 3. 开始任务前必须读取
 
 1. 所有任务先读本文件。纯文档或规则维护只读相关文档及其治理要求，不因此加载完整实现历史。
-2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md` 和当前任务书；A9-09 工作同时读
-   `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md`、`docs/tasks/A9_08_POST_REVIEW_HARDENING.md` 与
-   `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`。
+2. 写、改、审查或调试实现前，再读 `docs/WIN7_CONSTRAINTS.md`、当前任务书和 A9 总合同
+   `docs/tasks/A9_TRUSTED_AGENT_RUNTIME.md`；改 TrustedShell 或 Runner 时同时读
+   `docs/tasks/A9_09_D013_TRUSTED_SHELL_PROFILE.md` 与 `docs/tasks/A9_08_POST_REVIEW_HARDENING.md`。
+   日常构建与验证入口见 `scripts/README.md`。
 3. 按任务需要读取架构、安全、评估、PRD、ADR 或状态文档；不要无条件加载全部历史资料。
-   A9-10/A9-11/A9-12/A9-13/A9-14 修复另须完整读取各自任务书。
-4. 处理历史阶段时，按 `docs/tasks/README.md` 定位其任务书和分支合同；A9 授权不适用。
+4. 处理历史任务或历史阶段时，按 `docs/tasks/README.md` 定位并完整读取其任务书和分支合同；历史授权不适用于新实施。
 5. 设计或执行构建、实机验收、发版流程时，读取 `docs/acceptance/ACCEPTANCE_AND_RELEASE_WORKFLOW.md`；
    按影响选择检查和继承，先构建依赖、跑通最短真实链路，再扩展回归。既有具体合同不因通用流程自动改写。
 

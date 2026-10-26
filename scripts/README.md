@@ -5,7 +5,8 @@
 
 ## 本地构建与验证
 
-要求现有各模块依赖可用。开发机 Node 20.17.0；产品随包 Electron 22 / Node 16.17.1，开发机通过不代表 Win7 通过。
+要求现有各模块依赖可用。开发机 Node 以 `.nvmrc` 为准（20.17.0，先 `nvm use`）；产品随包 Electron 22 / Node 16.17.1，开发机通过不代表 Win7 通过。
+根目录 better-sqlite3 按该 Node ABI 编译；其他 Node 下入口在测试前停止并提示，不再产生与改动无关的 SQLite 失败。
 
 ```sh
 # 最窄有效反馈：模块名 + 模块内真实测试路径。先构建依赖闭包，再测当前输出。
@@ -26,14 +27,27 @@ npm run verify:release           # 打包工具变化或发布准备
 每步输出真实命令、退出码和耗时；`[verify-timing]` 区分构建与测试。无需为小改动运行全部模块。
 现有各包 `lint` 为 `tsc --noEmit`，构建已执行同类类型检查，因此不重复编译；Shell lint 还检查 JS 入口，保留。
 
-日常集合仅移出 `workspace/tests/unit/a9-19-baseline-yield.test.ts`：它用 6000 个真实文件检查全树扫描的结果与事件循环让出。
-修改基线扫描/分片/外部变化收集、相关集成或发布准备时，运行 `npm test`，或：
+日常集合移出两项，运行时打印 `NOT_PERFORMED`（ADR-0290、ADR-0291）：
+
+| 移出项 | 覆盖的风险 | 何时仍须运行 |
+|---|---|---|
+| `workspace/tests/unit/a9-19-baseline-yield.test.ts` | 6000 个真实文件下全树扫描的结果与事件循环让出 | 改基线扫描、分片、外部变化收集；集成回归；发布准备 |
+| Shell 中名称含 `required fields reject absence and wrong types before comparison` 的 12 个用例（约 90 秒） | A9-39 验收判定器对每行每个必需字段缺失或类型错误都判 FAIL，防止正式验收假 PASS | 改 `src/shell/tests/product/a9-batch2-driver-entry.cjs` 判定器或 `release/win7-product-v3/a9-batch2-fixtures.cjs`；集成回归；正式门 A 前 |
 
 ```sh
 node scripts/verify_integration.mjs --module workspace --test-file tests/unit/a9-19-baseline-yield.test.ts
+node scripts/verify_integration.mjs --module shell --test-file tests/product/a9-batch2-contract.test.ts
 ```
 
-未缩小容量样本或断言，容量边界、安全、审批、审计、进程生命周期仍在日常集合。
+未缩小容量样本或断言；同一用例组的正例、单项反例、信封字段反例仍在日常集合，容量边界、安全、审批、审计、进程生命周期也在。
+`--test-file` 定向运行和 `npm test` 不做任何移出。`src/runner/dist` 不再被 Git 跟踪，构建后不会出现生成物改动。
+
+开发机实测（macOS，Node 20.17.0，单次样本，非性能承诺）：
+
+| 范围 | 调整前 | 调整后 |
+|---|---|---|
+| 日常集合 `npm run test:local` | 168.99 秒，Shell 121.72 秒（1662903 之前的首轮记录） | 107.74 秒，Shell 33.28 秒，7 模块 PASS；与后台哈希任务并行，构建偏慢 |
+| 非 `.nvmrc` 的 Node 22 | Shell 合同 186 项失败，约 19 秒后才暴露 | 1 秒内停止，提示 ABI 原因，未运行测试 |
 运行结果明确打印移出项 `NOT_PERFORMED`；不要将日常集合写成完整回归。
 已通过且输入未变的检查不重复。普通夹具变更只复验受影响链路；新原生按其 Profile 构建验证。
 

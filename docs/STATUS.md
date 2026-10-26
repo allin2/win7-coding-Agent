@@ -1,6 +1,6 @@
 # 当前项目状态
 
-更新：2026-10-26 America/Los_Angeles。当前开发工作区 main；本轮起点 `cff930101b13b3de99ca4dd681a7d256c0e05a1d`。
+更新：2026-10-26 America/Los_Angeles。当前开发工作区 main；本轮第二轮起点 `1662903172b7102a6b31b0be4dd5edbfc2dd3f20`。
 
 ## 产品与可试用结果
 
@@ -12,13 +12,15 @@
 
 ## 进行中的工作与授权
 
-- 本轮 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)：规则和日常入口已落地，真实 Win7 锁 bug 已修复，归档恢复通过，20 项已批准清理完成；待负责人验收。ADR-0290 已授权在 main 连续执行，不逐文件/普通修复请批；未授权产品推送、发布或正式签发。
+- 本轮 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)：规则和日常入口已落地，真实 Win7 锁 bug 已修复；第二轮（ADR-0291）把日常集合降到 107.74 秒并加 Node ABI 前置。
+  第一批 20 项清理完成；第二、三批已归档并完成远端与恢复核验，删除清单待负责人确认。ADR-0290 授权在 main 连续执行；未授权产品推送、发布或正式签发。
 - [ENGINEERING_03](tasks/ENGINEERING_03_WIN7_DEV_CHANNEL.md)：已登记 Win7 开发通道，目标运行仍核对有效签发、主机/身份、锁和预算。本轮不继承他人的活动锁。
 - ENGINEERING_04 为待审 RC 方案，未整体批准。其余历史任务与未闭合义务见 [任务索引](tasks/README.md)，不自动开放历史草案。
 
 ## 日常入口
 
 ```sh
+nvm use                            # .nvmrc：Node 20.17.0
 npm run test:local -- --module gateway --test-file tests/a9-r3-external-changes.test.ts
 npm run test:local                 # 日常集合，含依赖构建
 npm test                           # 集成完整回归，含慢检查
@@ -29,7 +31,8 @@ npm run docs:check                 # 文档与规则修改
 
 ## 待负责人决定与阻断
 
-- 本轮 20 文件已按批准清单逐项删除。项目账面净减约 398 MiB；全盘整轮可用空间反降约 222 MiB，物理净释放尚未证实，后续清理先查实际块保留原因。
+- 第一批 20 文件已按批准清单删除；物理净释放未证实（APFS 克隆使重复 ZIP 删除几乎不释放）。
+- 待负责人确认：第二轮删除清单 SHA `9c78aac6…9368`（原件 16.52 GB 已分配，预期物理释放下限 14.42 GB，另清本轮临时 5.86 GB），见 ENGINEERING_05。
 - 新需求范围、重大架构/产品权限语义、系统权限/配置、超预算、正式签发、产品推送及发布仍单独决定。
 - 数据损坏、凭据泄露、越权、失控进程、目标平台无法运行阻断依赖交付；非阻断缺陷明确列出后供负责人验收。
 - 本轮开发机结果、Win7 开发结果及未执行项只在 ENGINEERING_05 维护。用户接受为 NOT_PERFORMED，等待交付后验收。

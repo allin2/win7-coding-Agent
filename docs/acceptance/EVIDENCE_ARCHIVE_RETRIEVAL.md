@@ -13,6 +13,8 @@
 | `archive-20260925` | 2026-09-25 | 下表 15 组、40 个目录；另含 `source-history-20260925.bundle.enc`（全部本地 refs，含未推送提交） |
 | `archive-20260930` | 2026-09-30 | 下文 5 组、25 个目录（A9-23/A9-25 全部预演，WIN7-36～40 候选、WIN7-37/38 构建及同期运行证据）；另含 `source-history-20260930.bundle.enc` |
 | `archive-20261026-slice1` | 2026-10-26 | 历史 diagnostic-3b / addendum11 原始搜索 JSON 与日志；3 个附件全部回下载 SHA 校验，实际恢复 2 文件通过；不含 Git bundle 或工作树 |
+| `archive-20261026-slice2` | 2026-10-26 | WIN7-54 门 A 修复轮 repair-1～10、13 与 tmp 共 12 个集合（开发机测试夹具与沙箱，647,850 文件）；见下文 |
+| `archive-20261026-slice3` | 2026-10-26 | Alpha 2 历史准备：w48 门 A 准备、diagnostic-3b 准备、rehearsal-3 准备 3 个集合（495,314 文件）；见下文 |
 
 上述批次使用同一恢复密钥。密钥不在 GitHub，由负责人保管；位置与离机备份要求见私有仓库 README。
 
@@ -136,3 +138,30 @@ python3 restore_snapshot.py --catalog ./download/catalog-diagnostic3b-records.js
 重复模拟测试 ZIP 只在逐文件 SHA 与保留副本相同后进入准确删除清单；不以目录年龄或大小判可删。
 本机执行台账：`.acceptance/maintenance/archive-20261026-slice1/`。回收结果与授权状态见
 [ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)，不能把临时包清理体积当作净空间收益。
+
+## 2026-10-26 第二、三批：A9-39 历史准备材料
+
+两批原路径根均为整合树 `/Users/qlyf/.codex/worktrees/a9-alpha2-integration-r2/win7-coding-Agent/outputs/`。
+本机执行台账：`.acceptance/maintenance/archive-20261026-slice2/`、`archive-20261026-slice3/`、`cleanup-20261026-r2/`。
+
+| Release | 组 | 集合（`--candidate`） | 原路径（相对上述根） |
+|---|---|---|---|
+| [archive-20261026-slice2](https://github.com/allin2/win7-coding-agent-archives/releases/tag/archive-20261026-slice2) | `w54-gate-a-repairs` | `repair-1`～`repair-10`、`repair-13`、`tmp` | `a9-39-w54-formal-packages/gate-a/<集合>` |
+| [archive-20261026-slice3](https://github.com/allin2/win7-coding-agent-archives/releases/tag/archive-20261026-slice3) | `alpha2-history` | `w48-gate-a-prep`、`diagnostic-3b-prep`、`rehearsal-3-prep` | `a9-39-w48-gate-a-package-prep`、`a9-39-diagnostic-3b-prep`、`a9-39-rehearsal-3-prep` |
+
+`gate-a/formal`（WIN7-55 FORMAL 证据）、`gate-a` 顶层记录、`supplement/` 及其他目录不在本批，保留本机。
+draft `archive-20261026` 是同组的未完成上传，盐值不同，不作恢复依据；以 slice3 为准。
+上传前凭据扫描未发现私钥块或令牌；`sk-` 命中均为仓库测试夹具。.DS_Store 未归档。
+
+```sh
+REPO=allin2/win7-coding-agent-archives
+gh release download archive-20261026-slice2 --repo $REPO --dir ./download \
+  --pattern catalog-w54-gate-a-repairs.json \
+  --pattern w54-gate-a-repairs--shared-objects.tar.gz.enc \
+  --pattern 'w54-gate-a-repairs--repair-4.tar.gz.enc'
+python3 restore_snapshot.py --catalog ./download/catalog-w54-gate-a-repairs.json \
+  --download-dir ./download --candidate repair-4 --key /secure/path/restore.key --output ./verified
+```
+
+slice3 同法：catalog 为 `catalog-alpha2-history.json`，共享包为 `alpha2-history--shared-objects.tar.gz.enc`。
+核验方法与结果见 [ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)；本机删除只在负责人确认准确清单后执行。

@@ -121,3 +121,55 @@ APFS 共享块/快照及卷上并发写入无法由文件逻辑体积独占归�
 负责人最终验收为 NOT_PERFORMED，待交付后判断。产品推送和发布未执行。
 
 剩余主要占用（本轮实测已分配体积）：w54 正式准备约 9.11 GiB、w48 准备约 3.07 GiB、整合树 .acceptance/a9-39 约 2.52 GiB。未删除工作树。
+
+
+## 复核与第二轮（2026-10-26，Claude 主会话）
+
+负责人以同一指令再次要求直接优化。执行代理复核 1662903 的结果后，只补未闭合项；不重做已生效的 ADR-0290 与 STATUS 精简。
+基线 main `1662903172b7102a6b31b0be4dd5edbfc2dd3f20`；既有两处 tracked ZIP 删除与三份未跟踪报告仍保留，不纳入提交。规则变更见 ADR-0291。
+
+### 复核结论
+
+- 复核通过：ADR-0290 已在 AGENTS/CLAUDE/任务索引生效；Read Only 新增 `read_process_output` 与 A9-31 §“Read Only 只读当前归属记录”一致；
+  归档仓库仍为私有、ADMIN。
+- 未闭合：日常集合仍 169 秒且 Shell 占 122 秒；空间整轮物理净释放未证实；tracked `src/runner/dist` 每次构建变脏；
+  AGENTS §2 仍以当前态陈述 Alpha 1 / WIN7-22 历史裁决。
+
+### 日常验证（开发机 macOS，Node 20.17.0）
+
+| 发现 | 根因证据 | 处理 |
+|---|---|---|
+| Shell 合同单文件 103 秒 | 逐用例计时：“A9-39 phase 2 fixed secrets contract”组 91.6 秒，其中 12 个“required fields reject absence…”用例对每行每字段做 7 种变异；B2-A37-02 一例 84 行、39.4 秒 | 移出日常集合，断言与样本不变；`npm test`、`--test-file` 保留。改为单次构建加深拷贝只省 15～20%，已撤回 |
+| 默认 Node 22 下 Shell 186 项失败 | 根 better-sqlite3 为 NODE_MODULE_VERSION 115，Node 22 需 127 | 入口在 gateway/state/shell 测试前加载并停止；新增 `.nvmrc` |
+| 构建后 24 个 tracked 生成物改动 | tracked 64 个旧文件，构建产出 68 个；STATUS_LOG 两处记录手工还原 | 停止跟踪 `src/runner/dist`，本机文件保留 |
+
+| 运行 | 结果 |
+|---|---|
+| 调整后日常集合 `npm run test:local` | 107.74 秒，7 模块 PASS，Shell 33.28 秒，12 个用例按设计跳过；与后台哈希任务并行 |
+| 被移出用例本身（同一输入，直接 jest 运行整文件） | 695 PASS / 0 FAIL，103 秒 |
+| Node 22 下 `npm run test:local -- --module state` | 1 秒内 exit 1，打印 ABI 原因，未运行测试 |
+| `npm run verify:tools`、`npm run docs:check` | PASS |
+
+日常集合测试会在 TMPDIR 留下约 48 MB 夹具；默认系统临时目录由 macOS 回收，不要把 TMPDIR 指到 outputs。
+本轮未改产品运行代码，Win7 开发运行与新产品包构建均 NOT_PERFORMED：所改内容只影响开发机入口与文档。
+
+### 第二、三批归档
+
+| 批次 | 内容 | 文件 | 已分配 | 去重后 | 加密上传 |
+|---|---|---:|---:|---:|---:|
+| slice2 | w54 门 A repair-1～10、13、tmp | 647,850 | 9.31 GB | 0.98 GB | 389,386,362 字节，172 秒，0 失败 |
+| slice3 | w48 门 A 准备、diagnostic-3b、rehearsal-3 | 495,314 | 7.21 GB | 1.49 GB | 704,170,799 字节，192 秒，0 失败 |
+
+- 上传前凭据扫描两批共 1,143,145 个文件：私钥块 0、GitHub/AWS 令牌 0；`sk-` 命中均为仓库测试夹具。19 个超 64 MiB 的产品 ZIP 未逐字节扫描。
+- slice2 回下载 13/13 SHA 一致；归档仓库 `restore_snapshot.py` 与本机副本 SHA 相同，实际恢复 repair-13 为
+  `DECRYPT_EXTRACT_RECONSTRUCT_SHA256_PASS` 且与原目录 `diff -r` 一致；12 个集合全部通过解密流式逐对象 SHA 校验。
+- slice3 回下载 4/4 SHA 一致；3 个集合流式校验全部通过；实际恢复 rehearsal-3-prep 149,674 文件 PASS，与原目录 `diff -r` 无差异。
+- 两批 224 个大文件中 2,093,670,400 字节与集外保留副本同内容，按 APFS 克隆不计入预期释放；物理释放以 df 前后差为准。
+
+### 删除清单（待负责人确认）
+
+清单：`.acceptance/maintenance/cleanup-20261026-r2/cleanup-plan.json`（只读，SHA `9c78aac6…9368`），人读版为同目录 `cleanup-plan.md`。
+范围：15 个已归档集合根 1,143,164 个文件、已分配 16,517,894,144 字节；本轮临时包、回下载副本与恢复验证副本 184,193 个文件、5,856,231,424 字节。
+执行器逐条复核类型、大小与 SHA 后单条 unlink、空目录 rmdir；集合有改动或多出文件则整组跳过。执行器已在临时夹具上自测三种情形。
+预期物理释放下限：原件 14,424,223,744 字节，加本轮临时 5,856,231,424 字节。负责人确认前不删除；确认后结果补记于此。
+

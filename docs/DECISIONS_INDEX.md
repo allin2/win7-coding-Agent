@@ -294,3 +294,4 @@
 | ADR-0288 | Alpha 阶段节奏与验收执行准则 | Accepted |
 | ADR-0289 | 开发级运行与正式验收分开 | Accepted |
 | ADR-0290 | 已确认范围内连续交付与本轮工程落地 | Accepted |
+| ADR-0291 | 日常验证二次收敛与入口去旧 | Accepted |

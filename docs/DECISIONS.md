@@ -5184,3 +5184,13 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 文档：STATUS 只写当前事实，旧流水原文转入 STATUS_LOG；任务索引保留状态和历史链接，旧批准不视为本轮范围。沿用已有记录与归档索引，不新增通用平台。
 - 保留：Win7 SP1 x64、Renderer 隔离、真实权限边界、TLS/SSH 校验、凭据保护、取消/树清理、必要审计、候选和证据不可变。重大方向/权限语义、系统修改、超预算、产品推送/发布和正式签发仍由负责人决定。准确删除清单批准后逐项执行；不改全局配置、其他项目或 Git 历史。
 - 本轮范围与结果：[ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)。未授权产品推送和发布，未调整正式候选判据或撤销有效安全断言。
+
+## ADR-0291 日常验证二次收敛与入口去旧
+
+- 状态：Accepted（2026-10-26 America/Los_Angeles）。依据负责人 2026-10-26 本轮同一指令（复核并继续 ENGINEERING_05），属 ADR-0290 授权范围内的规则与工具调整；不扩大产品范围。
+- 背景：开发机实测日常集合 168.99 秒，其中 Shell 121.72 秒；单个用例组“A9-39 phase 2 fixed secrets contract”的逐行逐字段变异占 91.6 秒。默认 Node 22 下根目录 better-sqlite3（Node 20 ABI）无法加载，Shell 合同测试出现 186 项与改动无关的失败。tracked 的 `src/runner/dist` 仅 64 个旧文件，当前构建产出 68 个，每次构建产生 24 个改动，历史记录多次手工还原。
+- 决定一：日常集合移出 Shell“required fields reject absence and wrong types before comparison”12 个用例；断言、样本与判定器不变。它只检验 A9-39 验收判定器的穷举字段反例，修改该判定器或其夹具、集成回归和正式门 A 前运行；`npm test` 与 `--test-file` 定向运行始终包含。
+- 决定二：日常入口在运行 gateway/state/shell 测试前加载 better-sqlite3；失败即停止并指明 Node ABI 原因，不计为产品失败。仓库新增 `.nvmrc`（20.17.0）声明开发机 Node。
+- 决定三：`src/runner/dist` 停止 Git 跟踪，与 `.gitignore` 的 `dist/` 一致；本机文件与历史提交保留。消费者由日常入口从源码构建；打包仍用锁定的 runner 输入。
+- 决定四：AGENTS §2 不再以当前态陈述 Alpha 1 / WIN7-22 历史裁决；保留不改判、证据保留、继承规则与 Review fail-closed 约束。历史原文见 STATUS_LOG 与对应任务书。
+- 不变：§5 红线、Win7 证据分级、正式判据、已签结论与全部 Accepted ADR 正文。结果见 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)。

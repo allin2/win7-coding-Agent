@@ -1,5 +1,6 @@
 import { spawnSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
+import { createRequire } from 'module';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -51,8 +52,15 @@ selected.forEach(includeDependencies);
 const modules = ['workspace', 'state', 'runner', 'git-adapter', 'gateway', 'core', 'shell'].filter((name) => closure.has(name));
 const started = Date.now();
 const timings = [];
-// Real high-volume baseline checks remain available in the unchanged full regression.
-const dailyExcluded = ['tests/unit/a9-19-baseline-yield.test.ts'];
+// Daily set omits checks that ordinary product changes cannot affect; npm test and --test-file runs keep them.
+const dailyExcluded = {
+  // 6000 real files for baseline scan yield; run when scanning, sharding or external-change collection changes.
+  workspace: { paths: ['tests/unit/a9-19-baseline-yield.test.ts'] },
+  // Exhaustive per-row field mutations of the A9-39 acceptance evaluator (about 90 s); run when that driver or its fixtures change.
+  shell: { names: ['required fields reject absence and wrong types before comparison'] },
+};
+// SQLite tests load the root better-sqlite3 build; another Node ABI fails them for reasons unrelated to the change.
+const sqliteConsumers = ['gateway', 'state', 'shell'];
 
 let failures = 0;
 
@@ -60,8 +68,9 @@ runDesignGuards();
 
 // Product tests load sibling dist outputs; finish every build before any test.
 for (const phase of quick ? ['build'] : ['build', 'test']) {
+  if (phase === 'test') checkNativeTestDependencies();
   if (phase === 'test' && failures > 0) {
-    console.error('[verify] 编译/静态门失败，跳过全部测试。');
+    console.error('[verify] 编译/静态门或测试前置检查失败，跳过全部测试。');
     break;
   }
   for (const moduleName of phase === 'test' ? selected : modules) {
@@ -91,9 +100,14 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
     if (phase === 'test' && packageJson.scripts?.test) {
       const testArgs = ['test', '--', '--runInBand'];
       if (testFiles.length) testArgs.push('--runTestsByPath', ...testFiles);
-      else if (daily && moduleName === 'workspace') {
-        testArgs.push('--testPathIgnorePatterns', ...dailyExcluded);
-        console.log(`[verify] NOT_PERFORMED daily slow checks: ${dailyExcluded.join(', ')}`);
+      else if (daily && dailyExcluded[moduleName]) {
+        const { paths = [], names = [] } = dailyExcluded[moduleName];
+        if (paths.length) testArgs.push('--testPathIgnorePatterns', ...paths);
+        if (names.length) {
+          const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+          testArgs.push('--testNamePattern', `^(?!.*(?:${escaped.join('|')}))`);
+        }
+        console.log(`[verify] NOT_PERFORMED daily slow checks (${moduleName}): ${[...paths, ...names].join(', ')}`);
       }
       commands.push(testArgs);
     }
@@ -214,6 +228,17 @@ function runDesignGuards() {
       continue;
     }
     console.log(`[verify] design-guards 通过：${guard.name}`);
+  }
+}
+
+function checkNativeTestDependencies() {
+  if (!selected.some((name) => sqliteConsumers.includes(name))) return;
+  try {
+    const Database = createRequire(join(repositoryRoot, 'package.json'))('better-sqlite3');
+    new Database(':memory:').close();
+  } catch (error) {
+    reportFailure('native-deps', `Node ${process.version}（ABI ${process.versions.modules}）无法加载 better-sqlite3：`
+      + `${String(error && error.message).replace(/\s+/g, ' ').slice(0, 400)}。按 .nvmrc 切换 Node（nvm use）后重跑；这不是产品测试失败。`);
   }
 }
 
