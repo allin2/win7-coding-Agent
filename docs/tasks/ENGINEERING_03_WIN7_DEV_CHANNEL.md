@@ -217,3 +217,14 @@ Win7 自检：主会话经终端面板运行 `outputs/engineering-03/selftest/ru
 账本 `outputs/win7-dev/ledger.tsv` 共 29 行；原始流在 `outputs/win7-dev/actions/`。
 
 未做：`cand` 未在实机运行；Shell.Application 解包时序 UNKNOWN。未提交，未推送。
+
+### 10.2 常设授权 r2 续期版签发（2026-10-26 UTC）
+
+负责人原话：“签发 Win7 开发通道常设授权 r2 续期版”。主会话记录时间 2026-10-26T05:58:46Z（晚于负责人实际发送时间）。
+
+1. r2 文本由 §7 的 r1 文本替换两行得到：第 1 行“r1”改为“r2”；第五条第 1 款改为“有效期：签发时起至 2026-11-28T00:00:00Z。”其余 42 行逐字相同，全文 SHA `8770a447…`。
+2. 待签材料与 r1、r2 提取文本在主工作区 `outputs/win7-dev-channel-auth-r2/`，该目录被忽略，不入库。
+3. 本 r2 不是 WIN7-55 提案 r2 附录 A 的“常设授权 r2（取代 r1）”；那一份未签发。
+4. r2 不延长 ADR-0264 三个夹具映像的根外终止例外，该例外仍至 2026-10-28T00:00:00Z。
+5. `scripts/win7-dev/win7-dev.mjs:14` 与 `remote/common.ps1:56` 仍写死 2026-10-28T00:00:00Z。改动前，到期后工具只允许 `status`、`get`、`stop`、`close`。
+6. 本记录不改 §7 正文。
