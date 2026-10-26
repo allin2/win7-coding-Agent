@@ -3378,3 +3378,11 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
   4. 换发候选编号为 WIN7-55，身份同步照 `git show 9b38524` 同范围身份文件；退役清单加入 WIN7-54。
 - 执行顺序：登记 ADR → 实施改动与测试 → 独立审核 diff（只报 P0/P1）→ 本地提交与两次干净构建、核号后冻结 WIN7-55 → 两包改绑 WIN7-55（只改身份）、拒绝集按现行规则加入已用 run（含 eaa7fc92、8b4df730）→ 局域网开发根 DEV 总控彩排一次（37/67）→ 门 A 材料交负责人确认后正式执行总控与补充组。
 - 边界：不改产品业务代码、Runner、原生、驱动 `a9-batch2-driver-entry.cjs`、判据；不在总控包侧绕开（把正式远端根改到 `C:\A9-DEV\`、跳过 `release_exit`/`continue_unknown_interrupt`、放宽判据、改阶段计划均不批准）；不执行 r2 的正式布局彩排、常设授权 r2、工具分支清单与补充组重做彩排；不推送、不发布；正式门 A/B 仍须负责人签发。ADR-0264、ADR-0281～0284 正文与状态不变。
+
+## ADR-0286 WIN7-55 门 B：限定已直接证明范围签发
+
+- 状态：Accepted（2026-10-26 UTC）。负责人在聊天中回复“签发”（门 B 签发材料见 `outputs/a9-39-w55-proposal/GATE_B_MATERIAL.md`）。
+- 背景：WIN7-55 正式执行 PASS。总控 run `f9ae2982`（FORMAL_GATE_A_EXECUTION）11 阶段全 PASS、37 用例/67 断言/0 失败、28 SSH 全 exit 0、R7 verified 1584、R8 tasks_remaining=0；补充组 run `cdb82d32`（DEV_CHANNEL）m1/m2/m3/m4/m6/m5 全 PASS，M5 付费真实请求 sent=22/settled=22（deepseek-v4-flash，spent 69,612,000 nano-USD ≤ 预算 1,000,000,000，日额台账 2026-10-26 total=22）。正式执行后独立审核 `PASS_NO_P0P1`（`outputs/a9-39-w55-proposal/GATE_B_INDEPENDENT_REVIEW.json`）。
+- 决定一：门 B 按限定已直接证明范围签发，结论为 `A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`，绑定 source `b4ce2be42cc9448142b831612dc7d5bc3a4df3cd`、ZIP `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`、manifest `13f1f892…`、kit `72787c91…`、总控 run `f9ae2982…`、补充 run `cdb82d32…`。
+- 决定二：门 B 限定范围不含完整 Alpha 2/RC；ADR-0096 完整 Review 延期至 `0.3.0-alpha.2`，WIN7-10 可见但无后端的 Review fail-closed，不计入支持能力或 Review PASS。现有运行时的未知生命周期、清理、身份、审计硬门不因本决定放宽。
+- 未签：完整 Alpha 2、RC、ADR-0155、推送、发布与新的目标机或产品执行。门 A 已签发（release-authority SHA `4368342b…`）。

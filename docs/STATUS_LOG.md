@@ -1,6 +1,6 @@
 # 项目状态流水（历史）
 
-## WIN7-55正式执行完成：总控 PASS + 补充组 PASS 含 M5（2026-10-26 UTC）
+## WIN7-55门B已签发：正式执行PASS+独立审核PASS_NO_P0P1（2026-10-26 UTC）
 
 A9-39 r98：WIN7-55双干净构建冻结（ZIP `7de63dd8…`、source `b4ce2be`、candidate WIN7-55、kit `A9-39-WIN7-55-BATCH2-1`；w55-build-3/4逐字节一致，与退役3737852a差11项）。两包改绑WIN7-55完成（总控24文件+拒绝集4 run；补充5文件+DENY_SET 4前缀+ZIP替换）；正式run重生成 f9ae2982；总控refresh材料哈希PASS；补充包14测试套件全PASS、总控包12测试套件PASS（run-rehearsal后台复核中）；补充`make-run --dev-channel --check-only` PASS、总控`--dev-channel --local-only` PASS（run b704cb3e）；目标机192.168.1.9局域网可达。下一步：局域网开发根DEV总控彩排一次（37/67）→门A材料交负责人确认→正式执行总控与补充组。门B、推送NOT_PERFORMED。下文为此前记录。
 
