@@ -1,8 +1,8 @@
 # 当前项目状态
 
-## WIN7-55门B已签发：正式执行PASS+独立审核PASS_NO_P0P1（2026-10-26 UTC）
+## WIN7-55门B已签发；0.3.0-alpha.2内部预览版已对外发布（2026-10-26 UTC）
 
-A9-39 r98：WIN7-55双干净构建冻结（ZIP `7de63dd8…`、source `b4ce2be`、candidate WIN7-55、kit `A9-39-WIN7-55-BATCH2-1`；w55-build-3/4逐字节一致，与退役3737852a差11项）。两包改绑WIN7-55完成（总控24文件+拒绝集4 run 1099daa6/221d81b9/eaa7fc92/8b4df730；补充5文件+DENY_SET 4前缀+ZIP替换）；正式run重生成 f9ae2982（8b4df730已消费入拒绝集）；总控refresh材料哈希PASS；补充包14测试套件全PASS、总控包12测试套件PASS（run-rehearsal后台复核中）；补充`make-run --dev-channel --check-only` PASS、总控`--dev-channel --local-only` PASS（run b704cb3e）；目标机192.168.1.9局域网可达。正式执行：门A签发（release-authority 4368342b…）→总控 run-rehearsal FORMAL f9ae2982 PASS（11阶段，28 SSH，0失败）→补充组 run-supplement DEV 9aca2bf8 六组 m1-m6 PASS（M5准入超时）→M5补跑 cdb82d32 六组全 PASS（M5 付费 sent=22，deepseek-v4-flash，m5-fee-final PASS，日额 10-26 total 22）。门B已签发（ADR-0286：A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS，绑定b4ce2be/7de63dd8/f9ae2982/cdb82d32，独立审核PASS_NO_P0P1）。推送、发布NOT_PERFORMED。下文为此前记录。
+A9-39 r98：WIN7-55双干净构建冻结（ZIP `7de63dd8…`、source `b4ce2be`、candidate WIN7-55、kit `A9-39-WIN7-55-BATCH2-1`；w55-build-3/4逐字节一致，与退役3737852a差11项）。两包改绑WIN7-55完成（总控24文件+拒绝集4 run 1099daa6/221d81b9/eaa7fc92/8b4df730；补充5文件+DENY_SET 4前缀+ZIP替换）；正式run重生成 f9ae2982（8b4df730已消费入拒绝集）；总控refresh材料哈希PASS；补充包14测试套件全PASS、总控包12测试套件PASS（run-rehearsal后台复核中）；补充`make-run --dev-channel --check-only` PASS、总控`--dev-channel --local-only` PASS（run b704cb3e）；目标机192.168.1.9局域网可达。正式执行：门A签发（release-authority 4368342b…）→总控 run-rehearsal FORMAL f9ae2982 PASS（11阶段，28 SSH，0失败）→补充组 run-supplement DEV 9aca2bf8 六组 m1-m6 PASS（M5准入超时）→M5补跑 cdb82d32 六组全 PASS（M5 付费 sent=22，deepseek-v4-flash，m5-fee-final PASS，日额 10-26 total 22）。门B已签发（ADR-0286：A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS，绑定b4ce2be/7de63dd8/f9ae2982/cdb82d32，独立审核PASS_NO_P0P1）。**对外发布**：分支 `codex/a9-alpha2-integration-r2` 已推送 origin（HEAD `78b19c6`，18 提交）；tag `v0.3.0-alpha.2-win7-55` 已推送；GitHub Release 已创建（预发布，附件 `Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip` SHA `7de63dd8…2824a` + `.sha256`，ADR-0287）。完整 Alpha 2/RC、后续迭代 NOT_PERFORMED。下文为此前记录。
 
 ## WIN7-55最小修复已实施：r3三处+测试通过，待构建冻结（2026-10-25 UTC）
 

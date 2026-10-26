@@ -3386,3 +3386,12 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定一：门 B 按限定已直接证明范围签发，结论为 `A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`，绑定 source `b4ce2be42cc9448142b831612dc7d5bc3a4df3cd`、ZIP `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`、manifest `13f1f892…`、kit `72787c91…`、总控 run `f9ae2982…`、补充 run `cdb82d32…`。
 - 决定二：门 B 限定范围不含完整 Alpha 2/RC；ADR-0096 完整 Review 延期至 `0.3.0-alpha.2`，WIN7-10 可见但无后端的 Review fail-closed，不计入支持能力或 Review PASS。现有运行时的未知生命周期、清理、身份、审计硬门不因本决定放宽。
 - 未签：完整 Alpha 2、RC、ADR-0155、推送、发布与新的目标机或产品执行。门 A 已签发（release-authority SHA `4368342b…`）。
+
+## ADR-0287 WIN7-55 对外发布 0.3.0-alpha.2 内部预览版
+
+- 状态：Accepted（2026-10-26 UTC）。负责人在聊天中明确指示“对外发布 0.3.0-alpha.2 的内部预览版本”，并确认发布形态为 tag `v0.3.0-alpha.2-win7-55` + 冻结 ZIP 附件 + pre-release（沿用 WIN7-42 先例）。
+- 背景：WIN7-55 已完成双干净构建冻结（w55-build-3/4 逐字节一致，ZIP SHA `7de63dd8…2824a`，source `b4ce2be…`）、门 A 签发（`4368342b…`）、正式执行 PASS（总控 `f9ae2982`、补充 `cdb82d32`）、门 B 签发（ADR-0286 `A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`）。发布对象为整合分支 `codex/a9-alpha2-integration-r2` HEAD `78b19c6`（含 r103 门 B 元数据，源码 `b4ce2be` 为其祖先）。
+- 决定一：分支 `codex/a9-alpha2-integration-r2` 推送至 origin（`dc8cdec..78b19c6`，18 提交）。推送提交不含 `outputs/`、`.acceptance/`、密钥类文件（均 gitignore）。
+- 决定二：创建 annotated tag `v0.3.0-alpha.2-win7-55`（指向 `78b19c6`）并推送 origin。
+- 决定三：创建 GitHub Release（repo `allin2/win7-coding-Agent`），pre-release 标记，附件为冻结 ZIP `Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip`（SHA `7de63dd8…2824a`，下载复核一致）+ `.sha256`；发布说明如实声明限定范围（内部试用预发布版，不代表完整 Alpha 2、RC 或稳定版；ADR-0096 Review 延至后续迭代）。
+- 未签：完整 Alpha 2、RC、ADR-0155、新的目标机或产品执行；完整 Review 仍按 ADR-0096 延期。
