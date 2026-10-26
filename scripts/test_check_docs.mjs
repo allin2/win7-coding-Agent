@@ -37,6 +37,7 @@ function fixture({ initGit = true } = {}) {
   copyFileSync(checker, join(root, 'scripts', 'check_docs.mjs'));
   write(root, 'docs/tasks/README.md', '# Tasks\n');
   write(root, 'docs/DECISIONS.md', '# Decisions\n');
+  write(root, 'docs/DECISIONS_INDEX.md', '# ADR Index\n');
   write(root, 'docs/index.md', '# Index\n\n[decisions](DECISIONS.md)\n');
   write(root, '.gitignore', 'outputs/\n');
   if (!initGit) return root;
@@ -70,7 +71,7 @@ try {
     const { status, report } = check(root);
     assert.equal(status, 0, JSON.stringify(report));
     assert.equal(report.ok, true);
-    assert.equal(report.checked_files, 4);
+    assert.equal(report.checked_files, 5);
   }
 
   // Broken links under a git-ignored directory are not checked.
@@ -80,7 +81,7 @@ try {
     write(root, 'outputs/snapshot/README.md', '[gone](missing.md)\n');
     const { status, report } = check(root);
     assert.equal(status, 0, JSON.stringify(report));
-    assert.equal(report.checked_files, 4);
+    assert.equal(report.checked_files, 5);
   }
 
   // Untracked, non-ignored documents are still checked.
@@ -124,7 +125,7 @@ try {
     unlinkSync(join(root, 'docs/gone.md'));
     const { status, report } = check(root);
     assert.equal(status, 0, JSON.stringify(report));
-    assert.equal(report.checked_files, 4);
+    assert.equal(report.checked_files, 5);
   }
 
   // Enumeration failure is reported instead of silently walking the whole tree.
@@ -194,7 +195,129 @@ try {
     assert.equal(status, 0, JSON.stringify(report));
   }
 
-  console.log('check_docs tests: 12/12 PASS');
+  // DOCS_05: reports dated on or after 2026-10-06 must not use W05 vague wording.
+  function vagueFailures(report) {
+    return (report.failures ?? []).filter(({ kind }) => kind === 'vague-wording').map(({ file, line, reason }) => `${file}:${line}: ${reason}`);
+  }
+
+  // In-scope report with vague wording fails with file and line.
+  {
+    const root = fixture();
+    write(root, 'docs/reports/2026-10/run_2026-10-06.md', '# Run\n\n结论：基本通过。\n');
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.deepEqual(vagueFailures(report), [
+      `${join('docs', 'reports', '2026-10', 'run_2026-10-06.md')}:3: OUTPUT_STYLE W05 vague wording "基本通过"`,
+    ]);
+  }
+
+  // Reports dated before the effective date, and non-report documents, are not checked.
+  {
+    const root = fixture();
+    write(root, 'docs/reports/2026-10/old_2026-10-05.md', '结论：基本通过。\n');
+    write(root, 'docs/plans/plan_2026-10-07.md', '结论：大概可以。\n');
+    const { status, report } = check(root);
+    assert.equal(status, 0, JSON.stringify(report));
+  }
+
+  // Code, block quotes and Chinese quotations are verbatim citations and are skipped.
+  {
+    const root = fixture();
+    write(root, 'docs/reports/2026-10/quote_2026-10-07.md', [
+      '负责人回复“差不多可以”，日志原文「似乎超时」。',
+      '> 原话：应该可以。',
+      '行内 `估计` 不检查。',
+      '```text',
+      '理论上 PASS',
+      '```',
+      '结论：PASS。',
+      '',
+    ].join('\n'));
+    const { status, report } = check(root);
+    assert.equal(status, 0, JSON.stringify(report));
+  }
+
+  // Lines after a closed code fence are checked again.
+  {
+    const root = fixture();
+    write(root, 'docs/reports/2026-11/fence_2026-11-01.md', '```\n好像\n```\n预计通过\n');
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.deepEqual(vagueFailures(report), [
+      `${join('docs', 'reports', '2026-11', 'fence_2026-11-01.md')}:4: OUTPUT_STYLE W05 vague wording "预计通过"`,
+    ]);
+  }
+
+  // DOCS_06: use real Git HEAD baselines for ADR protection and index consistency.
+  function adrFixture(label = '状态') {
+    const root = fixture();
+    const body = `# Decisions\n\n## ADR-0001 Original decision\n\n- ${label}: Accepted (fixture)\n- Decision: Original body.\n`;
+    const index = '# ADR Index\n\n| ADR | Title | Status |\n|---|---|---|\n| ADR-0001 | Original decision | Accepted |\n';
+    write(root, 'docs/DECISIONS.md', body);
+    write(root, 'docs/DECISIONS_INDEX.md', index);
+    git(root, 'add', 'docs/DECISIONS.md', 'docs/DECISIONS_INDEX.md');
+    git(root, 'commit', '-q', '-m', 'accepted ADR baseline');
+    return { root, body, index };
+  }
+
+  // Both existing status languages must protect Accepted bodies.
+  for (const label of ['状态', 'Status']) {
+    const { root, body } = adrFixture(label);
+    write(root, 'docs/DECISIONS.md', body.replace('Original body.', 'Changed body.'));
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.ok(report.failures.some(({ kind }) => kind === 'adr-immutability'), JSON.stringify(report));
+  }
+
+  // Changing only the status to Superseded keeps the immutable English body intact.
+  {
+    const { root, body, index } = adrFixture('Status');
+    write(root, 'docs/DECISIONS.md', body.replace('Accepted (fixture)', 'Superseded by ADR-0002 (fixture)'));
+    write(root, 'docs/DECISIONS_INDEX.md', index.replace('| Accepted |', '| Superseded by ADR-0002 |'));
+    const { status, report } = check(root);
+    assert.equal(status, 0, JSON.stringify(report));
+  }
+
+  // Missing, extra, duplicate, wrong-title and wrong-status index rows all fail.
+  for (const mutation of [
+    (index) => index.replace('| ADR-0001 | Original decision | Accepted |\n', ''),
+    (index) => `${index}| ADR-0002 | Extra decision | Proposed |\n`,
+    (index) => `${index}| ADR-0001 | Original decision | Accepted |\n`,
+    (index) => index.replace('| Original decision |', '| Wrong title |'),
+    (index) => index.replace('| Accepted |', '| Proposed |'),
+  ]) {
+    const { root, index } = adrFixture();
+    write(root, 'docs/DECISIONS_INDEX.md', mutation(index));
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.ok(report.failures.some(({ kind }) => kind === 'adr-index'), JSON.stringify(report));
+  }
+
+  // An unknown status must fail closed instead of disabling immutable protection.
+  {
+    const { root, body } = adrFixture('Status');
+    write(root, 'docs/DECISIONS.md', body.replace('Accepted (fixture)', 'Approved (fixture)'));
+    const { status, report } = check(root);
+    assert.equal(status, 1);
+    assert.ok(report.failures.some(({ kind }) => kind === 'adr-metadata'), JSON.stringify(report));
+  }
+
+  // Historical approvals remain recorded, but closed tasks must not retain APPROVED.
+  for (const [section, taskStatus, expected] of [
+    ['历史合同与保留事项', 'APPROVED_FOR_IMPLEMENTATION', 0],
+    ['已关闭任务', 'APPROVED_FOR_IMPLEMENTATION', 1],
+    ['当前工作与待批准任务', 'COMPLETE', 1],
+    ['未分类', 'APPROVED_FOR_IMPLEMENTATION', 1],
+  ]) {
+    const root = fixture();
+    write(root, 'docs/tasks/EXAMPLE.md', `# Example\n\nStatus: ${taskStatus}\nTask Type: DOCUMENTATION_GOVERNANCE\nPhase-Gate: N/A\nWin7-Validation: N/A\n`);
+    write(root, 'docs/tasks/README.md', `# Tasks\n\n## ${section}\n\n| [Example](EXAMPLE.md) | DOCUMENTATION_GOVERNANCE | ${taskStatus} | N/A | N/A |\n`);
+    const { status, report } = check(root);
+    assert.equal(status, expected, JSON.stringify(report));
+    if (expected) assert.ok(report.failures.some(({ kind }) => kind === 'task-lifecycle'), JSON.stringify(report));
+  }
+
+  console.log('check_docs tests: 29/29 PASS');
 } finally {
   for (const root of created) rmSync(root, { recursive: true, force: true });
 }

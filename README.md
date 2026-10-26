@@ -84,7 +84,25 @@ npm test
 
 # 5. 检查文档与规范一致性
 npm run docs:check
+
+# 完整工程检查：文档 → 工具自测 → 产品构建/测试 → 发布专项测试
+# 替代上面的分步检查；不要先 build 再重复构建。
+npm run verify:all
+
+# 局部检查
+npm run verify:tools
+npm run verify:release
 ```
+
+完整入口保留原有 `npm test`、`verify`、`verify:quick` 的行为。
+它只构建一次，枚举 `scripts/release/test/*.test.mjs` 全部专项测试。
+前置失败时，下游记为 `NOT_PERFORMED`，整体返回非零退出码。
+结果绑定本次开发机运行环境，不证明 Win10 或 Win7 实机通过。
+发布专项测试依赖现有原生模块及离线输入；缺失时返回失败，不自动下载或跳过。
+已有测试的 SKIP/TODO 会明确计数，并阻止发布组和完整入口返回 PASS。
+各组耗时输出在 `[verify-project-summary]` JSON 中，不自动写入仓库。
+新入口与发布专项测试本轮在开发机 Node 20.17.0 检查。
+此运行时记录不改变产品 Electron 22 的 Node/ABI 合同。
 
 #### 生成 Win7 发布包
 ```bash

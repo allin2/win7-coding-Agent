@@ -1,5 +1,7 @@
 # 方案与交接索引
 
+新治理执行使用[统一执行记录](GOVERNANCE_OPTIMIZATION_EXECUTION_RECORD.md)。后续同范围迭代写入任务书已有记录，历史批准材料保持原路径。
+
 本目录存放实现方案、候选合同提案、修复交接书和设计参照。方案不构成实现授权；授权只来自
 `docs/tasks/*.md` 中状态为 `APPROVED_FOR_IMPLEMENTATION` 的任务书（AGENTS.md C14）。
 
@@ -11,7 +13,8 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 
 | 文件 | 文档自述状态 | 当前处置 |
 |---|---|---|
-| [A9_ALPHA2_DELIVERY_SEQUENCE.md](A9_ALPHA2_DELIVERY_SEQUENCE.md) | 顺序与历史裁决 | 2026-10-01 追加第一批/W42 收尾及第二批候选编号说明；不构成实现授权 |
+| [PROJECT_ENGINEERING_OPTIMIZATION_PLAN.md](PROJECT_ENGINEERING_OPTIMIZATION_PLAN.md) | `IMPLEMENTATION_IN_PROGRESS` | 检查与报告试点实施见 ENGINEERING_01；产品整合基线另定，空间删除未授权 |
+| [A9_ALPHA2_DELIVERY_SEQUENCE.md](A9_ALPHA2_DELIVERY_SEQUENCE.md) | 顺序与历史裁决 | 2026-10-01 追加第一批/W42 收尾及第二批候选编号说明；§6 为 2026-10-11 新窗口实施交接：准确 A9-31 基线、A9-32 本地范围、第二批整合与 Win7/Alpha 2 后续门；不构成实现授权，不生成任何 PASS |
 | [A9_BATCH_2_ACCEPTANCE_COVERAGE.md](A9_BATCH_2_ACCEPTANCE_COVERAGE.md) | `DRAFT_PLANNING_ONLY` | 第二批候选与 Alpha 2 需求覆盖台账；不生成任何 PASS |
 | [A9_BATCH_2_INCREMENTAL_VALIDATION.md](A9_BATCH_2_INCREMENTAL_VALIDATION.md) | `DRAFT_READY_FOR_REVIEW` | 精确继承、受影响必跑项、真实桌面自动化与失败恢复合同 |
 | [A9_BATCH_2_IMPLEMENTATION_APPROVAL.md](A9_BATCH_2_IMPLEMENTATION_APPROVAL.md) | `READY_FOR_OWNER_REVIEW_NOT_APPROVED` | A9-30收口登记25路径及A9-31具体实现批准材料；构建与候选各自审批 |

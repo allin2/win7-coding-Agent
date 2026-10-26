@@ -20,11 +20,20 @@
 | 当前状态 | `STATUS.md`、`status/latest-validation.json` |
 | 状态时间线（历史流水） | `STATUS_LOG.md` |
 | 实现授权与验收合同 | `tasks/*.md` |
+| 增量构建、实机验收与发版工作规范 | [acceptance/ACCEPTANCE_AND_RELEASE_WORKFLOW.md](acceptance/ACCEPTANCE_AND_RELEASE_WORKFLOW.md) |
 | 当前风险 | `ROBUSTNESS_AUDIT.md` |
 | 待裁决事项 | `PENDING_CONFIRMATIONS.md` |
+| 面向负责人的输出规范 | [OUTPUT_STYLE.md](OUTPUT_STYLE.md) |
+| 状态词与流程名词 | [GLOSSARY.md](GLOSSARY.md) |
 | 方案与交接（非授权） | `plans/`（索引：`plans/README.md`） |
 | 历史证据 | `reports/YYYY-MM/` |
-| 本机外证据归档与取回 | `acceptance/EVIDENCE_ARCHIVE_RETRIEVAL.md` |
+| 本机证据位置、本机外归档与取回 | `acceptance/EVIDENCE_ARCHIVE_RETRIEVAL.md` |
 | 历史 PRD | `prds/archive/` |
 
 历史报告是时间点快照，不覆盖当前状态；当前状态必须绑定明确的 Git commit 和执行环境。
+
+WIN7-28 修复证据的用途、目录位置与检索方式见[本机历史修复证据索引](acceptance/EVIDENCE_ARCHIVE_RETRIEVAL.md#本机历史修复证据索引)。
+
+## 本地治理入口（ADR-0192）
+
+实施资格见 [任务索引](tasks/README.md)的当前工作分区。规则同步和检查结果见[统一执行记录](plans/GOVERNANCE_OPTIMIZATION_EXECUTION_RECORD.md)。

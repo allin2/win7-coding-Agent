@@ -1,7 +1,7 @@
 # ADR 索引
 
 > 由 [DECISIONS.md](DECISIONS.md) 各 ADR 标题与首条“状态”行整理（2026-09-24），不替代 ADR 正文；
-> 状态以正文为准。新增 ADR 时在本表末尾追加一行。ADR-0024 编号在正文中未使用。ADR-0169 为主仓另一分支所用，本分支正文未收录（见ADR-0170边界）。
+> 状态以正文为准。新增 ADR 时在本表末尾追加一行。ADR-0024 编号在正文中未使用。
 
 | ADR | 标题 | 状态 |
 |---|---|---|
@@ -149,7 +149,7 @@
 | ADR-0143 | Alpha 2 的 Review 改为“先写后审”的改动审阅，不做暂存区式 Review 模式 | Accepted |
 | ADR-0144 | 以当前主线换发 WIN7-40，在 Win7 实机验收 A9-24 改动审阅 | Accepted |
 | ADR-0145 | WIN7-40 记为验证套件缺陷不通过，修订 A9-25 修复套件后换发 WIN7-41 | Accepted |
-| ADR-0146 | A9-26 第一批可靠性：恢复目录、验证证据、项目说明、上下文预算与环境事实 | Accepted |
+| ADR-0146 | 第一批可靠性（A9-26）：恢复目录自忽略、验证证据收紧、项目说明与环境事实注入、输入上下文预算 | Accepted |
 | ADR-0147 | 批准 A9-27：以 WIN7-42 验收 A9-26 第一批可靠性 | Accepted |
 | ADR-0148 | A9-28 修复失败验证大输出与不可压缩上下文预算遗漏 | Accepted |
 | ADR-0149 | A9-29 必需审计故障与 Provider 响应完整性修复 | Accepted |
@@ -172,6 +172,7 @@
 | ADR-0166 | A9-31 R8 快照区间内实例的双观察绑定与准确诊断 | Accepted |
 | ADR-0167 | A9-31 R9 同步只读系统探测的真实退出回执 | Accepted |
 | ADR-0168 | A9-31 R10 外部Win10捕获的精确UTC边界 | Accepted |
+| ADR-0169 | 增量验收与发版工作规范 | Accepted |
 | ADR-0170 | A9-31 Shell永久删除的本地Policy确认修复 | Accepted |
 | ADR-0171 | A9-31 非Git高影响复合命令分类与完整可见审批 | Accepted |
 | ADR-0172 | A9-31 短命进程的manifest精确字段补证提案 | Proposed |
@@ -192,8 +193,54 @@
 | ADR-0187 | A9-31 r4 Win10重验：新根R2同源重编取证组件并换绑其构建批准（ADR-0186补充） | Accepted |
 | ADR-0188 | A9-31 登记 `A9_31_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0189 | A9-32 继续前观察缺失路径、目录与路径身份（ADR-0152补充） | Accepted |
-| ADR-0236 | A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189补充） | Accepted |
-| ADR-0237 | A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236补充） | Accepted |
+| ADR-0190 | 面向负责人的输出规范、术语表与 HTML 解说边界 | Accepted |
+| ADR-0191 | 输出规则自动加载与新报告模糊词检查（ADR-0190 补充） | Accepted |
+| ADR-0192 | 文档检查完整性、任务实施入口分区与本地治理同步 | Accepted |
+| ADR-0193 | 候选外参数化报告校验试点格式 | Proposed |
+| ADR-0194 | Win10 验证工具的分层输入与产品取证双身份 | Accepted |
+| ADR-0195 | Win10 真实新构建与当前桌面执行绑定 | Accepted |
+| ADR-0196 | Win10 取证组件的进程代次与明确非父子关系 | Accepted |
+| ADR-0197 | Win10报告字段比较与构建验证器身份分离 | Accepted |
+| ADR-0198 | Win10取证实际能力准入与产品执行权限分离 | Accepted |
+| ADR-0199 | Win10取证最小诊断后的单次恢复 | Accepted |
+| ADR-0200 | Win10普通取证入口的进程执行策略 | Accepted |
+| ADR-0201 | 普通取证探针的捕获首失败诊断 | Accepted |
+| ADR-0202 | 普通取证的完整自有捕获集合合同 | Accepted |
+| ADR-0203 | 自有取证子进程的有界输出首失败诊断 | Accepted |
+| ADR-0204 | 固定自有取证子fixture的进度偏好 | Accepted |
+| ADR-0205 | 普通桌面诊断入口的 Explorer 启动与有限复用 | Accepted |
+| ADR-0206 | Win10 取证普通入口接入自动入口 | Accepted |
+| ADR-0207 | Win10 B2单次普通取证入口的范围绑定 | Accepted |
+| ADR-0208 | B3普通取证入口与完整目录的共同前检 | Accepted |
+| ADR-0209 | 普通入口失败收尾的信号异常隔离与退出证明 | Accepted |
+| ADR-0210 | Win10 产品执行合同 v6：取证准入与有限产品派发 | Accepted |
+| ADR-0211 | 桥接自动入口扩展到 B4/B5 与 dispatcher 目标 | Accepted |
+| ADR-0212 | 桥接根目录改为 B6/B7 | Accepted |
+| ADR-0213 | 当前 Win10 主机的诊断路线与验收证据边界 | Superseded by ADR-0219 |
+| ADR-0214 | B8/B9完整本地消费者接入与新派发器CMD路径 | Accepted |
+| ADR-0215 | ENGINEERING_02完整工具修复阶段授权 | Accepted |
+| ADR-0216 | ENGINEERING_02未派发首轮的不可变替代运行 | Accepted |
+| ADR-0217 | ENGINEERING_02完整非子进程排除证明与有界追加轮次 | Accepted |
+| ADR-0218 | ENGINEERING_02成功r05普通原始证据有界补收集 | Accepted |
+| ADR-0219 | 负责人指定当前 Win10 为可信验收环境 | Accepted |
+| ADR-0220 | ENGINEERING_02完整产品验证阶段与退出语义工具 | Accepted |
+| ADR-0221 | ENGINEERING_02登记当前Win10已有.NET Framework 4.8.1 | Accepted |
+| ADR-0222 | ENGINEERING_02 Text传输修复与最后源版本的完整替代方案 | Accepted |
+| ADR-0223 | ENGINEERING_02准确旧解析实例处置与完整替代验证 | Accepted |
+| ADR-0224 | ENGINEERING_02先观察实际Process组件锁并完整替代验证 | Accepted |
+| ADR-0225 | ENGINEERING_02完整准确数据闭包修复及未派发恢复替代验证 | Accepted |
+| ADR-0226 | ENGINEERING_02完整归档消费者修复及有界剩余产品阶段 | Accepted |
+| ADR-0227 | ENGINEERING_02空输出Hash修复与当前归档生命周期准确裁决 | Accepted |
+| ADR-0228 | ENGINEERING_02生产器摘要修复及一次额外部署根 | Accepted |
+| ADR-0229 | ENGINEERING_02报告父目录修复与准确P13物理闭包复用 | Accepted |
+| ADR-0230 | ENGINEERING_02冻结前只读变量合同与完整P13替代阶段 | Accepted |
+| ADR-0231 | ENGINEERING_02当前容量门失败后的一次只读容量诊断 | Accepted |
+| ADR-0232 | ENGINEERING_02停止工具扩建并保留唯一产品收口机会 | Proposed |
+| ADR-0233 | ENGINEERING_02唯一收口前的只读容量对象硬门裁决 | Accepted |
+| ADR-0234 | ENGINEERING_02容量通过后的唯一完整产品收口阶段 | Accepted |
+| ADR-0235 | ENGINEERING_02同一最后阶段的三处本地测试输出绑定修正 | Accepted |
+| ADR-0236 | A9-32 未知 Shell 观察门只由已核验目录列表解除，ENOTDIR 按路径不存在处理（ADR-0189 补充） | Accepted |
+| ADR-0237 | A9-32 前台 Shell 带 residueRisk 结束时，继续仍按未知结果处理（ADR-0189、ADR-0236 补充） | Accepted |
 | ADR-0238 | A9-33 WIN7-45 门 B：限定已直接证明范围签发，KL-12 作为排除项（A9-33 补充） | Accepted |
 | ADR-0239 | Alpha 2 登记已知限制 F-01：Full Access 下 13 种启动器包装命令不再要求确认（ADR-0171 补充） | Accepted |
 | ADR-0240 | Alpha 2 登记六项已知限制并延期到 RC，G16、G17 先做只读对照（ADR-0131、ADR-0238、ADR-0239 补充） | Accepted |
@@ -204,7 +251,7 @@
 | ADR-0245 | Alpha 2 补证 A9-36 追加实现批准：按 §9 缺口补齐并实现 M6，保留 M2-05 已实现断言，M1-02 加本地裸 origin（ADR-0242、ADR-0244 补充） | Accepted |
 | ADR-0246 | A9-37将checkpoint已知秘密判定与日志启发式脱敏分离 | Accepted |
 | ADR-0247 | A9-37 登记 `A9_37_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
-| ADR-0248 | A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏（ADR-0246补充） | Accepted |
+| ADR-0248 | A9-38 将代理 Basic 组合纳入已知秘密并修正 Authorization 单令牌脱敏 | Accepted |
 | ADR-0249 | A9-38 登记 `A9_38_DEVELOPER_VERIFIED`（带已知限制） | Accepted |
 | ADR-0250 | Alpha 2 范围纳入 A9-37、A9-38；WIN7-45 不再是 Alpha 2 最终候选 | Accepted |
 | ADR-0251 | Alpha 2 补证采用方案 R2：A9-36 改在 WIN7-46 执行，WIN7-45 的 A9-36 r7 门 A 不签发 | Accepted |
@@ -220,4 +267,28 @@
 | ADR-0261 | M2 Provider 完整性断言读取同 turn 持久化结果；新建 WIN7-51 | Accepted |
 | ADR-0262 | M2 Runner 控制管道异步错误有界失败；新候选 WIN7-52 | Accepted |
 | ADR-0263 | M4后检将准确直接映像SogouExe记录为环境进程 | Accepted |
-| ADR-0264 | 开发总控受控实例清理及三个固定夹具系统映像的有界终止例外 | Accepted |
+| ADR-0264 | 开发总控使用受控实例清理；固定夹具的三个系统映像获有界终止例外 | Accepted |
+| ADR-0265 | 候选外总控退出观察先校验再提交 | Accepted |
+| ADR-0266 | 原总控候选外退出拒绝原因诊断 | Accepted |
+| ADR-0267 | 原绑定 Process 缓存刷新与零等待信号准入 | Accepted |
+| ADR-0268 | M5 两文件隔离密文例外与候选外费用准入 | Accepted |
+| ADR-0269 | M5 profile 密钥恢复的条件例外与复验 | Accepted |
+| ADR-0270 | 复用隔离恢复材料的新M5有界窗口 | Accepted |
+| ADR-0271 | M5 Python 模块导入的零模型最小诊断 | Accepted |
+| ADR-0272 | 隔离 Python 运行时与实际 Runner 零模型短链 | Accepted |
+| ADR-0273 | 隔离 Python 的新 M5 单轮 DEV 执行与累计费用承诺 | Accepted |
+| ADR-0274 | A04 零模型失败调用取证 | Accepted |
+| ADR-0275 | A04 模式顺序修复与一次新取证窗口 | Accepted |
+| ADR-0276 | 原命令编码配置的一次实机验证 | Accepted |
+| ADR-0277 | M5 编码配置及引用澄清持续推进 | Accepted |
+| ADR-0278 | 正式 M5 采用 r5 工具版本并登记 KL-14 | Accepted |
+| ADR-0279 | 收紧 M5 J1 提示词以降低 A02 重复引用失败 | Accepted |
+| ADR-0280 | 正式门 A 执行允许经 Tailscale 中继 | Superseded by ADR-0284 |
+| ADR-0281 | 中继传输的有界续传 | Accepted |
+| ADR-0282 | 中继传输超时下限降为 40 KB/s | Accepted |
+| ADR-0283 | 补充组合同负责人窗口改为 18 小时 | Accepted |
+| ADR-0284 | 正式执行与彩排固定走局域网；正式执行失败须先定位再重试 | Accepted |
+| ADR-0285 | ADR-0264 夹具清理例外扩到正式执行；到期改读阶段请求 expires_at | Accepted |
+| ADR-0286 | WIN7-55 门 B：限定已直接证明范围签发 | Accepted |
+| ADR-0287 | WIN7-55 对外发布 0.3.0-alpha.2 内部预览版 | Accepted |
+| ADR-0288 | Alpha 阶段节奏与验收执行准则 | Accepted |

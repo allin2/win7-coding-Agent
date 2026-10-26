@@ -21,6 +21,9 @@
     "verify": "node scripts/verify_integration.mjs",
     "verify:quick": "node scripts/verify_integration.mjs --quick",
     "package:win7": "node scripts/release/build-a9-product-v3.mjs",
-    "docs:check": "node scripts/check_docs.mjs"
+    "docs:check": "node scripts/check_docs.mjs",
+    "verify:tools": "node scripts/verify_project.mjs --group tools",
+    "verify:release": "node scripts/verify_project.mjs --group release",
+    "verify:all": "node scripts/verify_project.mjs --all"
   }
 }

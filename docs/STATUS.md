@@ -575,7 +575,6 @@ pi已用精简执行上下文继续原本地诊断准备，旧会话和502证据
 本段登记时，新诊断审核、目标运行和正式验收均NOT_PERFORMED。
 证据在整合工作树m2-call-diagnostic-r2-pi/glm53-max-health/MAIN_VERIFICATION.json；任务记录见A9-39 §11.8.90。
 
-
 ## M2 推进受pi模型服务阻断（2026-10-22 UTC）
 
 当前没有新诊断交付，M2尚未解决；源74ac9ef7、WIN7-51 ZIP76112a28…保持。
@@ -609,6 +608,45 @@ close后独立status确认开发根不存在、锁null、相关进程/任务0。
 新入口实际运行、正式Win7验收、门A/B与完整Alpha2/RC均NOT_PERFORMED。
 准确记录见A9-39任务书§11.8.87与outputs/a9-39-w51-package-prep/m2-call-diagnostic-r1/REPORT.md。
 下方历史当前段落按原时点理解。
+
+## M2 按指定workflow继续，本地备料中（2026-10-22 UTC）
+
+负责人要求继续推进，已恢复pi执行、主会话独立审核的分工。
+整合工作树源74ac9ef7、WIN7-51 ZIP76112a28…保持。
+pi复用既有会话，只准备候选外隔离Node入口；独审后才一次实机定位。
+旧FAIL/HALTED与默认产品目录影响UNKNOWN保留，不读取真实配置补证。
+当前记录为整合工作树A9-39任务书§11.8.88；新实机与正式验收尚NOT_PERFORMED。
+下方前轮安全停止和历史指引按原时点理解。
+
+## 当前工作收束与空间整理（2026-10-22 UTC）
+
+当前交付停在 WIN7-51 开发通道补证，完整 Alpha 2 尚未签发。
+本节为本地文档核对，引用原 Win7 实机记录；本轮未连接目标机。
+主工作区为 `codex/a9-alpha2@23ebfa53…`。
+产品与当前记录位于 `codex/a9-alpha2-integration-r2@74ac9ef7…`，不是下方 WIN7-45 同步点。
+准确记录入口为该工作树的 `docs/tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md` §11.8.75～86。
+
+| 事项 | 当前结论与边界 |
+|---|---|
+| WIN7-51 身份 | source `74ac9ef78d80ee4dfd6808c0a6e9166f393c07ac`；ZIP `76112a2828e14e4c20721d30ce97fe509d75af17dcf2ca4e67d2fdd33f15e4c0`；未冻结 |
+| 构建与主链 | 开发机双干净构建同字节；Win7 DEV run `fffca090…` 完成 37 用例/67 断言 PASS；不计正式验收 |
+| 当前阻断 | Win7 诊断 run `4c4a44ff…` 的 M2 audit_output 在 600231 毫秒超时；M2 整组 FAIL，根因 UNKNOWN；旧 run 保持 HALTED |
+| 剩余补证 | M3、M6 为 NOT_PERFORMED；M5 为 BLOCKED_BY_STANDING_AUTHORIZATION |
+| 独立收尾 | 原 Win7 记录 FINAL_STATUS_R2.json 确认开发根不存在、锁空闲、进程/任务为零；首次 close FAIL 保留，工具缺陷未修 |
+| 收束边界 | 本轮只整理状态与清理候选；不再触发整批重试，不新增产品、驱动或传输插桩；后续先明确 M2 允许路径与候选策略 |
+| 正式结论 | 门 A/门 B、正式验收和完整 Alpha 2/RC 均未由 WIN7-51 开发结果签发；下方历史限定范围结论保留 |
+
+证据根：`/Users/qlyf/.codex/worktrees/a9-alpha2-integration-r2/win7-coding-Agent/outputs/a9-39-w51-package-prep/`。
+最新诊断见其 `m2-progress-diagnostic/MAIN_REPORT.md`，不使用较早未签门 A 草案推断当前结果。
+
+空间整理沿用 `outputs/cleanup-fixture-zips-20261021-r1/space-review-20261022-report.md` §8～9。
+此前 62 个重复 ZIP 已按原批准删除；本轮不重复计算收益。
+负责人回复“放入回收站”后，10 个目录已逐项移入 `/Users/qlyf/.Trash/win7-w50-test-dirs-20261022-r1`。
+开发机移动与恢复副本校验 PASS：逻辑字节 4183105509，63 个符号链接保留。
+移动前路径累计分配读数 4170588 KiB；同盘移动不等于释放空间，未清空回收站。
+12 个正式双构建 ZIP、65 个已有修改文件及工作树登记在移动后核验保持；随后仅更新本节、状态流水和清理报告。
+本轮永久删除、移除工作树、提交、推送与远端操作均 NOT_PERFORMED。
+原工作区修改、全部候选、首失败数据库、HALTED 原始证据和当前依赖输入保留。
 
 ## A9-39 预演2清理回收完成，原运行仍 HALTED（2026-10-18 UTC）
 
@@ -746,7 +784,6 @@ Node 20.17.0 三套 Jest 共 150 PASS/0 FAIL，`verify:quick`、`docs:check` 和
 
 原因判断（推断，没有在目标机逐文件定位）：编排器用被 Electron 修补的 `fs`，`resources/default_app.asar` 被当作归档目录。执行代理在开发机让该检查改走 `original-fs`，codex 第七、八轮复审，合同 321/321，r7 作废，按 ADR-0251 改在 WIN7-46 执行；改绑见[任务书 §10.12](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#1012-codex-接手候选改绑2026-10-17)。原 r7 材料的运行 `44e39fb0…`、请求 SHA256 `fca429ad…` 与原字节保留，不得用于新候选。WIN7-46 的新门 A 与 R2 实际运行时预检均为 `NOT_PERFORMED`。目标机候选目录是否另有文件被改动、新写法的 Win7 运行均为 `NOT_PERFORMED`。未提交。明细见[任务书 §10.9、§10.10](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#1010-修复完整性检查与新门-ar7请求材料2026-10-17-utc已作废未签发)，登记见[缺口表§23](plans/A9_ALPHA2_GAP_DISPOSITION.md#23-a9-36-追加实现与三轮独立复审已完成2026-10-16-utc)。
 
-
 ## A9-36 两份分叉并为一份，实现缺口已比对（2026-10-16 UTC）
 
 负责人回复“批准”后，执行代理核对分支发现：2026-10-15 负责人已批准 A9-36 六路径 M1～M5 本地实现，该任务书在 `codex/a9-36-alpha2-supplement` 工作树，六路径已实现（开发机 R7 276 PASS），门 A 已过期，R0 因 agent 会话 5 断开停止。下文“A9-36 草案”是 a9-33 工作树的另一份分叉。负责人裁决以 a9-36 工作树为准（ADR-0244，选项 A）：[草案的必跑集合、隔离范围与 M6](tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md) 已并入，M4 字节改钉六路径现有字节。
@@ -810,6 +847,16 @@ BG03无效cwd走预启动拒绝；release持久化owned→release_intent→relea
 预演18/19均在DCCS-CHAIZL-PC、Win7 SP1 x64、普通agent/console2执行成功，各p01～p10、25用例、43断言全部PASS。源ba042757a04f428cb3db3ccd10888a7bebe97d3b、同一ZIP ae1d4bb1…，run分别f17a0389…和2317fe31…；无效cwd正常拒绝、release正常退出、退出后同实例存活及按身份清理均直接验证。每轮R7的338项大小/哈希匹配、扫描零命中且正控检出；R8相关进程/本次任务0。累计122/156，连续成功2次。
 
 套件修复已通过第21轮全新独立复核（0P0/0P1/0新增P2，开发机）；产品保持5f7c0e80…字节。相同包运行时载荷按远端逐SHA标INHERITED_EVIDENCE，本次行为与身份为实机直接证据。两次均REHEARSAL_NOT_ELIGIBLE，不计正式验收。旧16/17 FAIL、UNKNOWN及HALTED保持，不推送。预演事实见[A9-33 §6.71～6.72](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#671-第21轮关闭与win7预演18-pass)与[报告§11](reports/2026-10/a9_35_local_managed_start_failure_repair_2026-10-15.md#11-同包win7预演19-pass两次连续成功已取得)，后续冻结状态以上述当前记录为准。
+
+## 当前工作同步（2026-10-15 UTC）
+
+最新第二批执行与复核记录位于 `codex/a9-33-batch2-win7-acceptance`，准确提交 `013cf7966c1f5858e2a2c58542d6f9495e88d29e`。见[当前状态](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/STATUS.md)、[WIN7-45交接书](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/plans/A9_33_WIN7_45_ACCEPTANCE_HANDOFF.md)与[任务索引](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/tasks/README.md)。本段是跨分支状态指引；产品源码仍在对应功能分支。
+
+WIN7-45/source ba042757…/ZIP ae1d4bb1…/run5773470e…已在Win7普通agent桌面正式完成25用例/43断言PASS，回收与独审已结束。独审0P0/1P1/0P2；KL-12真实helper启动后ready失败清理已由负责人要求延期，保留P1/NOT_PERFORMED。门B尚未签，完整Alpha2/RC、ADR-0155接受及A9-32 DEVELOPER_VERIFIED均未签发。
+
+完整Alpha2剩余工作见[缺口处置表§6](https://github.com/allin2/win7-coding-Agent/blob/013cf7966c1f5858e2a2c58542d6f9495e88d29e/docs/plans/A9_ALPHA2_GAP_DISPOSITION.md#6-win7-45-之后的当前待办对账2026-10-15-utc)：第二批门B、当前候选共享安全与产品旅程覆盖对账、A9-32证据对应、A9-34/KL-12延期边界及未测范围裁决、最终Alpha2裁决。先核销现有证据，再决定最小补证，不推定旧表8类全部重测。
+
+负责人已授权本轮工作状态及同名分支Git同步。A9-30/31/32/33/35同名远程推送已完成，alpha2本轮新增状态指引随后同名推送；最终ref核对见本次候选外同步回执。主工作区原47项dirty/untracked继续保留，不整体提交；本轮不合入main、不发布、不改变验收结论。下方旧段落按其原日期理解，当前第二批事实以上述固定提交为准。
 
 ## A9-32 隔离实施入口（2026-10-11）
 
@@ -885,6 +932,633 @@ R-01 修复与 R-03 的 3 个新增用例通过本次增量复审。负责人裁
 R-01 修复与 R-03 用例已提交为 `adb9d0f0…`（ADR-0237，[A9-32 §7.6](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#76-r-01-修复与-r-03-补用例2026-10-12)）；开发机 State 88 / Core 221 / Shell 134 PASS，4 个反例均变红。D4 交接包已在 `9dea1384…` 重绑到该提交，r4 清单 SHA-256 `d00d1123…`；独立审核复算 State 88 / Core 221 / Shell 134 PASS；41 个独立反例中 31 个变红、10 个存活，恢复 SHA 全部一致。本次只登记文档，未提交、推送或合并。
 F6 与 ENOTDIR 已在独立复核前修复（ADR-0236，[A9-32 §7.4](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#74-f6-与-enotdir-独立复核前修复2026-10-12)）；开发机 State 84 / Core 218 / Shell 133 PASS。修复已提交为 `59a3f650…`，复核对象即该提交；审核交接包已在 `7504832a…` 重绑。
 原工作树及旧候选、数据库、首失败不变。
+
+
+> 本页是当前状态的唯一人类可读入口，只保留当前快照、阻断项与边界。历史报告中的测试数量不自动代表当前基线。
+> 2026-09-24 之前的逐条时间线已原文迁移到 [STATUS_LOG.md](STATUS_LOG.md)；新的时间线条目追加到该文件，本页只更新结论。
+
+## Alpha 2 第二批新窗口实施计划（2026-10-11）
+
+负责人要求制定实施计划并新开窗口，指定 gpt-6.1-sol / xhigh。
+计划写入既有[推进顺序 §6](plans/A9_ALPHA2_DELIVERY_SEQUENCE.md#6-第二批实施计划与新窗口交接2026-10-11)。
+实现起点为 A9-31 功能分支 `571ec550…`，产品源 `8d207ab1…`；A9-30/31 原开发收口及 Win10 证据保持。
+新窗口先在隔离 A9-32 分支登记本轮本地授权，再完成主动继续与必要验证；当前主工作区不改产品。
+后续准确提交/整合、远端动作、A9-33 冻结及门 A/B 分别满足原合同，完整 Alpha 2 尚未裁决。
+本轮这里只完成计划与交接准备，A9-32 新产品实现、第二批 Win7 均 NOT_PERFORMED。
+ENGINEERING_02 §138 停止保持，不恢复 w16 或追加版本、批次和预算。
+
+## ENGINEERING_02唯一替代部署因工具路径失败停止（2026-10-11）
+
+当前入口任务§138：p17本地118/124/21及原四组驱动检查通过，实际PS5.1合同、当前七组件/867閉包/容量、目录/Hash夹具三门PASS；52源同字节冻结。
+部署reuse-stage-namespaces随后向Get-Item传入不带根的\control\versions路径而失败；原CALL_FAILED/UNKNOWN_SSH_STDERR_RETAINED、stdout/stderr及w16 HALTED保持。这是工具部署失败，产品未执行。
+入口9528/ticks639273629974042869独立held退出UNKNOWN，失败后的远端命名空间状态UNKNOWN，不再诊断或处置。
+本阶段6SSH、上传/复制/产品/SYNC0；累计84SSH/8上传/3只读共95会话，上传106020025/复制888935字节、四根/两窗口不重置。
+没有新主窗口、B48/B49任务/入口、普通两请求、完整十请求/八阶段或实际退出证据。固定夹具三目录/两公开JSON138字节保留，无清理、删除、Kill或Git。
+按负责人一次机会止损策略停止，建议暂停ENGINEERING_02；不自动追加版本、批次、预算或建设任务，不恢复HALTED。
+停止材料33883字节/e089e9b3…，104件冻结源与27件不可变副本保护PASS；工具/诊断成果只可按未来准确合同复用，不能替代当前产品或Win7。
+Gate为ENGINEERING_02_FINAL_SINGLE_ATTEMPT_HALTED_TOOL_PATH，整体NOT_COMPLETE；当前Win10产品、Win7与最终负责人验收NOT_PERFORMED。
+
+## ENGINEERING_02同阶段绑定修正获批，继续唯一完整收口（2026-10-11）
+
+当前入口任务§137/ADR-0235 Accepted，准确v3材料06e7ed5b…；同一p17/w16只激活三件各一行测试输出改动，25窄改/27复制、52路径保持。
+观察UTC2026-10-12T00:42:13.409973Z，原截止2026-10-12T07:29:00.005280Z不延长；原89会话、主批次/实际三门/冻结/窗口未消费，产品/SYNC0。
+先复验受影响本地项，再原三实际门与唯一产品批次；首失败、冻结和UNKNOWN保留，不增加版本、预算、工具或权限。
+Gate为ENGINEERING_02_SINGLE_FINAL_PRODUCT_CLOSURE_PHASE_AUTHORIZED，整体NOT_COMPLETE；产品及Win7 NOT_PERFORMED。
+
+## ENGINEERING_02冻结前测试绑定越界，准确修正待裁决（2026-10-11）
+
+当前入口任务§136/Proposed ADR-0235；同一p17/w16只有本地准备，本阶段远端、实际三门、主批次、冻结与窗口均0。
+124消费者、21报告及原128/88/31/33驱动检查通过；Node118中6个CLI检查被SCOPE_OUTPUT拒绝，因为只复制测试仍绑定旧p16输出。另两件只复制测试绑定旧p03输出。
+准确修正版97195字节/06e7ed5b…只准许三件各一行改至w16/local-checks；原52路径、p17/w16和预算不增，分类25窄改/27复制。三源未修改。
+原截止2026-10-12T07:29:00.005280Z不重发；89会话、产品/SYNC0及全部冻结/首失败/UNKNOWN保持。40项核对与70引用保护哈希通过。
+Gate为ENGINEERING_02_FINAL_PHASE_LOCAL_TEST_BINDING_SCOPE_JUDGMENT_REQUIRED；仅暂停依赖这个越界裁决的派发，其余授权本地工作已完成。整体NOT_COMPLETE，产品和Win7 NOT_PERFORMED。
+
+## ENGINEERING_02最后完整阶段已获准确批准（2026-10-11）
+
+当前入口任务§135，ADR-0234 Accepted；准确v2材料44c7f94c…绑定一组p17/w16/B48/B49、一次冻结与唯一主批次。
+本阶段截止2026-10-12T07:29:00.005280+00:00；原总预算/截止不增，累计89会话/请求与SYNC0。
+先完成22路径内窄修复及30源准确复制、既有消费者和实际冻结前三门，再普通入口两请求与完整十请求/八阶段。
+p16/w15与全部首失败/UNKNOWN保留；不扩建工具、删除、Kill或Git。任何硬门或新实际工具失败保存首失败停止，不自动追加投入。
+Gate为ENGINEERING_02_SINGLE_FINAL_PRODUCT_CLOSURE_PHASE_AUTHORIZED；批准时产品、Win7及最终验收NOT_PERFORMED，整体NOT_COMPLETE。
+
+## ENGINEERING_02容量门通过，唯一完整产品收口范围待批准（2026-10-11）
+
+ADR-0233唯一只读盘点已完成：Win10报告C盘可用15301918720字节，原4GiB门在观察时PASS；25根/8307条元数据完整，清理与删除0。
+按原可见写入上限539081190字节扣除后仍高于原门10467870234字节；额外临时分配/并发增长UNKNOWN，派发仍重验原容量门。
+累计78SSH/8上传/3只读共89会话，上传106020025/复制888935字节，四根/两窗口与产品/SYNC0不重置；p16冻结、w15 HALTED、首失败和历史UNKNOWN保持。
+当前入口任务§133.1–134/Proposed ADR-0234，已准备唯一完整材料89474字节/44c7f94c…：52条新p17路径中22件仅窄绑定/顺序/100ns时间合同，30件准确复制。
+不增加工具能力；冻结前仅现有PS5.1合同、当前门和目录/Hash夹具各一次；冻结后动态准入，普通入口先Boot/Background两请求证据，再完整十请求/八阶段及正常停止。
+范围固定Administrator@192.168.1.4、复用P13、新w16/B48/B49，一工作日8小时/一次主批次/一次最终冻结/一次剩余第三2小时窗口；不新根、不清理、不重传ZIP、不恢复旧HALTED。
+已完成只读准备1SSH与新主上限111SSH合计原112；新主至多171会话，最坏累计260仍在原344内，原上传/复制/请求/SYNC/截止不增。
+24项材料检查与71件保护引用哈希PASS；新源码、实际运行时三门及产品尚NOT_PERFORMED，本轮没有新远端或实现。
+负责人此前明确“新远端动作、容量处理和替代批次在准确材料获批前不执行”，本完整范围未批准；Gate为ENGINEERING_02_SINGLE_FINAL_PRODUCT_CLOSURE_PHASE_APPROVAL_REQUIRED。
+整体NOT_COMPLETE，Win7及最终负责人验收NOT_PERFORMED；若再遇工具缺陷、硬门、到限或需新架构/依赖/权限，保存首失败停止，不自动追加投入。
+
+## ENGINEERING_02收口执行请求已收到，容量对象硬门待准确裁决（2026-10-11）
+
+负责人要求执行完整收口方向，当前入口任务§132；原4GiB门与准确删除对象为空的事实仍在，p16冻结、w15 HALTED保持。
+本轮完成唯一必要只读容量对象盘点的准确材料，不新增工具实现、不连接远端、不创建候选/主批次或删除。
+Proposed ADR-0233固定Administrator@192.168.1.4一次60秒SSH；复用冻结传输与既有组件锁，只读C盘空间及固定Local目录下A9-Engineering项目产物元数据。
+最多32根/16384条/深度16/正文25秒，不跟随reparse、不读项目内容；准确源码18592、输入24989字节、命令7382字符，双输出上限262144字节，失败无重试。
+材料4177字节/8f4da9af…；12项本地核对通过，新实际PS5.1、远端、容量处置、产品均NOT_PERFORMED。
+该查询最多使累计88→89会话，原344会话/224SSH总限不增；不消费最后主批次，未知容量对象不授予删除权限。
+继续遵守负责人“新远端动作在准确材料获批前不执行”；当前Gate为ENGINEERING_02_LAST_CLOSURE_CAPACITY_OBJECT_GATE_JUDGMENT_REQUIRED，整体NOT_COMPLETE。
+
+## ENGINEERING_02停止工具扩建，唯一产品收口暂未具备派发条件（2026-10-11）
+
+负责人已明确停止扩建验证工具，只保留一个工作日/一次替代主批次；本次仅本地只读分析和方向记录，当前入口为任务§131.1。
+现有产品/宿主可复用P13；p16实际PS5.1合同与冻结、c07/r05诊断阶段成果保留，不替代新产品或Win7证据。
+当前容量缺229416960字节才达到原4GiB入口门；原可见单轮写入预算539081190字节，临时目录/实际分配增长UNKNOWN。
+已有空间记录没有合格非关键可恢复C盘删除目标；P13/P12候选与P8冻结ZIP均KEEP，不自行删除或降低门。
+负责人已澄清：未改动的UIA、当批身份与退出动态准入允许冻结后、产品前执行；已知修复及受影响实际运行时检查仍须冻结前通过。
+不再因未变化动态准入改造工具架构；已知报告目录修复的既有夹具仍须冻结前执行，不能归入豁免或冒称已通过。
+§131原分析与v1保留；准确容量来源尚未齐备，最终方案还须绑定上述必要检查顺序，当前不派发，保留一次未消费机会。
+Proposed ADR-0232更新合并材料26724字节/e56c8127…，仍为容量对象未就绪的提案，不授权实现、远端、清理或新批次。
+下一步先取得非关键产物的准确身份、大小及保留/恢复依据；如须新远端只读盘点，另列其必要边界，当前未执行。
+容量处理齐备后仅一次完整准确范围可激活最后p17/w16选项；先普通入口两项真实请求，再原十请求/八阶段及正常退出。
+冻结后再遇工具缺陷、安全/完整性/审计/未知生命周期/容量硬门或到限即保留首失败停止，不追加版本、轮次或预算。
+累计仍88会话，产品/SYNC0，p16/w15及全部历史不变；Gate为ENGINEERING_02_LAST_PRODUCT_CLOSURE_PLANNING_NOT_READY，整体NOT_COMPLETE。
+
+## ENGINEERING_02准确容量已取证，4GiB门仍失败（2026-10-11）
+
+ADR-0231准确批准的一次30秒只读调用已执行，远端退出0；Win10原始报告确认C盘可用4065550336字节、已用173585240064字节。
+可用3.78633880615234375GiB，距既定4294967296字节门还差229416960字节；容量Gate为FAIL，当前入口为任务§130.1。
+冻结收集器的Python3.9未接受.NET七位小数UTC时间戳，原CALL_FAILED/首错误不改判；已有原始证据按准确100ns时间及其余原判据完成本地只读核验，未重发远端。
+原始stdout781字节/4f7425f4…；只读核验3660字节/ee6190bc…，区别记录原调用失败与准确容量事实。
+累计77SSH、8上传、3只读SFTP，共88会话；w15诊断4/4已消费，上传/复制预算、四新根、两窗口及原截止不增。
+9435件历史与68件当前保护文件哈希PASS；p16、w15 HALTED、首失败和历史UNKNOWN未变，产品/SYNC请求均0。
+Gate为ENGINEERING_02_CURRENT_CAPACITY_GATE_FAILED_DIAGNOSIS_EXHAUSTED；本次批准不含清理、系统修改、p17/w16或旧run恢复。
+整体NOT_COMPLETE；完整产品、Win7与负责人最终验收NOT_PERFORMED。容量恢复及新替代主轮次超出本次范围，依赖下游保持停止。
+
+## ENGINEERING_02实际PS5.1合同通过，当前容量门失败（2026-10-11）
+
+任务§128：p16完成只读Error参数同范围修复；第二次实际Win10合同通过26件输入及全部只读变量反例。
+52源同字节一次冻结b88a52c6…，源清单fd45f396…；首合同失败与全部历史保留。
+w15唯一当前只读门返回CURRENT_REUSE_FREE_SPACE，C盘低于原4GiB门；准确剩余字节、当前入口独立held退出仍UNKNOWN。
+stdout81字节/e2a1aa69…、stderr943字节/c2fa767c…及CALL_FAILED/HALTED保持；完整当前门NOT_PASSED。
+本轮3SSH，上传/远端文件写入/主窗口/普通入口/UIA/产品/SYNC均0；累计87会话、四新根、两窗口，不重置额度。
+9435件历史及68件当前冻结/失败对象哈希保护通过；开发机118/121/21检查通过，四组驱动按准确未变字节标INHERITED_EVIDENCE。
+§129/Proposed ADR-0231准备一次30秒容量只读查询，材料4186字节/c688502b…；不降低4GiB门、不恢复w15、不清理或删除。
+当前Gate为ENGINEERING_02_CURRENT_CAPACITY_HARD_GATE_JUDGMENT_REQUIRED；整体NOT_COMPLETE，Win7与负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02冻结前PS5.1合同与准确替代阶段获批（2026-10-11）
+
+负责人准确结构化批准§127/ADR-0230；材料1cf6211c…、真实批准ab483d57…、生效绑定1d6c7296…。
+仅52条p16路径/w15/B46/B47；先实际PS5.1冻结前合同，成功同字节冻结，再唯一当前门及完整原Win10链路。
+9435件保护再次PASS。原84会话、四新根、两窗口及原其他累计限额/截止保持；新源和调用在批准时NOT_PERFORMED。
+当前Gate为ENGINEERING_02_PREFREEZE_PS51_CONTRACT_AND_REUSE_STAGE_AUTHORIZED；整体NOT_COMPLETE。
+首失败、冻结p15/w14、UNKNOWN和全部HALTED保留；普通范围动作不重复求批，越界、到限或安全硬门才裁决。
+
+## ENGINEERING_02只读变量门失败，准确替代阶段待裁决（2026-10-11）
+
+p15完成新报告父目录、前原生取证和P13只读复用消费者，开发机118项Node、116项消费者、21项审查测试及四组驱动自检通过。
+52源一次冻结3c9e5d10…，源清单087fdbb1…；原五类不可变源及7713件保护哈希PASS。
+w14唯一60秒只读门在实际PS5.1报VariableNotWritable：生成脚本赋值$host，与只读$Host冲突；本次主代理工具代码缺陷。
+入口35944/ticks639273006773611955，原始81字节stdout/979字节stderr及首失败/HALTED保留；完整当前门NOT_PASSED。
+新上传、写入、窗口、产品/SYNC/UIA均0；累计84会话、上传106020025、复制888935字节，四个ADR-0226新根/两个窗口保持。
+原p15已冻结、最后源额度和单次门已消费，不能覆盖或复用。§126/Proposed ADR-0230整理52路径p16/w15完整替代阶段。
+先最多两次30秒冻结前实际PS5.1语法/只读变量目标合同，再唯一60秒当前门及原完整工具/产品链路。
+仅源15→16、目录14→15；当轮diagnosis2→3/UIA8→7，合计SSH112和其他累计额度/四根/三窗口/截止不增。
+9435件历史与本轮保护哈希已登记；新源、调用和窗口NOT_PERFORMED。材料58716字节/1cf6211c…待准确批准。
+当前Gate为ENGINEERING_02_LAST_SOURCE_READONLY_VARIABLE_FAIL_REPLACEMENT_DECISION_REQUIRED；整体NOT_COMPLETE，Win7及负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02准确P13复用及完整收口获批（2026-10-11）
+
+负责人结构化批准§125/ADR-0229，准确材料25ed0d3a…、真实批准b993bf67…、生效绑定cc9e9c66…。
+原最后p15/w14复用P13的867件固定文件；仅新工具/B44/B45/证据命名空间及一次第三主窗口生效。
+先本地完整合同修复及冻结，再唯一60秒当前生命周期、组件和物理闭包只读门；通过后原范围完整Win10链路直接执行。
+7713件保护哈希PASS。累计83会话、四根、两窗口及原所有其他限额与截止保持。
+当前Gate为ENGINEERING_02_EXACT_P13_REUSE_COMPLETION_AUTHORIZED；新远端、产品和Win7均NOT_PERFORMED，整体NOT_COMPLETE。
+首失败、冻结输入、UNKNOWN及全部HALTED保持；无清理、删除、Kill或Git交付权限。
+
+## ENGINEERING_02摘要实机修复通过，报告目录与复用方案待裁决（2026-10-10）
+
+p14/w13在Win10通过23源解析、空/非空SHA/字符捕获及完整生产器八条件夹具，原旧摘要问题闭合。
+P13完整784/73归档、工具和运行时校验通过；第二主窗口已签发，原准入master哈希门通过。
+mode-prepare因缺少tool-checks父目录失败；原始1457字节76c62ae3…、w13 HALTED和所有冻结输入保留。
+子16692/ticks639272967928399981同held句柄exit1且关闭无错误；前原生内部Node独立PID/held报告未发布，仍UNKNOWN。
+累计83会话、上传106020025字节、独占复制888935字节，四根/两窗口已用，产品/SYNC0；依赖的远端链路停止。
+任务§124/ADR-0229提供一次准确当前只读门和最后p15复用P13方案，材料45671字节25ed0d3a…。
+保持全部867件产品/宿主/原生文件只读，只新增工具、B44/B45和证据命名空间；无第五物理根，主窗口2→3仅一次两小时。
+原其他会话/字节/请求/SYNC/源/目录/截止不增；7713件历史保护PASS。p15与新调用/窗口未创建或派发。
+当前Gate为ENGINEERING_02_REUSED_ROOT_AND_CURRENT_BOOTSTRAP_DECISION_REQUIRED。
+整体NOT_COMPLETE；产品、UIA、普通入口、Win7和负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02一次额外根获批，继续完整Win10阶段（2026-10-10）
+
+负责人准确批准任务§122/ADR-0228和66689字节/1c223268…材料；真实批准73f81df9…，额度绑定72383a10…，任务§123。
+四根总上限仅剩一额外根，主窗口总上限2仅剩一；原累计会话/字节/请求/SYNC与截止保持。
+p14在原52路径完成准确额度绑定、必要检查与一次冻结后，固定Administrator@192.168.1.4继续。
+先实际PS5.1完整生产器条件夹具，再工具准入、普通S2/S3、SYNC、UIA、十请求/八phase和正常停止。
+6830件历史保护哈希再次PASS；当前66会话、三根、一个窗口、产品请求与SYNC0。
+当前Gate为ENGINEERING_02_ONE_ADDITIONAL_ROOT_COMPLETION_AUTHORIZED；新远端动作NOT_PERFORMED，整体NOT_COMPLETE。
+冻结输入、首失败、UNKNOWN和HALTED保持，Win7及负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02归档和工具通过，一次额外部署根待裁决（2026-10-10）
+
+Win10 p13/w12的实际PS5.1解析、空/非空SHA与完整字符捕获夹具、784件产品/73件宿主归档合同和v6工具校验通过。
+普通入口前mode-prepare因冻结生产器保留旧工具摘要而拒绝；原有效master和当前摘要保留，w12 HALTED。
+原始1278字节报告04ef141c…准确记录子28212/ticks639272944710167788同held句柄exit1、退出时间与空关闭错误；未启动内部Node或产品。
+三个新根已使用；累计66会话、上传104904124字节、原生与输入复制711148字节，主窗口1，SYNC/请求0。
+已授权p14本地生成器和消费检查修复完成，未冻结；116/106/21检查通过，四组driver按准确未变字节继承，6830件历史文件保护PASS。
+实际PS5.1新夹具将先核验生产器完整批准条件及七个拒绝反例，再进入任何新根。
+任务§122/ADR-0228只提议根上限3→4及产品/宿主展开派生上限1400938530→1867918040字节；原会话、上传/原生复制、请求、SYNC、窗口和截止不增。
+材料66689字节/1c223268…；p14/p15现有104路径保持，最多一额外根及原最后一个主窗口。新调用、真实窗口和额外根均未派发。
+当前Gate为ENGINEERING_02_PRODUCER_DIGEST_AND_ROOT_CAP_DECISION_REQUIRED。
+整体NOT_COMPLETE；当前普通产品、UIA、Win7与负责人最终验收NOT_PERFORMED，历史首失败、UNKNOWN和HALTED不回改。
+
+## ENGINEERING_02 p13捕获修复冻结，继续完整阶段（2026-10-10）
+
+Win10 p12空缓冲SHA夹具通过，归档子29900同句柄正常退出0；捕获Char[]隐式转为带空格字符串，原JSON消费失败与w11 HALTED保留。
+原范围允许已闭合普通失败后进入p13/w12/P12/B40/B41；源清单2b31f0f7…，冻结8c9d3476…，任务§121.3。
+116/104/21及四组driver开发机检查通过，6396件保护哈希PASS；产品和原生不改。
+实际PS5.1最小夹具先检验冻结Append表达式与ASCII/中文/跨缓冲区内容，再使用最后一个新部署根。
+累计49会话，两新根已用、最后一根可用；产品/SYNC/主窗口均0，原全部上限不增。
+范围内继续完整工具与十请求链路；整体NOT_COMPLETE，Win7与负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02当前生命周期门通过，p12冻结（2026-10-10）
+
+Win10准确一次只读门exit0，当前旧匹配实例为空；四个新根不存在，准确组件与四件来源文件均匹配。
+原始报告6587字节/75808cca…；记录f141e7e8…，任务§121.1。
+p12/w11/P11/B38/B39源清单2702d18d…，冻结529da04d…；五不可变类保持原字节。
+开发机116项Node、103项消费者、21项报告检查及128/88/31/33四组driver自检通过。
+批准主记录本地尺寸预演260364字节，未签发窗口；首次本地桥接断言迁移失败快照保留。
+开始实际Win10解析及空/非空函数夹具，通过后执行归档与完整产品链路。
+累计39会话，产品、SYNC、主窗口均0；历史w10子ticks/held退出UNKNOWN与HALTED保持。
+当前Gate为ENGINEERING_02_ARCHIVE_CONSUMER_RECOVERY_IMPLEMENTATION_AUTHORIZED。
+整体NOT_COMPLETE；当前p12产品、UIA、Win7与负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02当前生命周期裁决准确获批（2026-10-10）
+
+负责人准确批准ADR-0227及55748字节/aff010e6…，真实批准记录cbdf4491…；任务§121。
+先一次60秒Win10只读生命周期与准确来源门；通过后继续原p12–p15完整阶段。
+5786件冻结及历史文件保护哈希PASS；获批准确只读源14570字节/cad8eea4…已生成。
+新增只读有效期至2026-10-11T05:52:12.971922Z；原阶段截止与累计限额不变。
+此时新远端门NOT_PERFORMED，累计38会话，产品请求与主窗口均0。
+当前Gate为ENGINEERING_02_CURRENT_ARCHIVE_LIFECYCLE_JUDGMENT_AUTHORIZED。
+w10首失败、HALTED、历史子ticks/held退出UNKNOWN保持；整体NOT_COMPLETE，Win7及负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02 p11归档本体完成，当前生命周期硬门待裁决（2026-10-10）
+
+Win10验收机p11/w10的23源PS5.1解析、前检、P10部署和工具上传通过。
+已只读取得809字节归档原始结果48c56008…，784件产品及73件宿主展开，Node16/Electron22准确。
+包装器最终空输出SHA出现ComputeHash重载错误，完整子诊断帧未发布；w10 HALTED保留。
+子PID21280的创建ticks/held退出仍UNKNOWN，产品、UIA、SYNC和窗口均未执行。
+原阶段38会话与累计限额不重置；剩余四源槽位、两新根、两窗口保持。
+任务§120/ADR-0227准备一次60秒当前只读生命周期裁决及原剩余阶段继续条件。
+材料55748字节/aff010e6…；19项材料核对、5786件保护哈希PASS。
+额外源和p12未创建，新调用未派发；当前Gate为ENGINEERING_02_ARCHIVE_FAILURE_LIFECYCLE_DECISION_REQUIRED。
+只有当前完整匹配实例为空才继续原已批准范围；原UNKNOWN/首失败/HALTED不回改。
+整体NOT_COMPLETE，Win7与负责人最终验收NOT_PERFORMED。
+
+## ENGINEERING_02完整剩余阶段准确获批，推进p11（2026-10-10）
+
+负责人准确批准cafa7ced…及ADR-0226，真实记录5b2b5e11…；任务§119。
+313条明确新源路径、六顺序源码槽位和最多三个新部署根激活。
+先唯一只读归档生命周期及ZIP身份门，再进入新部署与完整产品链路。
+唯一只读报告确认旧匹配实例为空，P8 ZIP与组件准确；244字节既知传输提示误判保留。
+p10/w09首失败与HALTED保持，按范围替代至p11/w10/P10/B36/B37；见任务§119.1。
+当前52源合同、归档schema2、当前根与只读来源、失败子取证和完整消费者链在冻结前验证。
+累计24SSH、2上传，共26会话；两实际窗口及限额不重置，历史子退出UNKNOWN保持。
+当前Phase-Gate为ENGINEERING_02_ARCHIVE_CONSUMER_RECOVERY_IMPLEMENTATION_AUTHORIZED。
+范围内动作直接完成，当前产品、UIA、负责人验收和Win7 NOT_PERFORMED。
+
+## ENGINEERING_02 w08归档失败，完整剩余阶段待一次裁决（2026-10-10）
+
+Win10验收机p09/w08的只读门、22件PS5.1解析、环境、旧实例和新部署前序通过。
+归档步骤退出1；冻结包装器未保留子身份和具体错误，历史held退出及根因UNKNOWN。
+开发机确认缺少归档类型和当前根消费；SURROGATE诊断不代替Win10根因。
+源上限9已用完，w06至w08 HALTED保持；当前累计23SSH、2上传，共25会话。
+产品、UIA、SYNC、实际窗口均未执行，整体NOT_COMPLETE。
+任务§118/ADR-0226提出完整p10至p15/w09至w14增补，当前Proposed。
+材料266023字节/cafa7ced…，313条明确源路径，六源码槽位、最多三个新部署根。
+先唯一60秒只读生命周期和P8 ZIP准确核验；无新Kill或ZIP上传。
+原累计限额、两实际窗口及七天截止保持，范围内修复和完整十请求链路一并申请。
+开发机749项材料核对、4657件保护复核PASS；新源和新轮未创建。
+当前Phase-Gate为ENGINEERING_02_ARCHIVE_CONSUMER_RECOVERY_DESIGN_PENDING_APPROVAL。
+Win7与负责人验收NOT_PERFORMED，主机技术完整性UNKNOWN保持。
+
+## ENGINEERING_02完整三槽位数据闭包阶段获批，继续p07与Win10验证（2026-10-10）
+
+当前推进已到获批最后p09/w08/P8/B32/B33槽位，p07/w06与p08/w07的普通消费者首失败及HALTED保留。
+Win10准确旧实例同句柄退出已取得，仅一次Kill；p08实际22件PS5.1解析、环境与容量通过，日期模板消费失败已解释。
+p09的113/92/21项及128/88/31/33驱动器检查PASS；日期绑定和完整入口标识迁移已修复，冻结前哈希常量复核通过。
+阶段累计15SSH，其余0，窗口未生成；继续新的完整Win10链路，范围内动作直接完成。
+当前产品、UIA、负责人验收与Win7仍NOT_PERFORMED，见任务§116.1–116.4。
+
+负责人准确批准ADR-0225及ef9eab85…完整阶段，真实批准记录047e3faa…；见任务§116。
+p07–p09/w06–w08的156条新路径激活，先修复完整数据消费并在冻结前验证真实spec/catalog。
+原组件锁及首失败保持，范围内动作直接完成；当前累计7SSH，其余0。
+原344会话、32请求、2SYNC、两实际窗口和七天截止保持；未知生命周期等安全硬门不变。
+当前Phase-Gate为ENGINEERING_02_DATA_CATALOG_REPAIR_PHASE_IMPLEMENTATION_AUTHORIZED。
+当前任务未完成，UIA、产品、负责人验收与Win7 NOT_PERFORMED。
+
+## ENGINEERING_02组件锁通过，w05本地完整数据目录拒绝（2026-10-10）
+
+Win10只读组件观察退出0，准确现有组件锁05f6b85b…已派生；原始报告0349587a…保留。
+开发机p06的113/75/21和128/88/31/33检查PASS，源已冻结7f84ce3f…。
+真实恢复在本地拒绝两件已批准数据文件；尚无恢复claim、SSH、目标访问或Kill。
+w05 HALTED与首失败ed6e777c…保留，旧目标当前状态UNKNOWN；阶段累计7SSH，其余0。
+ADR-0225/任务§115完整三槽位数据消费修复与替代材料为Proposed；155143字节/ef9eab85…。
+明确p07–p09/w06–w08，最多三个新版本，普通失败有界替代；适用安全硬门保持，原两实际窗口不增加。
+1518件保护复核通过，新版本/新轮未创建，原累计限额、两窗口与七天截止不增。
+当前Phase-Gate为ENGINEERING_02_DATA_CATALOG_REPLACEMENT_PENDING_APPROVAL。
+任务未完成，UIA、产品、负责人验收与Win7 NOT_PERFORMED；见任务§114–115。
+
+## ENGINEERING_02组件观察与完整p06/w05替代方案获批（2026-10-10）
+
+负责人准确批准ADR-0224和13a5d7b9…方案，批准记录934d03ff…；见任务§113。
+先一次只读观察当前Process组件，准确已有字节成立后派生锁并推进p06/w05完整验证。
+当前Phase-Gate为ENGINEERING_02_COMPONENT_LOCK_REPLACEMENT_IMPLEMENTATION_AUTHORIZED。
+阶段累计6SSH，其余0；旧w01–w04 HALTED、首失败和UNKNOWN保持。
+产品、UIA、负责人验收与Win7 NOT_PERFORMED；原累计限额、两窗口和七天截止不增。
+
+## ENGINEERING_02准确旧解析实例仍存活，完整处置方案待裁决（2026-10-10）
+
+Win10验收机、冻结p04/w03只读诊断退出0，Text入口取得当前实例帧。
+准确旧w02解析实例28868/639272795733065333仍存活，生命周期门FAIL。
+w03 HALTED及首失败保留，公开canary、源码解析、部署、UIA和产品NOT_PERFORMED。
+开发机p04的113/58/21检查与驱动器128/88/31/33检查PASS，214件保护文件复核PASS。
+阶段累计5次SSH，其余额度消费均0；原源与三个HALTED均保持。
+ADR-0223的p05已冻结；w04处置调用在已加载Process程序集守卫处失败，未取得旧目标或Kill。
+当前实际组件细节与根因UNKNOWN，w04 HALTED；新阶段累计6SSH，其余0。
+ADR-0224/任务§112提出先只读取得准确组件、锁定后完整p06/w05替代方案，当前Proposed。
+材料33498字节、6c20bd05…；原累计限额、两窗口与七天截止保持。
+当前Phase-Gate为ENGINEERING_02_COMPONENT_LOCK_DESIGN_PENDING_APPROVAL。
+当前任务未完成，负责人验收与Win7 NOT_PERFORMED，见[任务§109](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#109-准确旧解析实例处置与完整替代方案待裁决)。
+
+## ENGINEERING_02完整p04/w03替代方案获批，继续Win10验证（2026-10-10）
+
+负责人直接批准f238e444…及ADR-0222，真实批准记录d4a9909b…已登记。
+52条p04新实施路径和w03/P3/B22/B23激活；旧w01/w02 HALTED保持。
+先修复Text通道、核验本地消费者，再完成两项有界只读诊断及剩余产品链路。
+原累计预算、两件实际窗口上限和七天截止保持；当前阶段累计4次SSH。
+当前UIA和产品NOT_PERFORMED，整体未完成；技术主机完整性UNKNOWN保持。
+当前Phase-Gate为ENGINEERING_02_TEXT_REPLACEMENT_IMPLEMENTATION_AUTHORIZED，见[任务§108](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#108-完整p04w03替代方案获批2026-10-10负责人时区)。
+
+## ENGINEERING_02 p03解析超时，完整替代方案待一次裁决（2026-10-10）
+
+Win10验收机、冻结p03/w02的解析调用在60秒后超时，标准输出0字节。
+远端进程退出UNKNOWN；首失败与w01/w02 HALTED保持，当前阶段未完成。
+开发机p03的113项Node、52项消费者和21项原始复核检查PASS。
+新阶段累计4次SSH，其余上传、只读SFTP、复制、请求、SYNC和执行窗口均0。
+UIA与产品NOT_PERFORMED，当前解析结果未取得；旧诊断PASS不升级。
+52路径p04及w03/P3/B22/B23完整替代方案和ADR-0222为Proposed。
+准确材料29581字节、f238e444…；只增源/轮次枚举，原累计限额与期限保持。
+新实现与远端依赖动作等待裁决，详情见[任务§107.4](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#1074-win10解析超时与完整替代裁决)。
+当前Phase-Gate为ENGINEERING_02_TEXT_REPLACEMENT_DESIGN_PENDING_APPROVAL。
+
+## ENGINEERING_02实际.NET4.8.1登记获批，完整产品验证继续（2026-10-10）
+
+负责人准确批准270978c7…及ADR-0221，五件系统组件锁已绑定首次Win10只读前检。
+首次SSH退出0；UIA实际能力和产品仍NOT_PERFORMED，当前继续新p01消费者与工具测试。
+完整阶段范围和额度保持，详情见[任务§107.2](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#1072-实际已有net481准确登记获批)。
+
+## ENGINEERING_02完整产品验证阶段获批并开始执行（2026-10-10）
+
+负责人准确批准7993bd86…及ADR-0220，真实记录1e86d69d…已登记。
+当前固定Win10由ADR-0219指定可信；批准观察时间为2026-10-11T00:01:08.277195Z。
+52类工具/测试、156新路径、三个源版本、两轮Win10与全部预算按任务§106激活。
+先完成当前候选合同和定向检查，再直接核验目标与UIA锁定并进入产品链路。
+原阶段额度和全部冻结/失败/HALTED不改；新的Win10和产品当前NOT_PERFORMED。
+当前Phase-Gate为ENGINEERING_02_COMPLETE_PRODUCT_PHASE_IMPLEMENTATION_AUTHORIZED，见[任务§107](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#107-获批完整产品验证阶段2026-10-10负责人时区)。
+
+## ENGINEERING_02完整产品验证阶段方案待一次批准（2026-10-10）
+
+当前固定Win10已由负责人指定可信，ADR-0219 Accepted；技术主机完整性UNKNOWN保持。
+执行代理已完成剩余完整阶段材料7993bd86…，323008字节，见[任务§106](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#106-完整产品验证阶段方案2026-10-10待裁决)。
+提案包括52类工具/测试、156条新路径、最多三个源版本和两轮固定目标验证。
+不变r4包直接复算通过；完整十请求/八phase、最短链路、UI语义API及有界重试一并列明。
+新阶段最多344会话、206855142上传字节、32请求及两次新runtime-SYNC；原阶段限额不重置。
+ADR-0220与C15/C16候选包外UIA Profile均为Proposed；新实施、产品和远端NOT_PERFORMED。
+准确批准后范围内直接完成，仅越界、到限或安全硬门请求裁决。
+当前Phase-Gate为ENGINEERING_02_COMPLETE_PRODUCT_PHASE_DESIGN_PENDING_APPROVAL；整体任务仍未完成。
+全部旧冻结输入、诊断结果、首失败、UNKNOWN与HALTED保留，Win7 NOT_PERFORMED。
+
+## ENGINEERING_02 当前Win10由负责人指定可信，继续准备产品阶段（2026-10-10）
+
+负责人指示“将win10设为可信”；固定目标Administrator@192.168.1.4:22，预期主机WIN-2JQ66JE4HTQ。
+ADR-0219 Accepted，取代ADR-0213对后续仅允许诊断的环境限制；旧正文与证据保留。
+可信依据为负责人裁决；技术主机完整性UNKNOWN，新的远端检查NOT_PERFORMED。
+执行代理继续准备新工具准入、最短产品链路、八phase/十请求、真实退出操作及证据收口的完整方案。
+本裁决不新增实现或远端额度；原阶段限额不重置，c07/r05不改判。
+整体任务仍未完成；产品、正式Win10与Win7仍NOT_PERFORMED。
+当前Phase-Gate为ENGINEERING_02_WIN10_OWNER_TRUST_DESIGNATED_PRODUCT_PHASE_PREPARING。
+详情见[任务§105](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#105-负责人指定当前win10为可信验收环境2026-10-10负责人时区)。
+
+## ENGINEERING_02 c07/r05诊断工具修复阶段完成（2026-10-10）
+
+Win10验收机、冻结c07/r05的52项主调用PASS，普通S2、runtime-SYNC、调度器身份与正常停止通过。
+B16/B17 held退出0、任务停用；调度器COMPLETED、产品请求0。
+负责人准确批准cb42dd9b…及ADR-0218；两个只读SFTP补收集四件普通原始报告共9058字节。
+当前98件原始文件及关联摘要核验通过；开发机冻结中央v2按原运行时间回放通过。
+本轮64会话；累计128（96 SSH、16上传、16只读），上传3410588、复制199469字节，阶段SYNC1。
+诊断工具修复阶段成功条件已闭合，Phase-Gate为ENGINEERING_02_C07_R05_DIAGNOSTIC_TOOL_REPAIR_STAGE_COMPLETE。
+整体ENGINEERING_02仍NOT_COMPLETE，负责人最终接受未推定。
+主机完整性UNKNOWN；真实非子进程排除分支NOT_VERIFIED，原pipe字节身份UNKNOWN保持。
+产品、正式Win10验收、Win7、系统修改、清理、删除与Git交付NOT_PERFORMED。
+全部冻结输入、历史首失败、原缺口、HALTED、UNKNOWN及补收集前r05字节保持。
+详情见[任务§104](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#104-获批r05普通原始证据补收集2026-10-10负责人时区)。
+
+## 14路径模式合同本地修复完成，新B10/B11诊断待批准（2026-10-09）
+
+负责人准确批准75c8156b…的本地范围；14件新源与52件输入已冻结。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty保持。
+开发机桥接24项、消费者41项检查PASS；原23项和31项反例保留。
+Preflight静默返回后，直接核验当前preflight.json才允许supervisor。
+Supervise按状态校验，Collect按文件帧校验；所有绑定与停止门保持。
+九实例生命周期命令在原7900字符内，预算仍30秒。
+新材料b3a6b219…为56296字节、50项单次；上传上限471800字节。
+其中44 SSH、6上传，另最多10次只读SFTP；复制172686字节，产品请求0。
+新源实际PS5.1、B10/B11入口、第四次SYNC、产品与Win7均NOT_PERFORMED。
+准确远端批准PENDING；真实窗口、run-v10、pin和revision尚未生成。
+当前Phase-Gate为ENGINEERING_02_MODE_CONTRACT_LOCAL_READY_B10_B11_REMOTE_PENDING_B7_HALTED。
+原B7/v8/v9 HALTED及所有UNKNOWN保持；主机完整性UNKNOWN，整体目标未完成。
+详情见[任务§96](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#96-获批14路径模式输出合同本地修复2026-10-09负责人时区)。
+
+## B8前检取得held退出事实，模式结果合同失败后停止（2026-10-09）
+
+负责人准确批准0f2037b2…的新Win10批次，基线codex/a9-alpha2@a53c9b9d…及受保护dirty保持。
+23项固定调用（20 SSH、3上传）及2次只读SFTP已执行，22项结果门通过。
+实际PS5.1解析新源、canary先登记后回收、B8独占布局/五件复制/桥接库解析/当前绑定核验通过。
+B8 Preflight子进程11224 held退出0且stdout/stderr为空；冻结源码写preflight.json后静默返回。
+冻结validator对所有bridge子stdout解析JSON，触发空响应错误；result_validated=false及run-v9 HALTED保持。
+实际报告字节UNKNOWN，B8 supervisor/普通入口、B9、第四次SYNC和产品NOT_PERFORMED；有效产品请求0。
+直接原始返回加冻结源码只读回放已确认模式合同错配，首失败保持，不恢复任何HALTED。
+14路径完整本地修复材料75c8156b…已准备，批准PENDING；未来B10/B11新副本，报告直接核验后才允许supervisor。
+当前Phase-Gate为ENGINEERING_02_B8_PREFLIGHT_RESULT_CONTRACT_HALTED_LOCAL_SCOPE_PENDING。
+原B7/v8、旧证据和UNKNOWN保持；主机完整性UNKNOWN，整体目标未完成，正式验收和Win7 NOT_PERFORMED。
+详情见[任务§95](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#95-获批新win10批次到达b8前检模式返回合同失败后停止2026-10-09负责人时区)。
+
+## canary顺序10路径本地隔离修复完成，新Win10诊断待批准（2026-10-09）
+
+负责人准确批准37e2d307…的10路径本地范围，实施与定向验证已完成；10件新源、46件输入已冻结。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty；新目录admission-v6-v6，原run-v8保持HALTED。
+canary先验证execution/stdout SHA/pin并登记run_id，回收器在写claim前检查上下文与阶段前置结果。
+开发机31项消费者检查PASS，原21项及旧claim耗用反例保留；真实本地文件链只替代SFTP传输，无网络。
+新invoker2c9503cb…、wrapper69772b0f…；旧桥接3e069608…、库36d35783…、原生、产品及工具不变。
+新材料0f2037b2…已准备：50052字节、48项单次、上传上限471763字节、复制172686字节，产品请求0。
+准确远端批准PENDING，未生成真实窗口、run-v9、pin或revision；新源实际PS5.1与B8/B9入口NOT_PERFORMED。
+当前Phase-Gate为ENGINEERING_02_CANARY_ORDER_LOCAL_READY_B8_B9_REMOTE_PENDING_B7_HALTED。
+原B7与所有UNKNOWN、旧CMD和证据保持；主机完整性UNKNOWN，整体目标未完成，正式验收与Win7 NOT_PERFORMED。
+详情见[任务§94](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#94-获批10路径canary顺序本地隔离修复2026-10-09负责人时区)。
+
+## 获批B8/B9批次前段诊断完成，canary本地顺序失败后停止（2026-10-09）
+
+准确批准5430bf7a…后建立新pin bc0027ae…及两小时窗口，14 SSH与1上传均退出0并验证。
+Win10实际PS5.1解析新invoker/wrapper通过，Node语法及Prepare/AdminQuery/Observer/CanaryCreate诊断通过。
+执行代理未先登记实际canary run_id，回收器写once claim后本地KeyError，未启动只读SFTP。
+首失败保存，run-v8 HALTED；剩余33项NOT_PERFORMED，禁止重跑已写claim或恢复原批次。
+B8/B9布局前检、桥接解析/入口、第四次SYNC、dispatcher正常停止和产品NOT_PERFORMED；有效产品请求0。
+10路径本地隔离/前置检查修复材料37e2d307…已备，批准PENDING，不含网络或远端动作。
+当前Phase-Gate为ENGINEERING_02_B8_B9_BATCH_HALTED_LOCAL_CANARY_ORDER_SCOPE_PENDING_B7_HALTED。
+原B7 HALTED与UNKNOWN、主机完整性UNKNOWN保持，整体目标未完成；正式验收与Win7 NOT_PERFORMED。
+详情见[任务§93](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#93-获批b8b9批次前段完成canary本地顺序失败后停止2026-10-09负责人时区)。
+
+## B8/B9完整13路径本地接入已冻结，完整Win10诊断待批准（2026-10-09）
+
+负责人准确批准6b05106a…的13路径本地接入及ADR-0214，执行代理已完成并冻结。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty；新桥接3e069608…、库36d35783…保持。
+固定调用器、工厂与编排链统一B8/B9、新目录及准确SHA，旧CMD保留，新CMD采用B9专用名称。
+开发机23项桥接SURROGATE和21项消费者链检查PASS，八件Python源码编译PASS，44件输入匹配。
+原22项反例和首个失败保留，产品、原生、十一件工具与旧源字节保持。
+新改源实际PS5.1及B8/B9入口NOT_PERFORMED，未生成真实远端窗口或run-v8。
+完整Win10诊断材料5430bf7a…已备：48项单次调用，上传上限471763字节，复制172686字节，产品请求0。
+准确远端批准PENDING；当前Phase-Gate为ENGINEERING_02_B8_B9_CONSUMERS_LOCAL_READY_REMOTE_DIAGNOSTIC_PENDING_B7_HALTED。
+原B7保持HALTED，原根因、读取字节与缺失held退出UNKNOWN，主机完整性UNKNOWN。
+整体目标未完成；产品、正式验收、Win7与Git交付仍NOT_PERFORMED。
+本轮远端调用0，没有入口、SYNC、产品、清理或删除。
+详情见[任务§92](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#92-完整13路径本地消费者接入2026-10-09负责人时区)。
+
+## Win10三项只读调用完成，新桥接与库PS5.1解析通过（2026-10-09）
+
+负责人准确批准ba32f428…的三项单次调用，已全部执行且SSH退出0，剩余调用0。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty；证据层级为Win10验收机诊断。
+新桥接15a795f3…与库36d35783…长度、SHA匹配，实际PS5.1解析零错误。
+四个准确旧实例当前PID不存在；B7任务禁用，B8/B9任务与根未占用。
+旧R4派发器CMD521字节、dcd8c75e…与保留v7副本匹配，不能覆盖。
+前检库路径遗漏control；正确部署路径当前复查NOT_PERFORMED，不据此判库缺失。
+完整13路径本地消费者范围6b05106a…已备，批准PENDING，ADR-0214 Proposed，未实施。
+当前Phase-Gate为ENGINEERING_02_B8_B9_PS51_PARSE_PASS_CONSUMER_SCOPE_PENDING_B7_HALTED。
+原B7保持HALTED，原根因和缺失held退出UNKNOWN；主机完整性UNKNOWN。
+整体目标未完成，B8/B9真实入口、产品、正式验收、Win7与Git交付仍NOT_PERFORMED。
+本轮无远端写入、源码执行、任务变更或额外SYNC。
+详情见[任务§91](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#91-获批win10只读前检与新源码解析完成2026-10-09负责人时区)。
+
+## 获批B8/B9桥接本地接入已冻结，Win10只读前检与解析待批准（2026-10-09）
+
+负责人准确批准2db66114…的两路径本地接入，实施已完成。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty；新桥接15a795f3…、新测试0d492c9d…。
+新桥接绑定已实测的新库36d35783…，只接受B8/ORDINARY与B9/DISPATCHER。
+准确五项变换与全部字节匹配，开发机22/22定向SURROGATE检查PASS。
+旧源、旧库、旧根与失败证据保持；新桥接PS5.1和真实入口仍NOT_PERFORMED。
+旧调用器和清单工厂仍锁定B6/B7及旧SHA，R4派发器CMD路径已用于原批次，不能直接派发新入口。
+Win10三项单次只读前检/解析范围ba32f428…已备，预算30/30/60秒，载荷76988字节，不写远端或执行源码。
+准确远端批准PENDING；当前Phase-Gate为ENGINEERING_02_B8_B9_BRIDGE_LOCAL_READY_PREREQUISITES_PENDING_B7_HALTED。
+原B7保持HALTED，原故障读取字节、根因与缺失held退出UNKNOWN。
+主机完整性UNKNOWN，整体目标未完成；产品、正式验收、Win7和Git交付仍NOT_PERFORMED。
+详情见[任务§90](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#90-新桥接b8b9两路径本地接入2026-10-09负责人时区)。
+
+## 新库Win10夹具诊断通过，实际桥接接入范围待批准（2026-10-09）
+
+负责人准确批准替代v2的8cf98df3…，旧v1不派发。
+执行代理在Win10验收机完成三项单次调用，均退出0。
+基线codex/a9-alpha2@a53c9b9d…及受保护dirty；新库36d35783…、夹具31f62d5b…。
+实际PS5.1解析、AST文件名及12个夹具场景通过。
+11件公开文件525275字节，名称、尺寸和SHA逐项匹配。
+新库实际普通桌面消费者仍NOT_PERFORMED。
+新桥接B8/B9两路径本地范围2db66114…已备，批准PENDING。
+当前Phase-Gate为ENGINEERING_02_RECORD_PUBLICATION_WIN10_DIAG_PASS_BRIDGE_SCOPE_PENDING_B7_HALTED。
+原B7根因与未知退出UNKNOWN，原批次保持HALTED。
+主机完整性UNKNOWN，整体任务未完成；产品、正式验收和Win7仍NOT_PERFORMED。
+详情见[任务§89](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#89-新库win10夹具诊断通过与新桥接接入范围2026-10-09负责人时区)。
+
+## 新库两路径本地修复已冻结，Win10实际夹具执行待批准（2026-10-09）
+
+负责人准确批准49275403…的两路径本地修复。
+执行代理在codex/a9-alpha2@a53c9b9d…及受保护dirty完成新库和夹具。
+新库36d35783…只改Read-Record与Wait-File。
+公共签名和其余库字节保持，本地结构与编码检查PASS。
+夹具31f62d5b…已冻结；实际PS5.1解析和行为仍NOT_PERFORMED。
+Win10单批夹具范围v2为8cf98df3…，准确远端批准PENDING。
+v2显式UTF-8解析执行夹具，原v1的f5c394ce…保留且不派发。
+范围含3项各30秒调用、源码41572字节、公开标记上限525275字节。
+当前Phase-Gate为ENGINEERING_02_RECORD_PUBLICATION_LOCAL_READY_TARGET_PENDING_B7_HALTED。
+原B7根因和退出UNKNOWN，原批次保持HALTED。
+主机完整性UNKNOWN，整体任务未完成；产品、正式验收和Win7仍NOT_PERFORMED。
+详情见[任务§88](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#88-新库副本两路径本地修复2026-10-09负责人时区)。
+
+## 最小共享读写诊断已复现早读失败，原B7保持HALTED（2026-10-09）
+
+执行代理按准确批准b93b6b8e…完成一次Win10实际PS5.1诊断。
+证据层级为Win10验收机诊断，基线codex/a9-alpha2@a53c9b9d…及受保护dirty。
+写者关闭前，现有读取助手触发INTEGRITY_RECORD_BINDING。
+关闭后同一文件绑定通过，完整错误绑定仍拒绝。
+Read/FileShare.Read在写者打开时被拒绝，原生错误32。
+单次调用1.423秒、SSH退出0；两文件共274字节且SHA匹配。
+原B7读取字节、根因和bootstrap held退出证据UNKNOWN保持。
+当前Phase-Gate为ENGINEERING_02_RECORD_PUBLICATION_REPAIR_PENDING_B7_HALTED。
+新库副本两路径修复范围49275403…已备，批准PENDING，实现NOT_PERFORMED。
+主机完整性UNKNOWN，整体任务未完成；产品、正式验收和Win7仍NOT_PERFORMED。
+详情见[任务§87](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#87-最小共享读写诊断通过与新库修复范围2026-10-09负责人时区)。
+
+## B6与本次SYNC诊断通过，B7绑定失败，批次HALTED（2026-10-09）
+
+执行代理按准确批准cf4eac7b…完成本轮Win10实机诊断。
+证据层级为Win10验收机诊断，基线codex/a9-alpha2@a53c9b9d…及受保护dirty。
+B6普通入口、当前七项检查及一次第三次SYNC通过。
+B7在13:31:24Z失败：INTEGRITY_RECORD_BINDING，bootstrap held退出证据UNKNOWN。
+B7任务有禁用记录；调度器身份调用TIMEOUT，正常停止NOT_PERFORMED。
+当前Phase-Gate为ENGINEERING_02_B6_PASS_B7_BINDING_FAIL_HALTED，原控制流不恢复。
+根因UNKNOWN；最小共享读写诊断b93b6b8e…已备，准确批准PENDING。
+主机完整性UNKNOWN，整体任务未完成，产品、正式验收和Win7仍NOT_PERFORMED。
+详情见[任务§86](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#86-获批b6通过第三次sync通过及b7绑定失败2026-10-09负责人时区)。
+
+## B6/B7真实入口诊断材料已冻结，准确远端批准PENDING（2026-10-09）
+
+执行代理按负责人“开始推进”完成一次只读Win10前检和本地演练。
+证据层级为开发机及Win10验收机诊断，基线codex/a9-alpha2@a53c9b9d…及受保护dirty。
+10:06:00Z的a9builder Explorer为PID20988、SID1005、Session2、Medium、非提升、InJob=false。
+B6/B7目录和任务未占用；实际入口仍NOT_PERFORMED。
+材料cf4eac7b…冻结40件输入，47调用，外发上限412911字节。
+范围为B6普通入口、一次第三次SYNC诊断、B7调度器身份及正常收尾，产品请求数量0。
+本地43调用演练PASS，仅SURROGATE；新调用器真实PS5.1解析尚NOT_PERFORMED。
+当前Phase-Gate为ENGINEERING_02_B6_B7_DIAGNOSTIC_REVIEW_PENDING，准确远端批准PENDING。
+整体任务未完成；主机完整性UNKNOWN，正式验收和Win7仍NOT_PERFORMED。
+原FAIL/HALTED、旧窗口和已有工作区保持。
+详情见[任务§85](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#85-b6b7真实入口诊断材料与只读前检2026-10-09负责人时区)。
+
+## Win10已确认挖矿进程已结束，主机完整性UNKNOWN（2026-10-09）
+
+执行代理按负责人“结束恶意挖矿程序”的目标，终止原PID18428及重新出现的PID8864。
+已保全并禁用确认拉起挖矿程序的`\Windows System Health Check`，网络和SSH保持。
+证据层级为Win10验收机诊断，run为miner-stop-20261009-r1；开发机基线a53c9b9d…及受保护dirty。
+17次采样覆盖327秒，挖矿/加载器进程和原外联未再出现，任务始终Disabled。
+最后独立查询时间为2026-10-09T09:06:35Z。
+RuntimeTask、其他可疑持久化和Defender排除项未清理；主机完整性保持UNKNOWN。
+本次不签发正式验收PASS，不改变工程任务Phase-Gate或§83的解析授权。
+见[任务§84](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#84-已确认挖矿进程终止及重新启动入口禁用2026-10-09负责人时区)。
+
+## Win10实机优先：当前两源真实PS5.1诊断解析已返回（2026-10-09）
+
+结论：Win10验收机当前桥接505ca76e…与invoke-v3 d89bd1f0…解析零错误。
+Text管道一次调用约1秒退出，输入、两源长度和SHA匹配。
+本结论仅为Win10诊断解析PASS，绑定901a4131…准确材料。
+前两次源码超时和公开等长Console.ReadBlock失败保留。
+[ENGINEERING_02](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md)当前Phase-Gate为ENGINEERING_02_WIN10_DIAGNOSTIC_CURRENT_SOURCE_PARSED。
+详情见[任务§83.6](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#836-text管道批准与当前源码直接解析)。
+开发机两路径调整和22项SURROGATE证据保持。
+Win10已部署sync-v2/publish-v2的§82解析证据保持。
+主机完整性和原超时调用退出证据均UNKNOWN。
+普通桌面、产品链路、正式验收及Win7均NOT_PERFORMED。
+旧invoke-v3的B4/B5和producer路径不可原样用于B6/B7。
+诊断材料v7须新绑定和准确窗口，第三次helper-sync未批准。
+整体任务未完成；原FAIL/HALTED及dirty/untracked受保护。
+
+## Win10 工具承接历史快照（2026-10-07，负责人时区）
+
+当前选择A＋r4，codex/a9-alpha2@a53c9b9d…及受保护dirty保持。
+产品source 8d207ab1…、ZIP e96fdf96…的不变r4保持。
+[ENGINEERING_02](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md)为APPROVED_FOR_IMPLEMENTATION。
+当前Phase-Gate为ENGINEERING_02_DESKTOP_ENTRY_CLEANUP_FAIL_RETRY_EXHAUSTED。
+
+负责人批准§41、ADR-0204及材料b2372099…，仅两路径本地修复。
+执行代理在固定自有子进程首句设置进度偏好；其余PS字节保持。
+父进程非空stderr门、8秒预算及全部held退出/关闭门未改。
+开发机先保存24 PASS/1 FAIL首红，再得到55 PASS/0 FAIL/0 SKIP。
+新工具342d147b…十一件459246字节，闭合输入7ada3eec…已冻结。
+roles为空、remote_approval=null、产品权限false。
+§42独立批次的新PS5.1和普通桌面效果NOT_PERFORMED。
+§42独立批次未连接Win10、未上传、未重编原生或执行产品。
+结果及准确范围见[任务§42](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#42-自有子fixture进度偏好的本地执行2026-10-07)。
+
+上批8c372d3e…远端批次已停止，不续用旧入口。
+真实run e26d55f1…及结果62963754…仍FAIL OWN_CHILD_STDERR。
+诊断5ba2ca1e…含固定stdout及一件Completed CLIXML progress。
+父、根、conhost准确实例已结束，close_errors为空。
+原管道字节、乱码原文及具体发出模块UNKNOWN。
+具体原失败见[任务§40.2](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#402-当前普通输出首失败及收尾)。
+
+下一准确远端材料26032字节，SHA e1889532…，当前未批准。
+四件外发293044字节，十件独占副本429466字节。
+拟先做真实固定child预检，再CanaryCreate和普通新入口各一次，收集后停止。
+新预检是管理员Session0证据，不替代普通Explorer链。
+本轮产品和人工桌面动作NOT_PERFORMED，下一远端审批等待单列。
+原产品/原生构建身份、旧FAIL/UNKNOWN/HALTED保持。
+完整七项准入、产品链路、受影响回归、退出response和Win7未完成。
+任务不登记COMPLETE。
+
+执行代理按负责人批准完成§43/44普通桌面入口实验。
+Win10 R2清单f3290dce…、run 35a73ef6…已自动启动SID1005普通控制器。
+同PID13292、creation639270334497094469完成exit0、预设exit17、exit0。
+六个夹具实例均有held退出证明，第二请求FAIL原证据保持。
+五个不同入口实例也均已结束；bootstrap exit1且关闭记录缺失。
+整体FAIL LIFECYCLE_ENTRY_EXIT_CODE，R1/R2任务均已禁用。
+本地COM修复已通过Win10最小红绿回退诊断及开发机11项检查。
+修复后的完整入口NOT_PERFORMED；原两轮范围已用完。
+[任务§45](tasks/ENGINEERING_02_WIN10_ENTRY_AND_INPUT_BINDING.md#45-收尾修复的一次新增r3完整复验申请2026-10-07)提出一次新增R3复验，4565字节准确材料76cdb9e6…未批准。
+具体证据与边界见任务§44；§42新远端材料仍未批准。
+本轮产品、原取证Modes和Win7均NOT_PERFORMED。
+
+## 工程优化实施（2026-10-07，本地）
+
+负责人要求按[优化方案](plans/PROJECT_ENGINEERING_OPTIMIZATION_PLAN.md)实施。
+当前 [ENGINEERING_01](tasks/ENGINEERING_01_VERIFICATION_ENTRY_AND_REPORT_PILOT.md)在 `codex/a9-alpha2@a53c9b9` 完成检查入口与候选外报告校验试点。
+开发机结果与剩余项写入该任务，不改变产品候选或 Win10/Win7 结论。
+工具交付已关闭；产品 2008 项 PASS，报告试点 26 项 PASS。
+完整工程检查 FAIL：发布组缺历史 RC ZIP，且 Windows PowerShell 项在开发机未执行。
+产品诊断等待 A9-30/31 整合基线。点击与取证接入、空间删除未执行。
+
+## 当前治理与实施入口（2026-10-06，本地工作区）
+
+本轮 [DOCS_06](tasks/DOCS_06_GOVERNANCE_CHECK_AND_LIFECYCLE.md)按负责人直接指令执行。
+当前实施资格见[任务索引](tasks/README.md)的“当前工作与待批准任务”；历史表不授权新实施。
+四个本地工作树的同步结果集中于[统一执行记录](plans/GOVERNANCE_OPTIMIZATION_EXECUTION_RECORD.md)。
+本地修改尚未提交、推送或并入候选；原源码和验收证据绑定保持。
+
+A9-30 实际开发合同位于 codex/a9-30-shell-streaming；A9-31 位于 codex/a9-31-background-tools。
+功能分支的后续结论以其任务书为准；其他分支的旧任务副本不能授权在当前分支实施。
+下方候选和工作项表保留本分支的既有记录，不将本轮治理验证计为产品 PASS。
 
 
 > 本页是当前状态的唯一人类可读入口，只保留当前快照、阻断项与边界。历史报告中的测试数量不自动代表当前基线。
@@ -1218,7 +1892,6 @@ Background run5dee77858e484e51b7380c9bcf9fa701在helper启动前失败；真实D
 原代码反例、Jest平台属性夹具失败、首轮Stop回执/旧sibling dist失败及中断记录保留。最终State82、Shell117、verify:quick七模块build/static通过；规定检查后生成的24个Runner dist副本保全并只恢复原HEAD字节。原生/managed锁未变，无外部写入/提交/委派。
 结论仅LOCAL_REPAIR_VERIFIED，源码提交和新包Windows复验待具体交付；旧R10不改判/恢复，独立收口/Win7 NOT_PERFORMED，A9-31不登记DEVELOPER_VERIFIED。
 
-
 ## 2026-10-04：归属修复准确源码提交完成；新开发包待具体批准
 
 负责人批准五路径本地提交，准确source为`898ee9459a9b987840e94ddef336556ea58dd389`，父为`35a19250ed6589f6a7ba35b940a784325970c111`；五blob/SHA、提交路径和35个其余修改字节复核通过。原State82/Shell117/verify:quick所测源码与提交一致，没有重复产品检查或改绑旧Windows报告。
@@ -1266,7 +1939,6 @@ R8开跑前独立复核发现四项缺口，负责人要求的候选外本地修
 
 开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 保持 DRAFT_READY_FOR_REVIEW。
 [D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 待裁决](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；F5 已确认，第 3～6 项已选 A（第 2 项独立审核者待裁决），真实 Electron/Win10/Win7/指定独立审核 NOT_PERFORMED。
-
 
 ## A9-39 诊断型预演 3 材料已备，待审核与负责人逐字确认（2026-10-18 UTC，开发机）
 
