@@ -6,11 +6,11 @@ Task Type: RELEASE_REISSUE_AND_GATE_A_PREPARATION
 Target Branch: codex/a9-alpha2-integration-r2
 Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
-Candidate: WIN7-54 (development candidate; not frozen; WIN7-53 FAIL retained)
+Candidate: WIN7-55 (frozen 2026-10-26; gate A signed 4368342b…; gate B scoped sign ADR-0286; WIN7-54 superseded)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS
-Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264, ADR-0265, ADR-0266, ADR-0267, ADR-0268, ADR-0269, ADR-0270, ADR-0271, ADR-0272, ADR-0273, ADR-0274, ADR-0275, ADR-0276, ADR-0277, ADR-0278, ADR-0279, ADR-0280, ADR-0281, ADR-0282, ADR-0283
-Revision: r96 (2026-10-25 UTC; ADR-0284 LAN-only and root-cause-before-retry; formal runs eaa7fc92 and 8b4df730 HALTED at p05 by candidate formal-branch cleanup refusal; fix path pending owner decision; r95 was used by the STATUS repair-10 entry)
+Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264, ADR-0265, ADR-0266, ADR-0267, ADR-0268, ADR-0269, ADR-0270, ADR-0271, ADR-0272, ADR-0273, ADR-0274, ADR-0275, ADR-0276, ADR-0277, ADR-0278, ADR-0279, ADR-0280, ADR-0281, ADR-0282, ADR-0283, ADR-0284, ADR-0285, ADR-0286
+Revision: r102 (2026-10-26 UTC; WIN7-55 frozen, both packages re-bound, gate A signed 4368342b…, formal execution PASS (controller f9ae2982, supplement cdb82d32 incl. M5 sent=22), gate B signed ADR-0286 A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
 ```
 
