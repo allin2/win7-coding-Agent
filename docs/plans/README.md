@@ -1,5 +1,7 @@
 # 方案与交接索引
 
+新治理执行使用[统一执行记录](GOVERNANCE_OPTIMIZATION_EXECUTION_RECORD.md)。后续同范围迭代写入任务书已有记录，历史批准材料保持原路径。
+
 本目录存放实现方案、候选合同提案、修复交接书和设计参照。方案不构成实现授权；授权只来自
 `docs/tasks/*.md` 中状态为 `APPROVED_FOR_IMPLEMENTATION` 的任务书（AGENTS.md C14）。
 
@@ -11,6 +13,10 @@ Accepted ADR 正文不得改写。下表“当前处置”为 2026-09-24 整理�
 
 | 文件 | 文档自述状态 | 当前处置 |
 |---|---|---|
+| [PROJECT_ENGINEERING_OPTIMIZATION_PLAN.md](PROJECT_ENGINEERING_OPTIMIZATION_PLAN.md) | `IMPLEMENTATION_IN_PROGRESS` | 检查与报告试点实施见 ENGINEERING_01；产品整合基线另定，空间删除未授权 |
+| [A9_ALPHA2_DELIVERY_SEQUENCE.md](A9_ALPHA2_DELIVERY_SEQUENCE.md) | 顺序与历史裁决 | §6 为 2026-10-11 新窗口实施交接：准确 A9-31 基线、A9-32 本地范围、第二批整合与 Win7/Alpha 2 后续门；不生成任何 PASS |
+| [A9_BATCH_2_ACCEPTANCE_COVERAGE.md](A9_BATCH_2_ACCEPTANCE_COVERAGE.md) | `DRAFT_PLANNING_ONLY` | 第二批候选与 Alpha 2 需求覆盖台账；不生成任何 PASS |
+| [A9_HELPER_V3_STREAMING_PROTOCOL.md](A9_HELPER_V3_STREAMING_PROTOCOL.md) | `APPROVED_FOR_A9_30 / A9_31_RELEASE_DRAFT` | A9-30/ADR-0150 已批准；后台 release 及 A9-31/A9-32 仍待批准，模拟 Demo 不构成产品证据 |
 | [A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md](A9_22_WIN7_38_ACCEPTANCE_HANDOFF.md) | `DRAFT_READY_FOR_FREEZE` | A9-22 / WIN7-38 Win7 实机验收交接书（外部执行模型执行，审核方复核，负责人签发与裁决） |
 | [A9_19_WIN7_37_REISSUE_PROPOSAL.md](A9_19_WIN7_37_REISSUE_PROPOSAL.md) | `APPROVED_FOR_IMPLEMENTATION` | A9-19 / WIN7-37 换发合同（ADR-0136），已完成：WIN7-37 于 2026-09-25 签发 `A9_19_WIN7_LIVE_PROGRESS_AND_LAYOUT_PASS` |
 | [A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md](A9_19_WIN7_37_ACCEPTANCE_HANDOFF.md) | `CLOSED` | A9-19 Win7 实机验收交接书（外部执行模型执行，审核方复核；含补跑附录 A/B 与报告校验附录 C）；2026-09-25 签发后关闭 |

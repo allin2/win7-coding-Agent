@@ -60,6 +60,22 @@
 计划在 WIN7-42 门 B 之后归档），以及 `deps/`、`evidence/`、`ssh/`、`build-kits/`、`coordinator/`。
 `.acceptance/ssh/` 私钥从不归档或上传。`.DS_Store` 未归档。
 
+## 本机历史修复证据索引
+
+### WIN7-28 修复证据（20260910-baseline）
+
+- 用途：保留源码提交 `55d9d5f7bec009c62a1f508c8b7bed0946ba6aae` 的独立复核、复现探针及开发机 smoke / 投影附件，用于追溯时间显示、历史分页、跨会话残留、外置 driver 依赖和 fixture 协议问题。
+- 本机主工作区：`/Users/qlyf/Developer/win7-coding-Agent`；证据目录（相对该根）：`.acceptance/maintenance/a9-w28-repair-evidence/20260910-baseline/`。其他 Git 工作树或克隆不会自动携带此目录。
+- 阅读入口：`review/REVIEW.md`；复现探针及原输出：`review/review-probes.cjs`、`review/review-probes-output.json`；原 smoke 记录：`smoke/a9-06-w28-smoke.json`；投影原始附件：`projection-evidence/`；内容校验清单：`SHA256SUMS.txt`。
+- 范围：这些是历史源码和开发机复核证据，原 smoke 为 FAIL，不签发 Win7、Alpha 或 RC PASS。正式 WIN7-28 结论另见 [A9-15 UI 集成验收收口报告](../reports/2026-09/a9_win7_28_ui_integration_closeout_2026-09-11.md)。
+- 保留与定位：2026-09-30 从同级 `a9-w28-repair-evidence` 移入项目，原始内容保留；迁移校验记录为 `.acceptance/maintenance/a9-w28-evidence-move-20260930.json`。本项保留在本机，不作为上述 Release 的已归档集合。
+
+`.acceptance/` 被 Git 忽略，常规搜索可能跳过。先从本索引定位，再明确指定证据目录检索，例如：
+
+```sh
+rg --no-ignore -n 'F2|F4|QUERY_FAILURE_RETRY' /Users/qlyf/Developer/win7-coding-Agent/.acceptance/maintenance/a9-w28-repair-evidence/20260910-baseline/review
+```
+
 ## 取回步骤
 
 需要 `gh`（已登录且有该私有仓库读权限）、`python3` 与 OpenSSL 3。以取回 WIN7-33 双构建为例：

@@ -106,9 +106,40 @@ const docFiles = repositoryFiles().filter((filename) => {
   );
 });
 
+// DOCS_05 (ADR-0191): reports dated on or after the OUTPUT_STYLE effective date must not
+// use W05 vague wording. Code, block quotes and Chinese quotations (verbatim citations) are skipped.
+const vagueWordingEffectiveDate = "2026-10-06";
+const vagueWording = /基本通过|基本完成|基本可用|基本没问题|应该可以|应该没问题|应该能|大概|差不多|理论上|预计通过|估计|似乎|好像/g;
+
+function inVagueWordingScope(rel) {
+  const match = rel.split(path.sep).join("/").match(/^docs\/reports\/.+_(\d{4}-\d{2}-\d{2})\.md$/);
+  return Boolean(match) && match[1] >= vagueWordingEffectiveDate;
+}
+
+function checkVagueWording(filename, source) {
+  let fenced = false;
+  source.split("\n").forEach((line, index) => {
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (fenced || /^\s*>/.test(line)) return;
+    const text = line.replace(/`[^`]*`/g, "").replace(/“[^”]*”/g, "").replace(/「[^」]*」/g, "");
+    for (const match of text.matchAll(vagueWording)) {
+      failures.push({
+        kind: "vague-wording",
+        file: relative(filename),
+        line: index + 1,
+        reason: `OUTPUT_STYLE W05 vague wording "${match[0]}"`,
+      });
+    }
+  });
+}
+
 for (const filename of docFiles) {
   const source = fs.readFileSync(filename, "utf8");
   checkLinks(filename, source);
+  if (inVagueWordingScope(relative(filename))) checkVagueWording(filename, source);
   if (source.includes("docs/tasks/active/")) {
     failures.push({ kind: "stable-task-path", file: relative(filename), reason: "obsolete active/ task path" });
   }
@@ -158,12 +189,22 @@ for (const filename of taskFiles) {
 
 const taskIndexRows =
   /^\|[ \t]*\[[^\]]+\]\(([^)\n]+\.md)\)[ \t]*\|[ \t]*([^\n|]*?)[ \t]*\|[ \t]*([^\n|]*?)[ \t]*\|[ \t]*([^\n|]*?)[ \t]*\|[ \t]*([^\n|]*?)[ \t]*\|$/gm;
+const taskLifecycleHeadings = [...taskIndexSource.matchAll(/^##\s+(.+)$/gm)];
+const taskLifecycleSections = new Set(["当前工作与待批准任务", "已关闭任务", "历史合同与保留事项"]);
+const lifecycleIndexedNames = new Set();
 for (const match of taskIndexSource.matchAll(taskIndexRows)) {
   const name = path.basename(match[1]);
   const metadata = taskMetadata.get(name);
   if (!metadata) {
     failures.push({ kind: "task-index", file: "docs/tasks/README.md", reason: `unknown task ${name}` });
     continue;
+  }
+  lifecycleIndexedNames.add(name);
+  const section = taskLifecycleHeadings.filter((heading) => heading.index < match.index).at(-1)?.[1].trim();
+  if (!taskLifecycleSections.has(section)) {
+    failures.push({ kind: "task-lifecycle", file: "docs/tasks/README.md", reason: `${name} has no recognized lifecycle section` });
+  } else if ((section === "已关闭任务") !== (metadata.Status === "COMPLETE")) {
+    failures.push({ kind: "task-lifecycle", file: "docs/tasks/README.md", reason: `${name} COMPLETE status must appear only in 已关闭任务` });
   }
   const indexed = {
     "Task Type": match[2].trim(),
@@ -179,6 +220,11 @@ for (const match of taskIndexSource.matchAll(taskIndexRows)) {
         reason: `${name} ${field} is ${indexed[field]}, expected ${metadata[field]}`,
       });
     }
+  }
+}
+for (const name of taskMetadata.keys()) {
+  if (!lifecycleIndexedNames.has(name)) {
+    failures.push({ kind: "task-lifecycle", file: "docs/tasks/README.md", reason: `${name} needs a complete lifecycle table row` });
   }
 }
 
@@ -201,7 +247,55 @@ function adrSections(source) {
 }
 
 function adrImmutableBody(section) {
-  return section.replace(/^- 状态：.*$/m, "").trimEnd();
+  return section.replace(/^-\s+(?:状态|Status)\s*[:：].*$/mi, "").trimEnd();
+}
+
+// DOCS_06: existing ADRs use both Chinese and English status labels.
+function adrStatus(section) {
+  const raw = section.match(/^-\s+(?:状态|Status)\s*[:：]\s*(.+)$/mi)?.[1];
+  if (!raw) return undefined;
+  return raw.split(/[（(]/, 1)[0].trim();
+}
+
+const currentAdrSections = adrSections(decisions);
+for (const [id, section] of currentAdrSections) {
+  if (!/^(?:Accepted|Proposed|Superseded)\b/.test(adrStatus(section) ?? "")) {
+    failures.push({ kind: "adr-metadata", file: "docs/DECISIONS.md", reason: `ADR-${id} has no recognized status` });
+  }
+}
+
+const adrIndexFile = path.join(root, "docs", "DECISIONS_INDEX.md");
+if (!fs.existsSync(adrIndexFile)) {
+  failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: "ADR index is missing" });
+} else {
+  const adrIndex = new Map();
+  const source = fs.readFileSync(adrIndexFile, "utf8");
+  for (const match of source.matchAll(/^\|\s*ADR-(\d{4})\s*\|([^|\n]*)\|([^|\n]*)\|\s*$/gm)) {
+    const id = match[1];
+    if (adrIndex.has(id)) {
+      failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: `duplicate ADR-${id} index row` });
+    }
+    adrIndex.set(id, { title: match[2].trim(), status: match[3].trim() });
+  }
+  for (const [id, section] of currentAdrSections) {
+    const indexed = adrIndex.get(id);
+    if (!indexed) {
+      failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: `ADR-${id} is missing from index` });
+      continue;
+    }
+    const title = section.match(/^##\s+ADR-\d{4}\s+(.+)$/m)?.[1].trim();
+    if (indexed.title !== title) {
+      failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: `ADR-${id} index title differs from body` });
+    }
+    if (indexed.status !== adrStatus(section)) {
+      failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: `ADR-${id} index status differs from body` });
+    }
+  }
+  for (const id of adrIndex.keys()) {
+    if (!currentAdrSections.has(id)) {
+      failures.push({ kind: "adr-index", file: "docs/DECISIONS_INDEX.md", reason: `ADR-${id} index row has no body` });
+    }
+  }
 }
 
 try {
@@ -210,9 +304,9 @@ try {
     encoding: "utf8",
   });
   const headSections = adrSections(headDecisions);
-  const currentSections = adrSections(decisions);
+  const currentSections = currentAdrSections;
   for (const [id, headSection] of headSections) {
-    if (!/^- 状态：Accepted\b/m.test(headSection)) continue;
+    if (!/^Accepted\b/.test(adrStatus(headSection) ?? "")) continue;
     const currentSection = currentSections.get(id);
     if (!currentSection || adrImmutableBody(currentSection) !== adrImmutableBody(headSection)) {
       failures.push({

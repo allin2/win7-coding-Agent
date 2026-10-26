@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A9-30 · Shell 输出设计演示</title>
+<style>
+:root{--text:#253044;--muted:#64748b;--line:#d8e0eb;--accent:#2563eb;--soft:#eff6ff;--amber:#92400e;--red:#b91c1c}
+*{box-sizing:border-box}body{margin:0;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--text);background:#f4f7fb}
+button,input{font:inherit}button{padding:7px 12px;border:1px solid var(--line);border-radius:7px;background:white;color:var(--text);cursor:pointer}button:hover:not(:disabled){background:var(--soft);border-color:#93b4f8}button:disabled{opacity:.5;cursor:default}button:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #93b4f8;outline-offset:2px}.primary{background:var(--accent);border-color:var(--accent);color:white}.primary:hover:not(:disabled){background:#1d4ed8}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);background:white}h1{font-size:18px;margin:0}header span{font-size:12px;color:var(--muted)}.layout{display:grid;grid-template-columns:210px minmax(0,1fr) 270px;min-height:calc(100vh - 58px)}aside{padding:20px;background:#f8faff}aside h2{font-size:13px;margin:0 0 12px;color:var(--muted)}.rail{border-right:1px solid var(--line)}.inspector{border-left:1px solid var(--line)}.selected{padding:10px;background:var(--soft);border:1px solid #bfd3f7;border-radius:7px}.selected strong{display:block}main{padding:20px;min-width:0}.notice{padding:10px 14px;border:1px solid #d0deee;border-radius:8px;background:#f8fbff;color:#475569;margin-bottom:16px}.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px}.toolbar .space{flex:1}.request{padding:10px 14px;background:var(--soft);border:1px solid #bfdbfe;border-radius:10px;width:fit-content;margin:0 0 20px auto}.card{border:1px solid var(--line);border-radius:10px;background:white;overflow:hidden}.cardhead{padding:12px 16px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--line)}.chip{font-size:12px;padding:2px 8px;border-radius:5px;background:#eef2f7;color:#475569}.chip.running{color:#1d4ed8;background:#eff6ff}.chip.failed{color:var(--red);background:#fef2f2}.chip.exited{color:#166534;background:#f0fdf4}.command{padding:10px 16px;background:#f8fafc;font-family:Consolas,monospace;overflow-wrap:anywhere}.panes{display:grid;grid-template-columns:1fr 1fr;gap:0}.pane{min-width:0;padding:12px 16px}.pane+.pane{border-left:1px solid var(--line)}.label{font-size:12px;font-weight:600;color:var(--muted)}pre{font:13px/1.7 Consolas,"Microsoft YaHei",monospace;margin:8px 0;min-height:150px;max-height:260px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}.stderr pre{color:var(--amber)}.empty{color:#94a3b8}.footer{padding:10px 16px;border-top:1px solid var(--line);background:#f8fafc;font-size:13px}.tests{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.fact{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px}.hint{color:var(--muted);font-size:12px}details{margin-top:20px}summary{cursor:pointer}#events{min-height:0;max-height:190px;font-size:12px}.rail-off{grid-template-columns:minmax(0,1fr) 270px}.inspector-off{grid-template-columns:210px minmax(0,1fr)}.rail-off.inspector-off{grid-template-columns:minmax(0,1fr)}[hidden]{display:none!important}a{color:var(--accent)}@media(max-width:1100px){.layout,.rail-off{grid-template-columns:180px minmax(0,1fr)}.inspector{display:none}.rail-off{grid-template-columns:minmax(0,1fr)}}@media(max-width:799px){header{flex-wrap:wrap}.layout,.inspector-off{display:block}.rail{display:none}.panes{grid-template-columns:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--line)}main{padding:12px}header span{width:100%}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header><h1>A9 · Shell 输出</h1><span>设计演示 · 模拟数据 · 不执行命令或访问模型</span></header>
+<div class="layout" id="layout">
+<aside class="rail" id="rail"><h2>对话</h2><div class="selected"><strong>检查构建输出</strong><span class="hint">当前工作区 · 示例项目</span></div><p class="hint">命令运行时，任务状态与停止入口始终可见。</p><p><a href="../A9_HELPER_V3_STREAMING_PROTOCOL.md">协议设计</a></p></aside>
+<main>
+<div class="notice">本页用于审阅工具卡、双源输出、停止与恢复形态。真实 helper、审计和 Win7 验证由任务书另行要求。</div>
+<div class="toolbar"><button id="railToggle" aria-controls="rail" aria-expanded="true">左栏</button><button id="inspectorToggle" aria-controls="inspector" aria-expanded="true">检查器</button><span class="space"></span><label><input id="follow" type="checkbox" checked> 跟随输出</label></div>
+<p class="request">运行检查，让我在执行中看到输出。</p>
+<section class="card" aria-label="Shell 工具活动">
+<div class="cardhead"><strong>Shell</strong><span id="state" class="chip">待运行</span><span class="space"></span><button id="start" class="primary">开始演示</button><button id="stop" disabled>停止</button></div>
+<div class="command">示例检查：每 2 秒产生一个 tick，最后退出</div>
+<div class="panes"><div class="pane"><div class="label">stdout · 标准输出</div><pre id="stdout" aria-label="标准输出"><span class="empty">尚无输出</span></pre></div><div class="pane stderr"><div class="label">stderr · 诊断输出</div><pre id="stderr" aria-label="诊断输出"><span class="empty">尚无输出</span></pre></div></div>
+<div class="footer" id="summary" role="status" aria-live="polite">等待开始。输出会在运行结束前出现。</div>
+</section>
+<div class="tests"><button id="secret">模拟跨块秘密</button><button id="large">模拟超大输出</button><button id="audit">模拟审计失败</button><button id="restart">模拟重启</button><button id="reload">重载已保存投影</button><button id="reset">重置演示</button></div>
+<p class="hint">跨块示例只发布脱敏文本；重启只恢复已保存事实，不自动继续执行。滚动可由用户控制，所有示例文本按纯文本显示。</p>
+<details><summary>查看已发布事件</summary><pre id="events"></pre></details>
+</main>
+<aside class="inspector" id="inspector"><h2>任务状态</h2><div class="fact"><span>事件数</span><strong id="eventCount">0</strong></div><div class="fact"><span>最后输出序号</span><strong id="lastSeq">0</strong></div><div class="fact"><span>退出码</span><strong id="exitCode">—</strong></div><div class="fact"><span>恢复重复数</span><strong id="duplicates">0</strong></div><p class="hint" id="storage">演示记录仅保存在本页浏览器存储中。</p><p class="hint">退出、取消和中断各自保留真实含义。模拟审计失败后不再展示未经保存的新输出。</p></aside>
+</div>
+<script>
+(function(){
+'use strict';
+const KEY='a9-30-streaming-design-demo-v1';
+const el=id=>document.getElementById(id);
+let model={status:'idle',exitCode:null,seq:0,ticks:0,truncated:false,events:[]};let timer=null;let duplicates=0;
+const labels={idle:'待运行',running:'运行中',exited:'已结束',cancelled:'已停止',interrupted:'已中断',failed:'审计失败'};
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(model));return true}catch(error){el('storage').textContent='浏览器存储不可用，当前仅内存演示。';return false}}
+function restore(){try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved&&Array.isArray(saved.events)&&Object.hasOwnProperty.call(labels,saved.status)){model=saved;if(model.status==='running')model.status='interrupted';const seen=new Set();duplicates=0;model.events=model.events.filter(e=>{if(seen.has(e.id)){duplicates++;return false}seen.add(e.id);return true})}}catch(error){el('storage').textContent='演示记录无法读取，请重置演示。'}}
+function summary(){if(model.status==='running')return '运行中 · 首条输出无需等待命令结束'+(model.truncated?' · 预览已截断':'');if(model.status==='exited')return '已结束 · 退出码 0 · 模拟清理已确认';if(model.status==='cancelled')return '已停止 · 取消结果已保存 · 模拟清理已确认';if(model.status==='interrupted')return '已中断 · 仅恢复已保存输出，未重放命令';if(model.status==='failed')return '审计失败 · 停止后续发布 · 已有事实保留；真实清理需另行验证';return '等待开始。输出会在运行结束前出现。'}
+function render(){el('state').textContent=labels[model.status];el('state').className='chip '+model.status;for(const stream of ['stdout','stderr']){const text=model.events.filter(e=>e.stream===stream).map(e=>e.text).join('');el(stream).textContent=text||'尚无输出';if(el('follow').checked)el(stream).scrollTop=el(stream).scrollHeight}el('summary').textContent=summary();el('start').disabled=model.status==='running';el('stop').disabled=model.status!=='running';el('eventCount').textContent=model.events.length;el('lastSeq').textContent=model.seq;el('exitCode').textContent=model.exitCode===null?'—':model.exitCode;el('duplicates').textContent=duplicates;el('events').textContent=model.events.map(e=>'#'+e.id+' · '+e.stream+' · '+e.text.trim()).join('\n')}
+function emit(stream,text){if(model.status==='failed')return;const event={id:++model.seq,stream:stream,text:text};model.events.push(event);persist();render()}
+function halt(status){if(timer!==null)clearInterval(timer);timer=null;model.status=status;model.exitCode=status==='exited'?0:null;persist();render()}
+el('start').onclick=function(){halt('idle');model={status:'running',exitCode:null,seq:0,ticks:0,truncated:false,events:[]};persist();render();timer=setInterval(function(){model.ticks++;emit(model.ticks===2?'stderr':'stdout','tick '+model.ticks+' · '+(model.ticks===2?'示例警告：仍在检查':'检查进行中')+'\n');if(model.ticks===4)halt('exited')},2000)};
+el('stop').onclick=()=>halt('cancelled');
+el('secret').onclick=()=>emit('stdout','凭据输出（模拟两个输入片段合并后）：secret=***redacted***\n');
+el('large').onclick=function(){model.truncated=true;emit('stdout',('示例长输出 · ').repeat(400)+'\n[预览已截断；完整输出仍须遵守任务书上限]\n')};
+el('audit').onclick=()=>halt('failed');
+el('restart').onclick=function(){if(timer!==null)clearInterval(timer);timer=null;if(model.status==='running')model.status='interrupted';persist();restore();render()};
+el('reload').onclick=function(){if(timer!==null)clearInterval(timer);timer=null;restore();persist();render()};
+el('reset').onclick=function(){halt('idle');model={status:'idle',exitCode:null,seq:0,ticks:0,truncated:false,events:[]};duplicates=0;persist();render()};
+for(const pair of [['railToggle','rail','rail-off'],['inspectorToggle','inspector','inspector-off']])el(pair[0]).onclick=function(){const hide=!el(pair[1]).hidden;el(pair[1]).hidden=hide;this.setAttribute('aria-expanded',String(!hide));el('layout').classList.toggle(pair[2],hide)};
+restore();persist();render();
+})();
+</script>
+</body>
+</html>

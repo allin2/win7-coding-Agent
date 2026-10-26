@@ -149,7 +149,58 @@
 | ADR-0143 | Alpha 2 的 Review 改为“先写后审”的改动审阅，不做暂存区式 Review 模式 | Accepted |
 | ADR-0144 | 以当前主线换发 WIN7-40，在 Win7 实机验收 A9-24 改动审阅 | Accepted |
 | ADR-0145 | WIN7-40 记为验证套件缺陷不通过，修订 A9-25 修复套件后换发 WIN7-41 | Accepted |
-| ADR-0146 | A9-26 第一批可靠性：恢复目录、验证证据、项目说明、上下文预算与环境事实 | Accepted |
+| ADR-0146 | 第一批可靠性（A9-26）：恢复目录自忽略、验证证据收紧、项目说明与环境事实注入、输入上下文预算 | Accepted |
 | ADR-0147 | 批准 A9-27：以 WIN7-42 验收 A9-26 第一批可靠性 | Accepted |
 | ADR-0148 | A9-28 修复失败验证大输出与不可压缩上下文预算遗漏 | Accepted |
 | ADR-0149 | A9-29 必需审计故障与 Provider 响应完整性修复 | Accepted |
+| ADR-0150 | helper v3 和 A9-30 Shell 运行中输出 | Accepted |
+| ADR-0151 | A9-31 后台进程模型工具与显式释放提案 | Proposed |
+| ADR-0152 | A9-32 用户主动继续中断任务提案 | Proposed |
+| ADR-0169 | 增量验收与发版工作规范 | Accepted |
+| ADR-0190 | 面向负责人的输出规范、术语表与 HTML 解说边界 | Accepted |
+| ADR-0191 | 输出规则自动加载与新报告模糊词检查（ADR-0190 补充） | Accepted |
+| ADR-0192 | 文档检查完整性、任务实施入口分区与本地治理同步 | Accepted |
+| ADR-0193 | 候选外参数化报告校验试点格式 | Proposed |
+| ADR-0194 | Win10 验证工具的分层输入与产品取证双身份 | Accepted |
+| ADR-0195 | Win10 真实新构建与当前桌面执行绑定 | Accepted |
+| ADR-0196 | Win10 取证组件的进程代次与明确非父子关系 | Accepted |
+| ADR-0197 | Win10报告字段比较与构建验证器身份分离 | Accepted |
+| ADR-0198 | Win10取证实际能力准入与产品执行权限分离 | Accepted |
+| ADR-0199 | Win10取证最小诊断后的单次恢复 | Accepted |
+| ADR-0200 | Win10普通取证入口的进程执行策略 | Accepted |
+| ADR-0201 | 普通取证探针的捕获首失败诊断 | Accepted |
+| ADR-0202 | 普通取证的完整自有捕获集合合同 | Accepted |
+| ADR-0203 | 自有取证子进程的有界输出首失败诊断 | Accepted |
+| ADR-0204 | 固定自有取证子fixture的进度偏好 | Accepted |
+| ADR-0205 | 普通桌面诊断入口的 Explorer 启动与有限复用 | Accepted |
+| ADR-0206 | Win10 取证普通入口接入自动入口 | Accepted |
+| ADR-0207 | Win10 B2单次普通取证入口的范围绑定 | Accepted |
+| ADR-0208 | B3普通取证入口与完整目录的共同前检 | Accepted |
+| ADR-0209 | 普通入口失败收尾的信号异常隔离与退出证明 | Accepted |
+| ADR-0210 | Win10 产品执行合同 v6：取证准入与有限产品派发 | Accepted |
+| ADR-0211 | 桥接自动入口扩展到 B4/B5 与 dispatcher 目标 | Accepted |
+| ADR-0212 | 桥接根目录改为 B6/B7 | Accepted |
+| ADR-0213 | 当前 Win10 主机的诊断路线与验收证据边界 | Superseded by ADR-0219 |
+| ADR-0214 | B8/B9完整本地消费者接入与新派发器CMD路径 | Accepted |
+| ADR-0215 | ENGINEERING_02完整工具修复阶段授权 | Accepted |
+| ADR-0216 | ENGINEERING_02未派发首轮的不可变替代运行 | Accepted |
+| ADR-0217 | ENGINEERING_02完整非子进程排除证明与有界追加轮次 | Accepted |
+| ADR-0218 | ENGINEERING_02成功r05普通原始证据有界补收集 | Accepted |
+| ADR-0219 | 负责人指定当前 Win10 为可信验收环境 | Accepted |
+| ADR-0220 | ENGINEERING_02完整产品验证阶段与退出语义工具 | Accepted |
+| ADR-0221 | ENGINEERING_02登记当前Win10已有.NET Framework 4.8.1 | Accepted |
+| ADR-0222 | ENGINEERING_02 Text传输修复与最后源版本的完整替代方案 | Accepted |
+| ADR-0223 | ENGINEERING_02准确旧解析实例处置与完整替代验证 | Accepted |
+| ADR-0224 | ENGINEERING_02先观察实际Process组件锁并完整替代验证 | Accepted |
+| ADR-0225 | ENGINEERING_02完整准确数据闭包修复及未派发恢复替代验证 | Accepted |
+| ADR-0226 | ENGINEERING_02完整归档消费者修复及有界剩余产品阶段 | Accepted |
+| ADR-0227 | ENGINEERING_02空输出Hash修复与当前归档生命周期准确裁决 | Accepted |
+| ADR-0228 | ENGINEERING_02生产器摘要修复及一次额外部署根 | Accepted |
+| ADR-0229 | ENGINEERING_02报告父目录修复与准确P13物理闭包复用 | Accepted |
+| ADR-0230 | ENGINEERING_02冻结前只读变量合同与完整P13替代阶段 | Accepted |
+| ADR-0231 | ENGINEERING_02当前容量门失败后的一次只读容量诊断 | Accepted |
+| ADR-0232 | ENGINEERING_02停止工具扩建并保留唯一产品收口机会 | Proposed |
+| ADR-0233 | ENGINEERING_02唯一收口前的只读容量对象硬门裁决 | Accepted |
+| ADR-0234 | ENGINEERING_02容量通过后的唯一完整产品收口阶段 | Accepted |
+| ADR-0235 | ENGINEERING_02同一最后阶段的三处本地测试输出绑定修正 | Accepted |
+| ADR-0288 | Alpha 阶段节奏与验收执行准则 | Accepted |

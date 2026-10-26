@@ -4,6 +4,10 @@
 实机或等价 VM 验证；现代开发机上的通过不能替代目标平台验收。Phase 1/2 继续使用其冻结的
 Python 3.8.10 验收口径。
 
+构建、工具准入、最短真实链路、受影响回归及正式发版的执行顺序，采用
+[增量验收与发版工作规范](acceptance/ACCEPTANCE_AND_RELEASE_WORKFLOW.md)（ADR-0169）。
+该规范用于减少重复执行；本文件及具体任务书规定的覆盖、目标环境和安全门继续有效。
+
 ## 1. Runtime Profile 与验证环境
 
 ### 1.1 Runtime Profile 必填项
@@ -267,3 +271,7 @@ A9 Alpha 1 允许 Win10 smoke 在内部 Alpha 阶段非阻塞，但 Win7 五旅�
 进入 RC 前补齐同一候选 Win10 证据。按 ADR-0096，Alpha 1 Review 为延期项而不是 PASS 项；WIN7-10 的
 Review 必须保持 fail-closed、零写入且不会静默 Full Access，并作为已知限制披露。Office、IDE/LSP、交互终端、Browser、
 多 Agent 和插件为不适用项。
+
+## 本地治理入口（ADR-0192）
+
+实施资格见 [任务索引](tasks/README.md)的当前工作分区。规则同步和检查结果见[统一执行记录](plans/GOVERNANCE_OPTIMIZATION_EXECUTION_RECORD.md)。

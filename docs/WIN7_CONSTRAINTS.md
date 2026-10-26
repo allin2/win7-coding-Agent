@@ -304,3 +304,153 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 - [Git for Windows：版本与平台支持发布记录](https://github.com/git-for-windows/build-extra/blob/main/ReleaseNotes.md)
 
 上游依据用于筛选候选，不替代本项目在 Win7 SP1 x64 上对精确工件的验收。
+
+#### 2026-10-07 ENGINEERING_02 普通桌面入口实验依赖提案（ADR-0205）
+
+Profile：WIN10_PS51_EXISTING_EXPLORER_FIXED_PROBE_PROPOSED。
+状态：Proposed；当前没有新实现、COM执行或系统配置授权。
+范围只限任务§43的Win10诊断入口，不进入Win7产品交付。
+
+| 评审项 | 提案范围与依据 |
+|---|---|
+| 系统/API | 现有Shell.Application、IShellWindows.FindWindowSW、桌面Document.Application及IShellDispatch2.ShellExecute；PS5.1/.NET COM调用与Marshal.ReleaseComObject；Task Scheduler 2.0固定任务创建/回读/按需运行/禁用 |
+| 准确主机与版本 | WIN-2JQ66JE4HTQ，Win10 build19045、PS5.1.19041.6456；shell32.dll 10.0.19041.4522，taskschd.dll及powershell.exe 10.0.19041.1；实际size/SHA见下方准确材料 |
+| 已取字节身份 | shell32.dll SHA936c33a8…、taskschd.dll SHAbbe73345…、powershell.exe SHA9785001b…；三件只读现场记录已保存，执行前再核验 |
+| 现有原生依赖 | 复用capture DLL SHA9a205e4c…/MVID f87e40ae-f1bf-4eef-b2a0-30cbb6da0bc0及原源码/构建记录；不重编，不新增P/Invoke或C# |
+| 前置与权限 | 已登录a9builder及唯一合格Explorer；管理员SSH仅负责固定任务配置及证据回收；实际控制器普通Session/Medium/非提升/noHostJob，拒绝管理员或Session0替代 |
+| 来源/许可/闭包 | Windows自带系统文件及既有捕获库；系统组件留在主机，适用Windows许可，不打包分发；无下载、安装或新增第三方库 |
+| 兼容与证据 | 微软Shell示例要求Vista及以后，Task Scheduler 2.0同样提供旧系统接口；这些说明不代替Win7实测，本实验Win7为NOT_PERFORMED |
+| 风险与拒绝 | COM不能取得当前Explorer、错误Session、Job不满足、输出/身份/完整性/审计/未知退出均拒绝；不解绑Job、不改UAC/ACL/持久策略，不以截图或任务状态签PASS |
+| 回滚 | 停止新请求，禁用本次准确任务；保留输入、首失败和各版本；不删除或覆盖旧任务/旧根 |
+
+准确材料：outputs/engineering-win10-entry-20261007-r1/desktop-reuse-20261008-r1/desktop-entry-review-v1.json。
+7666字节，SHA256 04c81f90192785dfe2f468a8c94ad0903f15d384bee7f555a6d7fc8841ab136c。
+实机原始系统文件记录为同目录system-files.stdout，完整SHA及尺寸在机器材料中。
+官方依据：[Execute In Explorer](https://learn.microsoft.com/en-us/windows/win32/shell/samples-execinexplorer)、
+[Shell.ShellExecute](https://learn.microsoft.com/en-us/windows/win32/shell/shell-shellexecute)、
+[TaskFolder.RegisterTaskDefinition](https://learn.microsoft.com/en-us/windows/win32/taskschd/taskfolder-registertaskdefinition)。
+本登记是待批准依赖评审，不授予任务实现、远端写入或Win7执行权限。
+
+负责人已批准ADR-0205、ENGINEERING_02 §43–44及准确材料04c81f90…。
+上述Profile仅在三路径和固定Win10实验范围内进入实施授权。
+Profile标识中的PROPOSED保留为原登记名；批准状态以本段为准。
+默认任务安全描述符由系统生成，不修改其他任务或文件ACL。
+系统文件和既有capture字节执行前直接核验，缺失或漂移时停止。
+
+
+### 普通桌面入口R3续验申请边界（ENGINEERING_02 §45）
+
+原两轮范围已用完，R1/R2失败与准确输入保留，任务均禁用。
+本地COM关闭修复不增加系统API、原生构建或Win7依赖。
+一次新增R3复验材料76cdb9e6…、4565字节当前未批准。
+批准前不扩展固定根白名单，不创建R3任务或执行第三轮入口。
+现有Runtime Profile、普通身份及关闭要求保持。
+
+负责人回复“批准，按推荐A执行”，批准材料76cdb9e6…的一次R3复验。批准记录见任务§46。
+上述“当前未批准”保留为批准前记录，以本段准确批准为当前执行依据。
+两个白名单脚本仅替换根字面量为R3，大小和SHA与材料一致；系统API、原生构建和Win7依赖未增加。
+R3已在Win10验收机执行一次，结果DESKTOP_ENTRY_REUSE_DIAGNOSTIC_PASS_NOT_PRODUCT_ADMISSION，见任务§46.3。
+R1/R2/R3任务均Disabled，入口实验额度剩余0；该结果不进入产品或Win7交付闭包，Win7 NOT_PERFORMED。
+
+### 取证普通入口接入范围（ENGINEERING_02 §47，待批准）
+
+范围只限Win10诊断与取证准入工具，不进入Win7产品交付。
+沿用ADR-0205登记的Shell.Application、Task Scheduler 2.0与捕获库9a205e4c…，不新增系统API、原生构建或下载依赖。
+cmd.exe输入重定向`<NUL`是命令行语法，不是新依赖；其对`pause`的效果在Win10为UNKNOWN，由阶段A验证。
+准确材料8328字节，SHA256 572b8f9a…，当前未批准；批准前不创建实现文件、任务或远端根。
+
+负责人回复“批准，按推荐方案1执行”，批准材料572b8f9a…，批准记录见任务§48。
+上述“当前未批准”保留为批准前记录，以本段准确批准为当前执行依据。
+阶段B以§42.3远端材料e1889532…获批为条件，当前NOT_PERFORMED；Win7 NOT_PERFORMED。
+阶段A已在Win10验收机一次通过，结果ORDINARY_ENTRY_BRIDGE_LAUNCH_AND_EXIT_PASS_NOT_ADMISSION，见任务§48.3；`pause`在输入重定向到NUL后无需按键即释放。
+阶段B仍NOT_PERFORMED，以§42.3远端材料e1889532…获批为前置；Win7 NOT_PERFORMED。
+阶段B已在Win10验收机一次通过（桥接部分），真实CMD由桥接启动，消费者Ordinary回执为PASS，见任务§48.5与§49；Win7 NOT_PERFORMED。
+
+### ENGINEERING_02完整产品验证的UIA工具登记提案（§106 / ADR-0220）
+
+Profile为E02-WIN10-UIA-V1_TEST_ONLY，状态Proposed；尚未准入或执行。
+该工具只在Win10验收机运行，位于候选产品包外，不增加Win7产品依赖。
+准确登记材料为phase-r1/planning/product-completion-r1/uia-c15-c16-proposed-profile-v1.json。
+材料3893字节，SHA256 `3883582c4a331d1be4a66dd9d321d725ca17e4c747cbd74151116be248c3db94`。
+
+| C15/C16项目 | 精确范围与进入条件 |
+|---|---|
+| 运行时 | 当前Win10 x64、PS5.1/CLR4、已安装.NET Framework4.8；隔离窗口用锁定Electron22.3.27 |
+| 系统组件 | UIAutomationClient、UIAutomationTypes、WindowsBase、UIAutomationClientsideProviders，以及System32/UIAutomationCore；不下载或安装 |
+| 来源、版本、哈希 | 固定可信目标上的微软系统/GAC安装视图；首只读前检取得canonical路径、实际版本、size/SHA、强名称、签名状态及加载闭包，写入当前不可变锁后才使用 |
+| 许可证与闭包 | 沿用已安装Windows/.NET系统组件许可；系统程序集不重新分发，不进入产品SBOM |
+| API | AutomationElement当前窗口/限定子树查询、ProcessId/Name/ControlType/NativeWindowHandle、GetRuntimeId、TryGetCurrentPattern与InvokePattern.Invoke |
+| 身份和权限 | 同普通SID、当前Explorer Session、Medium8192、未提升、InJob=false；不启用uiAccess，不操作UAC、登录或其他应用窗口 |
+| 窗口约束 | 当前held实例、request/phase/sequence、准确标题及三个按钮唯一绑定；子树最多128节点/深8，每sequence最多Invoke一次，原生120秒限时保持 |
+| 缺失与失败 | 缺程序集、版本/哈希变化、无唯一语义目标、错误/晚到原生response或未知生命周期时fail-closed；不切换提供者或坐标操作 |
+| 风险与责任 | UIA跨进程调用会操作UI；执行代理负责准确目标与回执守卫，负责人指定环境可信；技术主机完整性UNKNOWN不被升级 |
+| 目标证据 | 两件隔离工具窗口的实际response0/1与held收尾先通过；产品StopExit/ReleaseExit另取自身原生回执；当前均NOT_PERFORMED |
+
+微软说明了[InvokePattern操作](https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/invoke-a-control-using-ui-automation)、
+[权限边界](https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/ui-automation-security-overview)和
+[独立线程要求](https://learn.microsoft.com/en-us/dotnet/framework/ui-automation/ui-automation-threading-issues)。
+这些资料支持API设计，不证明当前Electron对话框实际可定位。
+Win7本任务保持NOT_PERFORMED；未来Win7使用该工具时须另建适用Profile与实机证据。
+首前检尚未执行，当前实际系统程序集版本和哈希仍UNKNOWN；取得并锁定前不得调用新API。
+
+负责人已准确批准§106范围7993bd86…及ADR-0220，激活见任务§107。
+本段保留前述批准前Proposed记录；当前C15/C16 Profile进入获批候选工具范围。
+实际系统组件锁定和目标准入仍NOT_PERFORMED，批准不替代这些直接证据。
+
+首只读前检已取得.NET Framework4.8.1，Release533325，五件UIA组件准确字节与签名。
+原4.8登记及材料保持；实际4.8.1补充登记提案见ADR-0221及任务§107.1。
+该补充当前Proposed，不安装或替换系统组件，UIA实际加载与API仍NOT_PERFORMED。
+不以CLR4或AssemblyVersion4.0.0.0推断为Framework4.8，不将Win10工具登记扩展到Win7。
+
+负责人已准确批准实际已有.NET Framework4.8.1及ADR-0221，激活见任务§107.2。
+准确批准记录SHA256 `de899fcb2fd11ba696f4eee4d27ee982a3ee465e62ce049ad42915b27e7c85be`，组件锁SHA256 `1d9fd393de8c763d1144187d735fb0e2b312d83f7fd678e2e1768a794041da09`。
+实际Release533325、五件组件路径/字节/版本/签名仅用于Win10候选包外工具。
+原4.8提案和首次只读前检保持；不新增系统安装、API、期限或任何额度。
+加载前必须再次精确校验锁，UIA能力与产品仍待直接验证；Win7 NOT_PERFORMED。
+
+### ENGINEERING_02准确旧解析实例处置Profile提案（§109 / ADR-0223）
+
+Profile E02-WIN10-HELD-PARSE-RECOVERY-V1_TEST_ONLY，当前Proposed，处置与新增源尚未获批。
+准确登记材料`product-phase-r1/planning/live-parse-instance-recovery-r1/held-parse-process-c15-c16-proposed-profile-v1.json`，
+4717字节，SHA256 `26d8933c0185b6ed8c8f63c9b0b1dfed81654a851efc89d10a7d3821f84c77c2`。
+沿用现有Win10 build19045、PS5.1.19041.6456、CLR4.0.30319.42000、.NET4.8.1 Release533325。
+System.dll字节3541424/SHA af125777…与PowerShell455680/SHA9785001b…已在w01准确组件前检直接取得。
+该前检不证明当前已加载Process程序集或签名；这些必须在动作前核验，不加载替代提供者。
+仅允许材料中的两个准确System.dll位置且字节相同、Assembly4.0.0.0/强名称b77a5c561934e089、有效签名及当前版本记录。
+新增高影响API只为System.Diagnostics.Process.Kill的单进程无参重载。
+配套GetProcessById、Handle、StartTime、MainModule、SessionId、HasExited、WaitForExit≤10秒、ExitCode、Dispose，以及既有CIM所有者与文件哈希查询。
+准确对象仅PID28868/创建ticks639272795733065333；同一held句柄期间核对SID500/Session0/镜像和冻结命令。
+全部身份成立且仍存活才最多调用一次，SSH预算30秒；错配、拒绝、超时或未知退出停止下游。
+沿用已安装微软系统组件许可，不分发组件，不增加产品SBOM、原生、依赖或系统安装。
+风险为终止这一准确滞留解析进程；执行代理负责持句柄、守卫和原始证据，负责人批准准确实例和API范围。
+本Profile仅用于Win10候选包外恢复工具；不授权进程树、其他实例或Win7执行，Win7 NOT_PERFORMED。
+
+负责人已准确批准37460字节/85d6082b…完整方案及ADR-0223，激活见任务§110。
+前述Profile提案记录保持；准确批准记录SHA `57f795a767988d6d187f144a2b59f74622fdb8b35322796e7884e730d8a2a39e`。
+仅在新p05/w04中按当前组件、同一held句柄及准确实例守卫使用登记API。
+批准不替代当前版本、签名、字节、身份和实际退出证据，Win7 NOT_PERFORMED。
+
+### ENGINEERING_02先观察Process组件并派生准确锁提案（§112 / ADR-0224）
+
+ADR-0224已按13a5d7b9…完整方案准确批准；批准记录934d03ff…见任务§113。
+沿用已批准E02-WIN10-HELD-PARSE-RECOVERY-V1_TEST_ONLY的同一运行时和API。
+w04未返回实际已加载组件字段，未取得旧目标或终止；不得继承为该程序集PASS。
+新只读bootstrap先准确记录当前Process程序集Location/GetName/GetPublicKeyToken及文件元数据。
+只认两个既有固定System.dll位置，3541424/SHA af125777…，Assembly4.0.0.0/token b77a5c561934e089/有效签名。
+以准确原始报告、已有组件前检和完整批准链派生新不可变C15-C16-held-recovery-lock.json。
+获取阶段只辨认两个固定Windows位置的命名空间等价，保留实际规范字符串。
+终止阶段保持精确当前路径、版本、SHA、签名及held实例身份；不加载另一提供者。
+任何未知或错配不登记新组件，不执行旧目标获取或Kill；没有额外权限、原生或运行时。
+范围只在固定Win10验收机、候选产品包外工具；微软系统许可和不重新分发边界保持。
+准确材料42743字节/SHA 13a5d7b9…；仅激活明确范围，当前组件获取与Win7 NOT_PERFORMED。
+
+ADR-0224准确派生锁登记（任务§113.1）：当前Win10只读元数据调用退出0。
+实际Process程序集位置为`C:\Windows\Microsoft.Net\assembly\GAC_MSIL\System\v4.0_4.0.0.0__b77a5c561934e089\System.dll`。
+Assembly System4.0.0.0/token b77a5c561934e089，3541424字节/SHA af125777…，签名Valid。
+文件版本`4.8.9320.0 built by: NET481REL1LAST_B`，ProductVersion4.8.9320.0。
+固定PowerShell455680字节/SHA 9785001b…，版本`10.0.19041.1 (WinBuild.160101.0800)`，签名Valid。
+两件签名者thumbprint均3B77DB29AC72AA6B5880ECB2ED5EC1EC6601D847；文件及父路径非reparse。
+准确锁`product-phase-r1/candidates/p06/C15-C16-held-recovery-lock.json`，10776字节/SHA 05f6b85b…。
+原始当前报告1970字节/SHA 0349587a…；所有批准链保留，不重新分发或更换系统组件。
+元数据路径仅在获取阶段识别Windows命名空间等价；后续处置必须精确匹配当前规范字符串、版本、字节与签名。
+这是Win10工具当前元数据直接证据；旧目标未访问、未终止，产品/UIA/Win7 NOT_PERFORMED。
