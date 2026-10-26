@@ -8,7 +8,7 @@ Source Baseline: 4a62b24c550a1062ca4dd6aa72a5f28c7a9ebd56
 Target Version: 0.3.0-alpha.2
 Candidate: WIN7-54 (development candidate; not frozen; WIN7-53 FAIL retained)
 Phase-Gate: A9_39_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS
 Decision: ADR-0250, ADR-0251, ADR-0253, ADR-0255, ADR-0256, ADR-0257, ADR-0258, ADR-0259, ADR-0260, ADR-0261, ADR-0262, ADR-0263, ADR-0264, ADR-0265, ADR-0266, ADR-0267, ADR-0268, ADR-0269, ADR-0270, ADR-0271, ADR-0272, ADR-0273, ADR-0274, ADR-0275, ADR-0276, ADR-0277, ADR-0278, ADR-0279, ADR-0280, ADR-0281, ADR-0282, ADR-0283
 Revision: r96 (2026-10-25 UTC; ADR-0284 LAN-only and root-cause-before-retry; formal runs eaa7fc92 and 8b4df730 HALTED at p05 by candidate formal-branch cleanup refusal; fix path pending owner decision; r95 was used by the STATUS repair-10 entry)
 Phase-2 Baseline: f37811ba912efc10f926c3a249b006f708e4de39
