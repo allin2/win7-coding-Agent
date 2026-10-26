@@ -3741,3 +3741,10 @@ run 1555035b（02:55Z～03:06Z）：上传约536秒后远端重置连接（Conne
 - C14 授权：`release/win7-product-v3/a9-batch2-smoke.cjs`、`src/shell/tests/product/a9-batch2-contract.test.ts`（均在 §3 十路径白名单内），以及 `9b38524` 同范围的候选身份文件，用于 ADR-0285 修复。
 - 执行顺序：ADR-0285登记 → 实施改动与测试 → 独立审核（只报P0/P1）→ 本地提交与两次干净构建、核号冻结WIN7-55 → 两包改绑WIN7-55（只改身份）、拒绝集加入eaa7fc92/8b4df730 → 局域网开发根DEV总控彩排一次（37/67）→ 门A材料交负责人确认后正式执行总控与补充组。
 - 不做：总控包侧绕开、跳过release_exit/continue_unknown_interrupt、放宽判据、改阶段计划；r2的正式布局彩排/常设授权r2/工具分支清单/补充组重做彩排；改产品业务代码、Runner、原生、驱动。
+
+### 11.8.172 WIN7-55 门 A 签发、正式执行与门 B（ADR-0286）
+
+- 门 A 签发（2026-10-26 UTC）：`release-authority.json` SHA `4368342b…`，OWNER_RECEIPT `OWNER_CONFIRMED_FINAL_SHA`（`signing-final-r1/`）。材料包 SHA `e646e359…`。
+- 总控正式执行 PASS：run `f9ae2982`（FORMAL_GATE_A_EXECUTION），11 阶段（p01-env→p10-postflight+gpu-entry-gate）全 PASS，37 用例/67 断言/0 失败，28 SSH 全 exit 0，R7 verified 1584、R8 tasks_remaining=0。证据 `outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/`（197 文件）。
+- 补充组正式执行 PASS：run `cdb82d32`（DEV_CHANNEL），m1/m2/m3/m4/m6/m5 全 PASS；M5 付费真实请求 sent=22/settled=22（deepseek-v4-flash，spent 69,612,000 nano-USD ≤ 预算 1,000,000,000），M5 日额台账 2026-10-26 total=22。证据 `outputs/a9-39-w54-formal-packages/supplement/dev/cdb82d32/`（78 文件）。
+- 门 B 签发（2026-10-26 UTC，ADR-0286）：结论 `A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`，绑定 source `b4ce2be…`、ZIP `7de63dd8…`、总控 run `f9ae2982…`、补充 run `cdb82d32…`；限定已直接证明范围，完整 Alpha 2/RC 未签，推送/发布 NOT_PERFORMED。独立审核 `PASS_NO_P0P1`（`outputs/a9-39-w55-proposal/GATE_B_INDEPENDENT_REVIEW.json`）。
