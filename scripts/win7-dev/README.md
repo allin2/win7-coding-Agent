@@ -4,6 +4,10 @@
 
 2026-10-26：ENGINEERING_05 以严格主机键验证连接 `192.168.1.9`，修复 CRLF 历史锁解析。运行时显式设置 `WIN7_DEV_HOST=192.168.1.9`；地址变更仍须核对同一主机键与系统身份。
 
+2026-10-26 本地工作树收尾：旧整合工作树已移除，历史账本在主树独立保留位置，不与新动作账本合并或覆盖。
+main 为当前开发工作树；常设授权的工作区差异仍须按 ENGINEERING_03 §10.4 明确确认，现有 ENGINEERING_05 例外不扩大。
+本次目录移除不授权新的目标动作，不能重置日额计数、继承活动锁或修改工具期限。
+
 ## 运行环境与授权边界
 
 开发机：Node **20.17.0** 标准库、系统 `/usr/bin/ssh` 与 `/usr/bin/sftp`。无需安装依赖。目标机：DCCS-CHAIZL-PC，Win7 SP1 x64 build 7601，PowerShell 2.0、.NET 3.5、WMI、Task Scheduler 2.0、Shell.Application、icacls、schtasks、qwinsta；复用已有 SSH 服务，不安装组件。身份、SID 或主机键不符即拒绝。固定 SSH 参数包括 `-F /dev/null`、BatchMode、IdentitiesOnly、StrictHostKeyChecking=yes；不读取、复制或打印私钥内容。

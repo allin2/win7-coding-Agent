@@ -171,7 +171,8 @@ slice3 同法：catalog 为 `catalog-alpha2-history.json`，共享包为 `alpha2
 
 本节是开发机文件保留与恢复说明，不新增 Win7 证据或改变原签发范围。
 来源工作树为 `/Users/qlyf/.codex/worktrees/a9-alpha2-integration-r2/win7-coding-Agent`，HEAD `e596c58a…`。
-原件尚未删除。完整映射、清单和核验结果在主工作区
+两原工作树已于 2026-10-26 按负责人确认逐个通过 Git 移除；原路径现仅用于来源追溯与恢复定位。
+完整映射、清单和核验结果在主工作区
 `.acceptance/maintenance/worktree-retirement-20261026/r1/`。
 
 | 材料 | 工作树外的保留位置 | 本轮核验 |
@@ -196,3 +197,11 @@ slice4 的远端草稿不作为本次恢复依据；未经另轮确认，不得�
 
 已知缺失材料仍见 `.acceptance/maintenance/unarchived-deletion-20261026-r1/INCIDENT.md`，状态为 `LOST`。
 本节没有恢复、补签或重新归档那些已缺失的原件。
+
+### 工作树移除后的复核
+
+本轮准确清单 SHA `d9e49042…03c35`，授权与逐项结果见上述台账的 `execution-approval.json`、
+`execution-314e.json`、`execution-integration.json`、`execution-post-preservation.json` 和 `execution-result.json`。
+删除后再次核验 139 个保留根的 514,176 个成员、独立保存的 3 个 FIFO 类型、21 个 dirty 文件及 131 个加密附件通过。
+WIN7-55 三份 ZIP 与 192 个原只读目录的保留副本模式保持。Git 仅登记主工作树，分支与共享依赖目标未删除。
+本地保留位置仍全部为 KEEP，不能把原工作树移除扩展为这些恢复来源的清理授权。
