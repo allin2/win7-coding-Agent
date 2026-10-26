@@ -12,8 +12,9 @@
 | `archive-20260911-v2` | 2026-09-11 | 原 `~/.codex/a9-release` 下 12 个 A9 历史候选（20260903～20260911）及当时的 Git 历史 bundle |
 | `archive-20260925` | 2026-09-25 | 下表 15 组、40 个目录；另含 `source-history-20260925.bundle.enc`（全部本地 refs，含未推送提交） |
 | `archive-20260930` | 2026-09-30 | 下文 5 组、25 个目录（A9-23/A9-25 全部预演，WIN7-36～40 候选、WIN7-37/38 构建及同期运行证据）；另含 `source-history-20260930.bundle.enc` |
+| `archive-20261026-slice1` | 2026-10-26 | 历史 diagnostic-3b / addendum11 原始搜索 JSON 与日志；3 个附件全部回下载 SHA 校验，实际恢复 2 文件通过；不含 Git bundle 或工作树 |
 
-两批使用同一恢复密钥。密钥不在 GitHub，由负责人保管；位置与离机备份要求见私有仓库 README。
+上述批次使用同一恢复密钥。密钥不在 GitHub，由负责人保管；位置与离机备份要求见私有仓库 README。
 
 ## `archive-20260925` 原路径对照
 
@@ -110,3 +111,28 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass file:/secure/path/restore
 git bundle verify source-history-20260925.bundle
 git bundle list-heads source-history-20260925.bundle
 ```
+
+
+## 2026-10-26 原始诊断记录与重复副本回收
+
+Release：[archive-20261026-slice1](https://github.com/allin2/win7-coding-agent-archives/releases/tag/archive-20261026-slice1)。
+组 `diagnostic3b-records`，集合 `address-search-records`。
+原路径根：`/Users/qlyf/.codex/worktrees/a9-alpha2-integration-r2/win7-coding-Agent/outputs/a9-39-diagnostic-3b-prep/addendum11/`。
+仅含 `REPOSITORY_OLD_ADDRESS_SEARCH.json`（42,603,063 字节）与 `repository-old-address-search.log`（28,655,542 字节）。
+这两件为历史原始搜索结果，不是新的目标平台证据。全部附件已回下载校验，现有工具实际解密并逐文件重建通过。
+71,258,605 字节原始记录压缩加密后约 4.98 MB；保留原密钥、算法与 schema_version 2。
+
+```sh
+gh release download archive-20261026-slice1 --repo allin2/win7-coding-agent-archives --dir ./download \
+  --pattern catalog-diagnostic3b-records.json \
+  --pattern diagnostic3b-records--shared-objects.tar.gz.enc \
+  --pattern diagnostic3b-records--address-search-records.tar.gz.enc
+python3 restore_snapshot.py --catalog ./download/catalog-diagnostic3b-records.json \
+  --download-dir ./download --candidate address-search-records \
+  --key /secure/path/restore.key --output ./verified
+```
+
+本批不退役工作树，Git refs、dirty 内容、当前版本和回滚包均保留本地。
+重复模拟测试 ZIP 只在逐文件 SHA 与保留副本相同后进入准确删除清单；不以目录年龄或大小判可删。
+本机执行台账：`.acceptance/maintenance/archive-20261026-slice1/`。回收结果与授权状态见
+[ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)，不能把临时包清理体积当作净空间收益。

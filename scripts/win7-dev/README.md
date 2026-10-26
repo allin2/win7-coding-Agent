@@ -1,12 +1,14 @@
 # Win7 开发通道
 
-仅用于 ENGINEERING_03 常设授权 r1，输出证据等级始终为 `DEV_CHANNEL`。它不产生 Win7 验收、门 A、门 B、Alpha 2 或 RC PASS。实现阶段只在开发机测试，**Win7 自检 NOT_PERFORMED**。
+用于 [ENGINEERING_03](../../docs/tasks/ENGINEERING_03_WIN7_DEV_CHANNEL.md) 已签开发通道及 [ENGINEERING_05](../../docs/tasks/ENGINEERING_05_ALPHA_DELIVERY.md) 本轮范围授权。输出始终为 `DEV_CHANNEL`，不产生正式验收结论。目标自检与各次实际运行结果以任务记录为准；以下不是当前产品验收状态。
+
+2026-10-26：ENGINEERING_05 以严格主机键验证连接 `192.168.1.9`，修复 CRLF 历史锁解析。运行时显式设置 `WIN7_DEV_HOST=192.168.1.9`；地址变更仍须核对同一主机键与系统身份。
 
 ## 运行环境与授权边界
 
 开发机：Node **20.17.0** 标准库、系统 `/usr/bin/ssh` 与 `/usr/bin/sftp`。无需安装依赖。目标机：DCCS-CHAIZL-PC，Win7 SP1 x64 build 7601，PowerShell 2.0、.NET 3.5、WMI、Task Scheduler 2.0、Shell.Application、icacls、schtasks、qwinsta；复用已有 SSH 服务，不安装组件。身份、SID 或主机键不符即拒绝。固定 SSH 参数包括 `-F /dev/null`、BatchMode、IdentitiesOnly、StrictHostKeyChecking=yes；不读取、复制或打印私钥内容。
 
-常设授权有效至 **2026-10-28T00:00:00Z**。过期后只允许 `status`、`get` 和 `stop`/`close` 收尾。撤销授权后只执行 `close` 收尾。工具不会自行发现负责人的撤销消息，调用方必须停止其他命令。
+当前工具内置写入口期限为 **2026-10-28T00:00:00Z**；ENGINEERING_03 已记录 r2 续期至 11-28，但工具期限尚未同步，本轮在两者交集内执行。过期后只允许 `status`、`get` 和 `stop`/`close` 收尾。撤销授权后只执行 `close` 收尾。工具不会自行发现负责人的撤销消息，调用方必须停止其他命令。
 
 这是受信任脚本的管理通道，不提供文件或网络沙箱。`ps` 的脚本和 `agent-run` 的程序/参数必须事先确认符合任务书 §7：不得修改系统设置、服务、HKLM、防火墙、账户，不得安装/卸载软件，不得读取、复制或下载 agent 凭据及模型配置，不得在开发根外写入/删除，不得结束根外映像或改变控制台会话。产品按已保存配置调用模型的例外仅适用于产品；每 UTC 日 **200 次**请求上限由调用方维护实际服务请求计数，工具不能从任意程序的命令行推断请求数。无法确认这些条件、发现根外可疑进程/任务或触发禁止动作时，立即停止并报告。
 
@@ -14,7 +16,7 @@
 
 ## 用法与每个命令的远端效果
 
-下面是后续获准连接时的用法示例；本次实现没有执行这些命令。
+以下为入口示例；执行前核对本轮范围、当前锁与有效预算。
 
 ```sh
 NODE=~/.nvm/versions/node/v20.17.0/bin/node

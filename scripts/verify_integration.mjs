@@ -4,10 +4,21 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const quick = process.argv.includes('--quick');
+const args = process.argv.slice(2);
+const quick = args.includes('--quick');
+const daily = args.includes('--daily');
+const requested = [];
+const testFiles = [];
+for (let index = 0; index < args.length; index++) {
+  const flag = args[index];
+  if (flag === '--quick' || flag === '--daily') continue;
+  if (flag === '--module' && args[index + 1]) requested.push(args[++index]);
+  else if (flag === '--test-file' && args[index + 1]) testFiles.push(args[++index]);
+  else { console.error('VERIFY_ARGUMENT_INVALID'); process.exit(1); }
+}
 const npmExecutable = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-const modules = [
+const allModules = [
   'gateway',
   'workspace',
   'state',
@@ -16,6 +27,32 @@ const modules = [
   'git-adapter',
   'shell',
 ];
+
+// Sibling imports include compiled dist: build the selected consumer's dependency closure.
+const dependencies = {
+  gateway: ['core', 'workspace', 'runner'], workspace: [], state: [],
+  core: ['gateway', 'workspace', 'state', 'runner', 'git-adapter'],
+  runner: [], 'git-adapter': ['runner'], shell: ['core', 'gateway', 'workspace', 'state', 'runner', 'git-adapter'],
+};
+if (requested.some((name) => !allModules.includes(name)) || (testFiles.length && requested.length !== 1)
+  || (quick && testFiles.length) || testFiles.some((name) => !/^tests\/[^\\]*\.test\.ts$/.test(name)
+    || name.split('/').includes('..') || !existsSync(join(repositoryRoot, 'src', requested[0], name)))) {
+  console.error('VERIFY_SELECTION_INVALID'); process.exit(1);
+}
+const selected = requested.length ? [...new Set(requested)] : allModules;
+const closure = new Set(selected);
+function includeDependencies(name) {
+  for (const dep of dependencies[name]) {
+    if (!closure.has(dep)) { closure.add(dep); includeDependencies(dep); }
+  }
+}
+selected.forEach(includeDependencies);
+// Runtime cycle core/gateway has no compile-time dist dependency; shared outputs before tests.
+const modules = ['workspace', 'state', 'runner', 'git-adapter', 'gateway', 'core', 'shell'].filter((name) => closure.has(name));
+const started = Date.now();
+const timings = [];
+// Real high-volume baseline checks remain available in the unchanged full regression.
+const dailyExcluded = ['tests/unit/a9-19-baseline-yield.test.ts'];
 
 let failures = 0;
 
@@ -27,7 +64,8 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
     console.error('[verify] 编译/静态门失败，跳过全部测试。');
     break;
   }
-  for (const moduleName of modules) {
+  for (const moduleName of phase === 'test' ? selected : modules) {
+    if (phase === 'build' && failures > 0) break;
     const moduleDir = join(repositoryRoot, 'src', moduleName);
     const packagePath = join(moduleDir, 'package.json');
     if (!existsSync(packagePath)) {
@@ -44,20 +82,34 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
 
     const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
     const commands = [];
-    if (phase === 'build' && packageJson.scripts?.lint) commands.push(['run', 'lint']);
+    // Only the exact duplicate type check is covered by build; retain every other lint command.
+    if (phase === 'build' && packageJson.scripts?.lint
+      && (packageJson.scripts.lint.trim() !== 'tsc --noEmit' || !packageJson.scripts?.build)) {
+      commands.push(['run', 'lint']);
+    }
     if (phase === 'build' && packageJson.scripts?.build) commands.push(['run', 'build']);
-    if (phase === 'test' && packageJson.scripts?.test) commands.push(['test', '--', '--runInBand']);
+    if (phase === 'test' && packageJson.scripts?.test) {
+      const testArgs = ['test', '--', '--runInBand'];
+      if (testFiles.length) testArgs.push('--runTestsByPath', ...testFiles);
+      else if (daily && moduleName === 'workspace') {
+        testArgs.push('--testPathIgnorePatterns', ...dailyExcluded);
+        console.log(`[verify] NOT_PERFORMED daily slow checks: ${dailyExcluded.join(', ')}`);
+      }
+      commands.push(testArgs);
+    }
 
     for (const args of commands) {
       console.log(`\n[verify] ${moduleName}: npm ${args.join(' ')}`);
+      const commandStarted = Date.now();
       const result = spawnSync(npmExecutable, args, {
         cwd: moduleDir,
         stdio: 'inherit',
         shell: false,
         env: { ...process.env, CI: '1' },
       });
-      if (result.error) {
-        reportFailure(moduleName, result.error.message);
+      timings.push({ module: moduleName, command: args.join(' '), elapsed_ms: Date.now() - commandStarted, status: result.status });
+      if (result.error || result.signal) {
+        reportFailure(moduleName, result.error?.message || `signal ${result.signal}`);
         break;
       }
       if (result.status !== 0) {
@@ -68,12 +120,13 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
   }
 }
 
+console.log(`[verify-timing] ${JSON.stringify({ environment: { platform: process.platform, node: process.version }, selected, build_modules: modules, elapsed_ms: Date.now() - started, timings })}`);
 if (failures > 0) {
   console.error(`\n[verify] 失败：${failures} 个模块未通过。请从上方第一个失败命令开始处理。`);
   process.exit(1);
 }
 
-console.log(`\n[verify] 通过：${modules.length} 个 Phase 3–7 模块完成${quick ? '编译/静态' : '编译/静态/测试'}验证。`);
+console.log(`\n[verify] 通过：${selected.length} 个模块完成${quick ? '编译/静态' : '编译/静态/测试'}验证。`);
 console.log('[verify] 此结果不等于 Win7 实机验收通过。');
 
 function runDesignGuards() {

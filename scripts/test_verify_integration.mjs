@@ -6,20 +6,21 @@ import vm from 'vm';
 const source = readFileSync(new URL('./verify_integration.mjs', import.meta.url), 'utf8')
   .replace(/^import .*;\n/gm, '')
   .replace('dirname(dirname(fileURLToPath(import.meta.url)))', "'/repo'");
-const names = ['gateway', 'workspace', 'state', 'core', 'runner', 'git-adapter', 'shell'];
-function run({ quick = false, failBuild = false, missingDependency = false } = {}) {
+const names = ['workspace', 'state', 'runner', 'git-adapter', 'gateway', 'core', 'shell'];
+const selectedOrder = ['gateway', 'workspace', 'state', 'core', 'runner', 'git-adapter', 'shell'];
+function run({ quick = false, failBuild = false, missingDependency = false, customLint = false, args = [] } = {}) {
   const calls = [];
   let exitCode = 0;
   const exit = new Error('exit');
   try {
     vm.runInNewContext(source, {
-      process: { argv: quick ? ['--quick'] : [], platform: 'linux', env: {},
+      process: { argv: ['node', 'verify', ...(quick ? ['--quick'] : []), ...args], platform: 'linux', env: {},
         exit(code) { exitCode = code; throw exit; } },
       console: { log() {}, error() {} },
       join: (...parts) => parts.join('/'),
       existsSync: (file) => !(missingDependency && file === '/repo/src/runner/node_modules'),
       readFileSync: (file) => file.endsWith('/package.json')
-        ? JSON.stringify({ scripts: { lint: 'lint', build: 'build', test: 'test' } })
+        ? JSON.stringify({ scripts: { lint: file.includes('/shell/') || customLint ? 'tsc --noEmit && check-js' : 'tsc --noEmit', build: 'build', test: 'test' } })
         : readFileSync(new URL(`../${file.slice('/repo/'.length)}`, import.meta.url), 'utf8'),
       spawnSync: (_command, args, options) => {
         calls.push({ name: options.cwd.split('/').pop(), args });
@@ -32,12 +33,12 @@ function run({ quick = false, failBuild = false, missingDependency = false } = {
 const full = run();
 assert.equal(full.exitCode, 0);
 const firstTest = full.calls.findIndex(({ args }) => args[0] === 'test');
-assert.equal(firstTest, 14);
+assert.equal(firstTest, 8);
 assert.deepEqual(full.calls.slice(0, firstTest).filter(({ args }) => args[1] === 'build').map(({ name }) => name), names);
-assert.deepEqual(full.calls.slice(firstTest).map(({ name }) => name), names);
+assert.deepEqual(full.calls.slice(firstTest).map(({ name }) => name), selectedOrder);
 const quick = run({ quick: true });
 assert.equal(quick.exitCode, 0);
-assert.equal(quick.calls.length, 14);
+assert.equal(quick.calls.length, 8);
 assert.ok(quick.calls.every(({ args }) => args[0] !== 'test'));
 for (const options of [{ failBuild: true }, { missingDependency: true }]) {
   const failed = run(options);
@@ -45,3 +46,21 @@ for (const options of [{ failBuild: true }, { missingDependency: true }]) {
   assert.ok(failed.calls.every(({ args }) => args[0] !== 'test'));
 }
 console.log('PASS: build-before-test, quick mode, failed build and missing dependency barriers');
+
+const runner = run({ args: ['--module', 'runner', '--test-file', 'tests/actual.test.ts'] });
+assert.equal(runner.exitCode, 0);
+assert.deepEqual(runner.calls.map(({ name }) => name), ['runner', 'runner']);
+assert.ok(runner.calls[1].args.includes('--runTestsByPath'));
+const shell = run({ quick: true, args: ['--module', 'shell'] });
+assert.deepEqual(shell.calls.filter(({ args }) => args[1] === 'build').map(({ name }) => name), names);
+const daily = run({ args: ['--daily', '--module', 'workspace'] });
+assert.ok(daily.calls[1].args.includes('--testPathIgnorePatterns'));
+assert.ok(!run({ args: ['--module', 'workspace'] }).calls[1].args.includes('--testPathIgnorePatterns'));
+for (const args of [['--module', 'unknown'], ['--test-file', 'tests/x.test.ts'], ['--module', 'core', '--test-file', '../x.test.ts'], ['--unknown']]) {
+  assert.equal(run({ args }).exitCode, 1);
+}
+console.log('PASS: scoped builds, exact test paths, explicit slow exclusion and full regression retained');
+
+const custom = run({ customLint: true, args: ['--module', 'runner'] });
+assert.deepEqual(custom.calls.map(({ args }) => args[1]), ['lint', 'build', '--']);
+console.log('PASS: non-duplicate lint is preserved regardless of module directory');

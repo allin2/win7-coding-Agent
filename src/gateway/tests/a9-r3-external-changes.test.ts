@@ -82,7 +82,7 @@ describe('R3: shell-created/modified/deleted files enter diff and undo (real loo
     fs.rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  async function runLoop(model: { baseUrl: string; close: () => Promise<void> }) {
+  async function runLoop(model: { baseUrl: string; close: () => Promise<void> }, approveDeletion = false) {
     const loop = new A9AgentLoop({
       workspaceRoot,
       provider: new OpenAICompatibleProvider({ baseUrl: model.baseUrl, model: 'fixture' }),
@@ -91,7 +91,19 @@ describe('R3: shell-created/modified/deleted files enter diff and undo (real loo
       permissionMode: PermissionMode.FULL_ACCESS,
       externalChangePort: service as unknown as A9ExternalChangePort,
     });
-    return loop.runTurn('do the shell work');
+    const result = await loop.runTurn('do the shell work');
+    if (approveDeletion) {
+      expect(result.pendingApproval?.toolName).toBe('shell');
+      expect(result.pendingApproval?.args.command).toBe('rm keep.txt');
+      expect(result.outcome).toBe(TurnOutcome.NEEDS_APPROVAL);
+      expect(fs.existsSync(path.join(workspaceRoot, 'keep.txt'))).toBe(true);
+      return loop.resumeAfterApproval({
+        approvalId: result.pendingApproval!.approvalId,
+        bindingDigest: result.pendingApproval!.bindingDigest,
+        decision: 'approved',
+      });
+    }
+    return result;
   }
 
   it('reproduced defect is fixed: shell-created file appears in diff and undo deletes it', async () => {
@@ -150,7 +162,7 @@ describe('R3: shell-created/modified/deleted files enter diff and undo (real loo
       return { content: 'deleted' };
     });
     try {
-      const result = await runLoop(model);
+      const result = await runLoop(model, true);
       expect(fs.existsSync(path.join(workspaceRoot, 'keep.txt'))).toBe(false);
       expect(result.externalChanges?.some((c) => c.path === 'keep.txt' && c.kind === 'deleted' && c.recoverable)).toBe(true);
       const undo = service.getCheckpointManager().undoTurn(result.turnId);

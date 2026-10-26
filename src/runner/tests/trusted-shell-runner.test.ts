@@ -122,6 +122,7 @@ it('A9-30 real child protocol transport exposes 2-second ticks before terminal',
 let input = '';
 process.stdin.on('data', bytes => { input += bytes; if (!input.includes('\\n')) return; process.stdin.removeAllListeners('data');
 const r = JSON.parse(input.trim()); const env = {schemaVersion:3,requestId:r.requestId,profileId:r.profileId};
+require('fs').writeFileSync(require('path').join(__dirname,'started-at'),String(Date.now()));
 const tokenAudit = {source:'suspended_child_process_token',verified:true,tokenMode:'current_user',restrictedToken:false,tokenType:'primary',sameUser:true,lowIntegrity:false,integritySid:'S-1-16-8192',integrityRid:8192};
 const send = v => process.stdout.write(JSON.stringify(v)+'\\n');
 send({...env,type:'execution_started',helperPid:process.pid,childPid:1234,ready:{childJobAssignmentVerified:true,inputDetached:true,stdoutCaptureReady:true,stderrCaptureReady:true},tokenAudit});
@@ -134,5 +135,8 @@ if(seq===2) {clearInterval(timer); setTimeout(()=>{send({...env,type:'execution_
   let done = false; const chunks: any[] = []; const start = Date.now();
   const result = await new StdioHelperTransport(script).invoke(req, undefined, undefined, (c: any) => { expect(done).toBe(false); chunks.push({ ...c, elapsedMs: Date.now() - start }); });
   done = true; expect(result.kind).toBe('response'); expect(chunks).toHaveLength(2);
-  expect(chunks[0].elapsedMs).toBeLessThan(3500); expect(chunks[1].elapsedMs).toBeGreaterThanOrEqual(3900);
+  // Measure streaming from the live peer's start, separately from OS executable startup.
+  const startupMs = Number(fs.readFileSync(path.join(root, 'started-at'), 'utf8')) - start;
+  expect(chunks[0].elapsedMs - startupMs).toBeLessThan(3500);
+  expect(chunks[1].elapsedMs - startupMs).toBeGreaterThanOrEqual(3900);
 }, 10000);

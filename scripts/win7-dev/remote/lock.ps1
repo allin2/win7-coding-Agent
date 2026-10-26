@@ -11,8 +11,9 @@ if ($D['operation'] -eq 'acquire') {
     $read = $stream.Read($bytes,0,$bytes.Length)
     if ($read -ne $bytes.Length) { throw 'LOCK_READ_FAILED' }
     if ($bytes.Length -gt 0) {
+      # ReadAllLines accepts CRLF and LF; acquisition/release must accept the same delimiters.
       # Keep the trailing empty token when an invocation has released its lease.
-      $raw = $Utf8.GetString($bytes); $rawRows = $raw.Split("`n")
+      $raw = $Utf8.GetString($bytes); $rawRows = $raw.Replace("`r`n","`n").Split("`n")
       if ($rawRows.Length -ne 5 -or $rawRows[0] -ne '1') { throw 'LOCK_FORMAT_UNKNOWN' }
       if (($rawRows[1] -cne $D['holder'] -or $rawRows[3] -ne '') -and $D['steal'] -ne 'true') { throw 'LOCK_CONFLICT' }
     }
@@ -32,7 +33,7 @@ if ($D['operation'] -eq 'acquire') {
   $stream = [IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
   try {
     $bytes = New-Object byte[] ([int]$stream.Length); $read = $stream.Read($bytes,0,$bytes.Length)
-    $raw = $Utf8.GetString($bytes); $rows = $raw.Split("`n")
+    $raw = $Utf8.GetString($bytes); $rows = $raw.Replace("`r`n","`n").Split("`n")
     if ($read -ne $bytes.Length -or $rows.Length -ne 5 -or $rows[1] -cne $D['holder'] -or $rows[3] -cne $D['token']) { throw 'LOCK_NOT_OWNED' }
     $text = '1' + "`n" + $D['holder'] + "`n" + [DateTime]::UtcNow.ToString('o') + "`n`n"
     $bytes = $Utf8.GetBytes($text); $stream.Position = 0; $stream.SetLength(0); $stream.Write($bytes,0,$bytes.Length); $stream.Flush()

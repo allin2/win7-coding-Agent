@@ -293,3 +293,4 @@
 | ADR-0287 | WIN7-55 对外发布 0.3.0-alpha.2 内部预览版 | Accepted |
 | ADR-0288 | Alpha 阶段节奏与验收执行准则 | Accepted |
 | ADR-0289 | 开发级运行与正式验收分开 | Accepted |
+| ADR-0290 | 已确认范围内连续交付与本轮工程落地 | Accepted |
