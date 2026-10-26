@@ -164,4 +164,5 @@ python3 restore_snapshot.py --catalog ./download/catalog-w54-gate-a-repairs.json
 ```
 
 slice3 同法：catalog 为 `catalog-alpha2-history.json`，共享包为 `alpha2-history--shared-objects.tar.gz.enc`。
-核验方法与结果见 [ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)；本机删除只在负责人确认准确清单后执行。
+本机原件已于 2026-10-26 经负责人批准按清单 `9c78aac6…9368` 删除；核验方法与结果见 [ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)。
+本机 `manifests/` 保留每个集合的逐文件清单，可先按路径检索再决定下载哪个集合。
