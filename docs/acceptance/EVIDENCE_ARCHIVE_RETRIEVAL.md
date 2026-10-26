@@ -166,3 +166,33 @@ python3 restore_snapshot.py --catalog ./download/catalog-w54-gate-a-repairs.json
 slice3 同法：catalog 为 `catalog-alpha2-history.json`，共享包为 `alpha2-history--shared-objects.tar.gz.enc`。
 本机原件已于 2026-10-26 经负责人批准按清单 `9c78aac6…9368` 删除；核验方法与结果见 [ENGINEERING_05](../tasks/ENGINEERING_05_ALPHA_DELIVERY.md)。
 本机 `manifests/` 保留每个集合的逐文件清单，可先按路径检索再决定下载哪个集合。
+
+## 2026-10-26 工作树整合的本地保留
+
+本节是开发机文件保留与恢复说明，不新增 Win7 证据或改变原签发范围。
+来源工作树为 `/Users/qlyf/.codex/worktrees/a9-alpha2-integration-r2/win7-coding-Agent`，HEAD `e596c58a…`。
+原件尚未删除。完整映射、清单和核验结果在主工作区
+`.acceptance/maintenance/worktree-retirement-20261026/r1/`。
+
+| 材料 | 工作树外的保留位置 | 本轮核验 |
+|---|---|---|
+| 314e 的 20 个未提交文件、整合树的 1 个未提交文件 | 上述台账的 `dirty-backups/`；含 tracked 补丁、原文件归档和逐文件清单 | 实际解包，原字节、模式与 SHA-256 一致 |
+| WIN7-55 冻结候选、双构建、正式/补充证据、开发账本及未归档准备材料，共 22 个根 | `.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/`，保留原工作树相对路径 | 文件字节、模式、目录成员与符号链接目标一致 |
+| 第四批已恢复的 117 个整合树历史集合 | `.acceptance/maintenance/archive-20261026-slice4/verified/<组>/restored/<集合>/` | 当前原件与既有恢复件逐项重比；131 个本地加密附件重新核 SHA |
+
+上述两类证据材料合计核验 514,179 个目录成员。归档略过的文件和 FIFO 类型另在独立保留根保存；
+不读取 FIFO 内容，不将管道类型保存描述为运行状态恢复。验证范围不包含 ACL/xattr 等价性。
+WIN7-55 候选及两次构建保留副本的 ZIP SHA 均为 `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`。
+
+以下材料为 `KEEP`：独立保留根、两个 dirty 归档、本轮清单、slice4 的 catalog/manifest、131 个本地加密附件、
+117 个恢复集合及原归档密钥。密钥仍在原有受限位置，没有复制到工作树或上传。
+slice4 的远端草稿不作为本次恢复依据；未经另轮确认，不得清理这些本地恢复来源。
+
+恢复原工作树时，先按 `baseline.json` 中的原 HEAD/分支重新建立工作树，再将对应 `dirty-files.tar.gz`
+解包到该工作树，复核 `manifest.json` 的路径、模式和 SHA。本轮不删除 Git 分支或历史对象。
+整合树的 ignored 材料按 `preservation-result.json` 的 source/retained 映射恢复到原相对路径，
+再复核 `custody-files.jsonl`、原归档 manifest 及 wrapper 模式记录。不覆盖其他已有目录。
+冻结输入中的原路径与绑定保留原文；本地迁存不授权复跑已消费 run 或改绑旧候选。
+
+已知缺失材料仍见 `.acceptance/maintenance/unarchived-deletion-20261026-r1/INCIDENT.md`，状态为 `LOST`。
+本节没有恢复、补签或重新归档那些已缺失的原件。

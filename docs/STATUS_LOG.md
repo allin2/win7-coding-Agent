@@ -7788,3 +7788,19 @@ Win7 为 `NOT_PERFORMED`，A9-38 不在 WIN7-45 候选中。本轮未提交、�
 
 开发机文档与只读分析，绑定 d8fd760a…（2026-10-12）：[D1 生产者缺口](reports/2026-10/a9_33_producer_gap_analysis_2026-10-12.md)、[D2 批准请求](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#6-a9-33-批准请求包2026-10-12)、[D3 已知限制](tasks/A9_32_EXPLICIT_TASK_CONTINUE.md#71-已知限制后续再修2026-10-12)。A9-33 已于 2026-10-12 按 [§6.7](tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md#67-基线登记与-61-生效2026-10-12) 登记为 APPROVED_FOR_IMPLEMENTATION，基线 `152106f3…`；ADR-0155 仍为 Proposed。
 [D4 独立审核交接](reports/2026-10/a9_32_independent_review_handoff_2026-10-12.md)、[D5 裁决记录](reports/2026-10/a9_32_owner_decisions_2026-10-12.md)；D5 六项均已裁决，真实 Electron/Win10/Win7 NOT_PERFORMED。
+
+
+## 2026-10-26 工作树整合：保留退役构建清理记录
+
+开发机本地合并整合分支 `e596c58a…`，基线 main `a4a9c5da…`。该提交仅在旧 STATUS 增加两行。
+本次保留 main 的当前状态页，将原提交记录在此，不将历史快照恢复为当前状态。
+
+原提交记录：整合树 `.acceptance/a9-39/builds/` 下 WIN7-46～WIN7-54 的 20 个退役构建目录已删除；
+保留 WIN7-55 的 `w55-build-3/4`，ZIP SHA `7de63dd8…`。原提交报告 builds 从 5.7G 变为 653M。
+本轮检查确认当前 builds 仅保留两个 WIN7-55 构建目录；原删除批准与当时物理释放量未重新验证。
+任务书中的 ZIP/source 哈希和构建摘要不等于原始证据完整归档；不沿用原提交“不影响验收追溯”的笼统判断。
+
+2026-10-26 的另一清理会话已删除部分未归档 W41～W45、A9-36 运行材料。
+已知缺失记录在 `.acceptance/maintenance/unarchived-deletion-20261026-r1/INCIDENT.md`，状态为 `LOST`。
+此记录不改历史 PASS/FAIL，不将缺失材料当作本机现存或可恢复证据；当前 WIN7-55 原始证据另外保留。
+本轮范围、备份与验证见 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md#工作树整合2026-10-26)。
