@@ -5194,3 +5194,14 @@ Claude P2-1、P2-3 已补测试，P2-4 已修复；P2-2 按裁决保留为 K7。
 - 决定三：`src/runner/dist` 停止 Git 跟踪，与 `.gitignore` 的 `dist/` 一致；本机文件与历史提交保留。消费者由日常入口从源码构建；打包仍用锁定的 runner 输入。
 - 决定四：AGENTS §2 不再以当前态陈述 Alpha 1 / WIN7-22 历史裁决；保留不改判、证据保留、继承规则与 Review fail-closed 约束。历史原文见 STATUS_LOG 与对应任务书。
 - 不变：§5 红线、Win7 证据分级、正式判据、已签结论与全部 Accepted ADR 正文。结果见 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)。
+
+## ADR-0294 A9-34 重启恢复“清理未确认”后台事实的用户确认处置出口
+
+- 状态：Accepted（2026-10-27 America/Los_Angeles；负责人在聊天中对“是否批准 A9-34 方案 U 实施，Q1～Q3 都按推荐执行？”回复“批准”）。
+- 背景：ADR-0240 决定一第 5 项登记的已知限制仍存在。执行代理在开发机静态核对 main `3f675f93…`：恢复事实带回 `cleanupRequired=true` 后，Stop 被拒、退出取消、工作区锁不释放、对话与模式切换被阻断，产品内无处置出口。证据见 [A9-34](tasks/A9_34_RECOVERED_CLEANUP_DISPOSITION.md) §2。
+- 决定一：采用方案 U。新增 strict IPC 动作 `a9.managed.dismissRecovered`，payload 仅 `{conversationId, handleId, recoveryRevision}`；新增版本化事件 `managed_process_disposition`（schemaVersion 1，`disposition: 'user_attested_after_restart'`）；事实行 `last_probe_status` 新值 `user_dismissed`。数据库 schema v4 与表结构不变。资格判定、事务与内存收口按任务书 §4。
+- 决定二：Q1 本批只做工作台卡片；Q2 方案 E 不在本批，后续另立任务；Q3 确认框采用任务书 §8 Q3 选项 A 文案。
+- 决定三：实施范围按 ADR-0290 登记于任务书 §1、§5、§6.1 与任务索引。执行代理在独立工作树实现，主会话审核后本地提交 main。
+- 兼容性：历史驱动 factsFinished、normalCloseState 只接受四种终态，本任务不改它们；后续正式合同须区分“已处置”与“清理已证明”。
+- 未授权：Win7 开发通道运行（任务书 §8 Q4；常设授权 r2 不覆盖 main 工作区）、候选号、门 A/B、推送、发布、方案 E。
+- 不变：Stop 保守清理判据、helper v3 语义、WIN7-55 结论（ADR-0286）及 ADR-0240 已知限制登记。
