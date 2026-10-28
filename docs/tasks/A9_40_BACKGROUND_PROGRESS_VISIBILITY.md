@@ -517,3 +517,9 @@ Win10 `WIN-2JQ66JE4HTQ` 的准确待查路径：
 本地名称包含 A9-31/background-tools 的归档补查无结果，已查外置盘与 GitHub 清单不重复扫描。
 原始回执和后续准确取回入口在 `outputs/a9-34-main-integration/runner-original-recovery-20261028-r1/REPORT.md`。
 没有构建、远端写入、重封装、输入锁修改或产品运行；正式输入缺失状态保持。
+
+负责人确认已启动原机后，于 UTC 12:59 再次连接仍在身份核验前关闭。
+本机只读网络诊断发现 Mac 当前为 `10.45.40.145/en0`，访问原 `192.168.1.4`
+实际走 `utun5` 隧道，不能将连接关闭直接归因于 Win10 SSH。
+当前需恢复原局域网连接或确认原机的可达地址；没有修改网络配置或扫描网段。
+证据另存 `outputs/a9-34-main-integration/runner-original-recovery-20261028-r2/REPORT.md`。
