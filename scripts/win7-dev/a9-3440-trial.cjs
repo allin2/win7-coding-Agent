@@ -14,6 +14,9 @@ const ROOT = 'C:\\A9-DEV';
 const MODES = ['progress', 'interrupt', 'recover', 'reopen'];
 const SOURCE = 'f68b6c8eb748f548b2306f5263bc02cf180f1ef7';
 const ZIP_SHA = 'efccd14a97fd146aa22e37c23e028d1aa04a7a7590df80c9dbbd7a2182469bcc';
+const PORTABLE_SOURCE = '158a737fc56247deea5351a94380533bcbf507ca';
+const PORTABLE_ZIP_SHA = '1e8fb7724a378c4a0a2e803aeb1c0f11c61a1626ce4ee46a5832b7fb048f9429';
+const PORTABLE_MANIFEST_SHA = '04f2b608ef41951773522f10792bb9fcccaff561e57d9cfddb3998632cc641ef';
 const HELPER_SHA = '2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7';
 const hash = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
@@ -29,13 +32,24 @@ function inside(root, file) {
 
 function validateConfig(config) {
   need(config && config.schema_version === 1 && config.evidence_class === 'DEV_CHANNEL', 'CONFIG_SCHEMA');
-  need(config.source_commit === SOURCE && config.zip_sha256 === ZIP_SHA, 'CONFIG_PACKAGE_IDENTITY');
+  const portable = config.profile === 'portable-smoke';
+  need(config.profile === undefined || portable, 'CONFIG_PROFILE');
+  need(config.source_commit === (portable ? PORTABLE_SOURCE : SOURCE)
+    && config.zip_sha256 === (portable ? PORTABLE_ZIP_SHA : ZIP_SHA), 'CONFIG_PACKAGE_IDENTITY');
   need(config.helper_sha256 === HELPER_SHA && /^[a-f0-9]{64}$/.test(config.manifest_sha256), 'CONFIG_INPUT_IDENTITY');
   need(/^[a-f0-9]{64}$/.test(config.driver_sha256), 'CONFIG_DRIVER_IDENTITY');
   need(inside(ROOT, config.run_root) && inside(ROOT, config.package_root), 'CONFIG_ROOT');
   need(!inside(config.package_root, config.run_root) && !inside(config.run_root, config.package_root), 'CONFIG_ROOTS_OVERLAP');
   need(inside(config.run_root, config.cmd_path), 'CONFIG_CMD_ROOT');
   need(config.real_model_request_limit === 0 && Number.isFinite(Date.parse(config.deadline_utc)), 'CONFIG_BUDGET');
+  if (portable) {
+    need(config.manifest_sha256 === PORTABLE_MANIFEST_SHA, 'CONFIG_PORTABLE_MANIFEST');
+    need(inside(ROOT, config.input_package_root), 'CONFIG_INPUT_ROOT');
+    for (const root of [config.run_root, config.package_root]) {
+      need(root.toLowerCase() !== config.input_package_root.toLowerCase()
+        && !inside(root, config.input_package_root) && !inside(config.input_package_root, root), 'CONFIG_INPUT_ROOT_OVERLAP');
+    }
+  }
   return config;
 }
 
@@ -256,7 +270,7 @@ function verifyPackage(config) {
   const bytes = physicalFs.readFileSync(file);
   need(hash(bytes) === config.manifest_sha256, 'PACKAGE_MANIFEST_HASH');
   const manifest = JSON.parse(bytes.toString('utf8'));
-  need(manifest.source_commit === SOURCE && manifest.source_dirty === false
+  need(manifest.source_commit === config.source_commit && manifest.source_dirty === false
     && manifest.external_acceptance_eligible === false, 'PACKAGE_SOURCE');
   need(Array.isArray(manifest.files) && manifest.files.length === 783, 'PACKAGE_FILES');
   for (const entry of manifest.files) {
@@ -273,7 +287,7 @@ function verifyPackage(config) {
   for (const module of ['core', 'gateway', 'workspace', 'runner', 'state', 'git-adapter']) {
     require(path.join(config.package_root, 'resources/app', module, 'dist/index.js'));
   }
-  return { files: manifest.files.length, sqlite, helper_sha256: HELPER_SHA, source_commit: SOURCE };
+  return { files: manifest.files.length, sqlite, helper_sha256: HELPER_SHA, source_commit: config.source_commit };
 }
 
 function readDb(config, mode, sql, ...params) {
@@ -315,7 +329,7 @@ function prepareDriverRuntime(config, physicalFs = require('original-fs')) {
 
 async function launchUi(config, mode) {
   const executable = config.driver_runtime.executable;
-  const area = path.join(config.run_root, mode === 'progress' ? 'progress' : 'recovery');
+  const area = path.join(config.run_root, mode === 'portable' ? 'portable' : mode === 'progress' ? 'progress' : 'recovery');
   const env = cleanEnvironment(area, false);
   for (const key of ['LOCALAPPDATA', 'APPDATA', 'USERPROFILE', 'TEMP']) fs.mkdirSync(env[key], { recursive: true });
   const output = path.join(config.run_root, mode);
@@ -323,7 +337,8 @@ async function launchUi(config, mode) {
   const stderr = fs.openSync(output + '-stderr.bin', 'wx');
   try {
     return await new Promise((resolve, reject) => {
-      const child = cp.spawn(executable, [config.driver_runtime.app_root, '--ui', mode, '--config', path.join(config.run_root, 'runtime-config.json')],
+      const child = cp.spawn(executable, [config.driver_runtime.app_root, '--ui', mode, '--config',
+        path.join(config.run_root, 'runtime-config.json'), ...(mode === 'portable' ? ['--portable'] : [])],
         { env, cwd: config.run_root, windowsHide: false, stdio: ['ignore', stdout, stderr] });
       let timedOut = false;
       const timer = setTimeout(() => { timedOut = true; child.kill(); }, 120000);
@@ -630,6 +645,209 @@ async function ui(config, mode) {
   }
 }
 
+function copyPortablePackage(config, physicalFs = require('original-fs')) {
+  need(!physicalFs.existsSync(config.package_root), 'PORTABLE_DESTINATION_EXISTS');
+  const manifestBytes = physicalFs.readFileSync(path.join(config.input_package_root, 'release-manifest.json'));
+  need(hash(manifestBytes) === config.manifest_sha256, 'PORTABLE_SOURCE_MANIFEST');
+  const manifest = JSON.parse(manifestBytes.toString('utf8'));
+  const entries = [...manifest.files, { path: 'release-manifest.json', size: manifestBytes.length, sha256: config.manifest_sha256 }];
+  for (const entry of entries) {
+    const source = path.resolve(config.input_package_root, entry.path);
+    const destination = path.resolve(config.package_root, entry.path);
+    need(inside(config.input_package_root, source) && inside(config.package_root, destination), 'PORTABLE_COPY_PATH');
+    need(!physicalFs.lstatSync(source).isSymbolicLink(), 'PORTABLE_COPY_LINK');
+    const bytes = physicalFs.readFileSync(source);
+    need(bytes.length === entry.size && hash(bytes) === entry.sha256, 'PORTABLE_COPY_SOURCE_HASH');
+    physicalFs.mkdirSync(path.dirname(destination), { recursive: true });
+    physicalFs.writeFileSync(destination, bytes, { flag: 'wx' });
+    need(hash(physicalFs.readFileSync(destination)) === entry.sha256, 'PORTABLE_COPY_DESTINATION_HASH');
+  }
+  need(!physicalFs.existsSync(path.join(config.package_root, 'portable-data')), 'PORTABLE_DATA_NOT_FRESH');
+  return { copied_files: entries.length, destination: config.package_root, original_preserved: true };
+}
+
+async function portableController(config) {
+  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'portable-smoke',
+    status: 'IN_PROGRESS', source_commit: config.source_commit, zip_sha256: config.zip_sha256,
+    real_model_requests: 0, fixture_requests: 0, started_at: new Date().toISOString() };
+  const report = path.join(config.run_root, 'RESULT.json');
+  save(report, result);
+  try {
+    need(Date.now() < Date.parse(config.deadline_utc) - 10 * 60 * 1000, 'WINDOW_NO_NEW_SCENARIO');
+    result.identity = currentIdentity();
+    const initialRows = processRows();
+    const launcher = initialRows.find((row) => row.pid === result.identity.parent);
+    need(launcher && launcher.image.toLowerCase() === config.cmd_path.toLowerCase() && launcher.created, 'CONTROLLER_PARENT_IDENTITY');
+    const own = [result.identity, launcher];
+    const unexpected = rows => rows.filter(row =>
+      [config.run_root, config.package_root, config.input_package_root].some(root => inside(root, row.image))
+      && !own.some(known => known.pid === row.pid && known.created === row.created));
+    need(unexpected(initialRows).length === 0, 'PREEXISTING_TRIAL_PROCESS');
+    need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'DRIVER_HASH');
+    new vm.Script(fs.readFileSync(__filename, 'utf8'), { filename: __filename });
+    result.original_package = verifyPackage({ ...config, package_root: config.input_package_root });
+    result.copy = copyPortablePackage(config);
+    result.package = verifyPackage(config);
+    result.cmd_sha256 = hash(fs.readFileSync(config.cmd_path));
+    need(result.cmd_sha256 === hash(fs.readFileSync(path.join(process.env.SystemRoot, 'System32', 'cmd.exe'))), 'CMD_COPY_HASH');
+    config.driver_runtime = prepareDriverRuntime(config);
+    result.driver_runtime = config.driver_runtime;
+    save(path.join(config.run_root, 'runtime-config.json'), config);
+    save(report, result);
+    need(Date.now() < Date.parse(config.deadline_utc) - 10 * 60 * 1000, 'WINDOW_NO_NEW_SCENARIO');
+    result.exit = await launchUi(config, 'portable');
+    save(report, result);
+    need(!result.exit.timed_out && result.exit.signal === null && result.exit.code === 0, 'UI_EXIT_UNEXPECTED');
+    result.ui = JSON.parse(fs.readFileSync(path.join(config.run_root, 'portable-result.json'), 'utf8'));
+    need(result.ui.status === 'CHECKS_COMPLETE' && result.ui.normal_quit === true, 'PORTABLE_UI_INCOMPLETE');
+    result.observed_process_tree = result.ui.process_tree.slice();
+    await waitFor(() => {
+      const rows = processRows();
+      result.observed_process_tree = extendObservedTree(result.observed_process_tree, rows, result.identity.session);
+      result.last_process_observation = { at: new Date().toISOString(),
+        ...processObservation(result.observed_process_tree, rows, result.identity.session),
+        unexpected_root_instances: unexpected(rows) };
+      save(report, result);
+      return result.last_process_observation.blocking_instances.length === 0
+        && result.last_process_observation.unexpected_root_instances.length === 0;
+    }, 40000, 'PORTABLE_TREE_ENDED');
+    const Database = require(path.join(config.package_root, 'resources/native/storage/node_modules/better-sqlite3'));
+    const dbFile = path.join(config.package_root, 'portable-data', 'a9', 'a9-state.db');
+    const db = new Database(dbFile, { readonly: true, fileMustExist: true });
+    try {
+      result.database = { path: dbFile,
+        workspace_locks: db.prepare('SELECT workspace_path,owner_id FROM a9_workspace_locks').all(),
+        workspaces: db.prepare('SELECT workspace_path,permission_mode FROM a9_workspaces').all(),
+        conversations: db.prepare('SELECT session_id FROM a9_sessions').all(),
+        turns: db.prepare('SELECT COUNT(*) AS count FROM a9_turns').get().count };
+    } finally { db.close(); }
+    need(result.database.workspace_locks.length === 0, 'NORMAL_QUIT_LOCK_REMAINS');
+    need(result.database.turns === 0, 'UNEXPECTED_MODEL_TURN');
+    need(result.database.workspaces.length === 1 && result.database.workspaces[0].permission_mode === 'read_only',
+      'READ_ONLY_MODE_NOT_PERSISTED');
+    need(result.database.conversations.length === 2
+      && [result.ui.first_conversation_id, result.ui.new_conversation_id]
+        .every(id => result.database.conversations.some(row => row.session_id === id)), 'CONVERSATIONS_NOT_PERSISTED');
+    result.package_after = verifyPackage(config);
+    result.original_package_after = verifyPackage({ ...config, package_root: config.input_package_root });
+    result.status = 'DEV_CHANNEL_COMPLETE';
+  } catch (error) {
+    result.status = 'HALTED';
+    result.error = String(error && error.message || error).slice(0, 500);
+    process.exitCode = 1;
+  } finally {
+    result.ended_at = new Date().toISOString();
+    save(report, result);
+    process.stdout.write(JSON.stringify({ status: result.status, profile: result.profile, error: result.error || null }) + '\n');
+  }
+}
+
+async function portableUi(config) {
+  const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+  const area = path.join(config.run_root, 'portable');
+  const workspace = path.join(area, 'workspace');
+  fs.mkdirSync(workspace, { recursive: true });
+  app.setPath('crashDumps', path.join(area, 'temp'));
+  const report = path.join(config.run_root, 'portable-result.json');
+  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', mode: 'portable', status: 'IN_PROGRESS',
+    source_commit: config.source_commit, zip_sha256: config.zip_sha256,
+    started_at: new Date().toISOString(), ipc: [], checks: [], normal_quit: false };
+  const persist = () => save(report, result);
+  const check = (name, condition) => { result.checks.push({ name, ok: Boolean(condition) }); persist(); need(condition, name); };
+  let win;
+  const evaluate = source => win.webContents.executeJavaScript(source);
+  const snapshot = async () => {
+    const response = await evaluate('window.win7Agent.a9.snapshot()');
+    need(response && response.ok === true && response.snapshot, 'SNAPSHOT_FAILED');
+    return response.snapshot;
+  };
+  const click = async selector => {
+    const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});
+      if(!e||e.disabled||e.hidden)throw new Error('UI_ACTION_UNAVAILABLE');
+      const r=e.getBoundingClientRect(),x=Math.floor(r.left+r.width/2),y=Math.floor(r.top+r.height/2);
+      const hit=document.elementFromPoint(x,y);
+      if(r.width<=0||r.height<=0||x<0||y<0||x>=innerWidth||y>=innerHeight||!hit||!(hit===e||e.contains(hit)))
+        throw new Error('UI_ACTION_OCCLUDED');
+      return {x,y};})()`);
+    win.focus();
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...point });
+    win.webContents.sendInputEvent({ type: 'mouseDown', ...point, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', ...point, button: 'left', clickCount: 1 });
+  };
+  dialog.showOpenDialog = async (_owner, options) => {
+    need(options && options.properties && options.properties.includes('openDirectory'), 'UNEXPECTED_FILE_PICKER');
+    return { canceled: false, filePaths: [workspace] };
+  };
+  const handle = ipcMain.handle.bind(ipcMain);
+  ipcMain.handle = (channel, listener) => handle(channel, async (...args) => {
+    const response = await listener(...args);
+    if (channel === 'product:a9-request') {
+      result.ipc.push({ action: args[1].action, ok: response && response.ok === true });
+      need(result.ipc.length <= 100, 'IPC_LOG_LIMIT');
+    }
+    return response;
+  });
+  app.on('will-quit', () => { result.normal_quit = true; result.ended_at = new Date().toISOString(); persist(); });
+  try {
+    result.identity = currentIdentity();
+    need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'UI_DRIVER_HASH');
+    check('NORMAL_PORTABLE_FLAG', process.argv.includes('--portable'));
+    require(path.join(config.package_root, 'resources/app/product/main.js'));
+    result.user_data_path = app.getPath('userData');
+    check('PRODUCT_PORTABLE_DATA_ROOT', result.user_data_path === path.join(config.package_root, 'portable-data'));
+    await app.whenReady();
+    win = await waitFor(() => BrowserWindow.getAllWindows().find(item => item.webContents.getURL().includes('/renderer/workbench.html')), 30000, 'WORKBENCH');
+    await waitFor(() => evaluate('document.readyState === "complete" && Boolean(window.win7Agent && window.win7Agent.a9)'), 20000, 'RENDERER_READY');
+    // The real product shows its initially hidden window in ready-to-show.
+    // DOM readiness can precede that event; observe it without calling show().
+    await waitFor(() => win.isVisible() && !win.isMinimized(), 20000, 'WORKBENCH_VISIBLE');
+    check('WORKBENCH_VISIBLE', win.isVisible() && !win.isMinimized());
+    await click('#workspace-select');
+    await waitFor(() => evaluate(`(() => {const e=document.getElementById('a9-surface');
+      return e&&!e.hidden&&Boolean(e.dataset.a9Status);})()`), 20000, 'WORKSPACE_SURFACE');
+    const first = await waitFor(async () => {
+      const snap = await snapshot(); return snap.activeConversationId ? snap : null;
+    }, 20000, 'WORKSPACE');
+    result.first_conversation_id = first.activeConversationId;
+    await waitFor(() => evaluate('document.getElementById("a9-mode-dialog").open'), 10000, 'INITIAL_PERMISSION_DIALOG');
+    await click('input[name="a9-mode-choice"][value="read_only"]');
+    await click('#a9-mode-apply');
+    await waitFor(async () => (await snapshot()).mode === 'read_only'
+      && await evaluate('!document.getElementById("a9-mode-dialog").open'), 10000, 'READ_ONLY_SELECTED');
+    check('INITIAL_PERMISSION_COMPLETED', true);
+    await waitFor(() => evaluate('!document.getElementById("conversation-new").disabled'), 10000, 'NEW_CONVERSATION_ENABLED');
+    await click('#conversation-new');
+    const next = await waitFor(async () => {
+      const snap = await snapshot();
+      return snap.activeConversationId && snap.activeConversationId !== first.activeConversationId ? snap : null;
+    }, 10000, 'NEW_CONVERSATION');
+    result.new_conversation_id = next.activeConversationId;
+    check('NEW_CONVERSATION_ACTIVATED', result.new_conversation_id !== result.first_conversation_id);
+    check('NO_MODEL_OR_PROVIDER_ACTION', !result.ipc.some(entry => /a9\.(?:turn\.submit|provider\.)/.test(entry.action)));
+    result.dom = await evaluate(`(() => ({title:document.title,
+      surfaceVisible:!document.getElementById('a9-surface').hidden,
+      newConversationEnabled:!document.getElementById('conversation-new').disabled,
+      modeDialogClosed:!document.getElementById('a9-mode-dialog').open,
+      modeLabel:document.getElementById('a9-mode-open').textContent,
+      rendererNode:typeof require,rendererProcess:typeof process}))()`);
+    check('REAL_WORKBENCH_READY', result.dom.surfaceVisible && result.dom.newConversationEnabled
+      && result.dom.modeDialogClosed && result.dom.modeLabel.includes('Read Only')
+      && result.dom.rendererNode === 'undefined' && result.dom.rendererProcess === 'undefined');
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    fs.writeFileSync(path.join(config.run_root, 'portable-workbench.png'), (await win.webContents.capturePage()).toPNG());
+    result.process_tree = observedTree(processRows(), process.pid);
+    result.status = 'CHECKS_COMPLETE';
+    persist();
+    win.close();
+  } catch (error) {
+    result.status = 'FAIL';
+    result.error = String(error && error.stack || error).slice(0, 1800);
+    try { result.process_tree = observedTree(processRows(), process.pid); } catch (queryError) { result.process_query_error = queryError.message; }
+    persist();
+    if (win) win.close(); else app.quit();
+  }
+}
+
 module.exports = { inside, validateConfig, parseProcesses, observedTree, remainingInstances, isSgToolEnvironment, extendObservedTree,
   processObservation, fixtureStep, startFixture, cleanEnvironment, prepareDriverRuntime };
 if (require.main === module) {
@@ -640,8 +858,11 @@ if (require.main === module) {
     config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
     need(inside(config.run_root, path.resolve(configFile)), 'CONFIG_LOCATION');
     const mode = args[0] === '--ui' ? args[1] : null;
-    need(mode === null || MODES.includes(mode), 'UI_MODE');
-    Promise.resolve(mode ? ui(config, mode) : controller(config)).catch((error) => {
+    need(config.profile === 'portable-smoke' ? mode === null || mode === 'portable' : mode === null || MODES.includes(mode), 'UI_MODE');
+    const execution = config.profile === 'portable-smoke'
+      ? (mode ? portableUi(config) : portableController(config))
+      : (mode ? ui(config, mode) : controller(config));
+    Promise.resolve(execution).catch((error) => {
       process.stderr.write(String(error.message || error).slice(0, 500) + '\n'); process.exitCode = 1;
     });
   } catch (error) { process.stderr.write(String(error.message || error).slice(0, 500) + '\n'); process.exitCode = 1; }

@@ -23,7 +23,7 @@
 - ENGINEERING_04 为待审 RC 方案，未整体批准。其余历史任务与未闭合义务见 [任务索引](tasks/README.md)，不自动开放历史草案。
 - [A9-40](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md)：产品源码为本地提交 `f68b6c8e…`，开发 ZIP `efccd14a…2469bcc`。2026-10-28 Win7 普通用户联合运行已完成迟到输出自动显示、自然退出控件恢复、SQLite 持久化与 A9-34 恢复链路；正常阶段均经产品关闭释放锁。确认框实际图像已定向补证，结果只作 DEV_CHANNEL。历史 HALTED 保留，准确绑定见 §5.12～§5.13。
   同字节 ZIP、校验值与独立数据目录试用说明已整理到 `outputs/a9-34-main-integration/a9-3440-owner-handoff-20261028-r1/`，见 [§5.14](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#514-本地试用交付材料)。负责人实际使用验收为 NOT_PERFORMED。
-  原始输入路径已在 main `158a737f…` 的干净源码上完成开发重建，新 ZIP `1e8fb772…48f9429`。开发机包完整性通过；与上述实机试用包相比，781 文件相同，仅三份追溯元数据变化。相同组件的 Win7 开发结果记 INHERITED_EVIDENCE，新 ZIP 直接 Win7 运行为 NOT_PERFORMED，见 [§5.17](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#517-原始输入路径开发重建与证据适用性)。
+  原始输入路径已在 main `158a737f…` 的干净源码上完成开发重建，新 ZIP `1e8fb772…48f9429`。与上述实机试用包相比，781 文件相同，仅三份追溯元数据变化，后台进展与恢复链路引用 INHERITED_EVIDENCE。新包已直接完成 Win7 普通用户 portable 初始化、Read Only 首次选择、真实鼠标新建对话、持久化、正常退出和释放锁，结果只作 DEV_CHANNEL，见 [§5.17～§5.19](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#517-原始输入路径开发重建与证据适用性)。
 
 ## 日常入口
 
@@ -40,7 +40,7 @@ npm run docs:check                 # 文档与规则修改
 ## 待负责人决定与阻断
 
 - A9-34/A9-40 本轮获准的开发试用已完成，原目标窗口已关闭。最后开发根零进程、零任务、锁 inactive；准确 SGTool 环境实例按 ADR-0297 保留，不声称其同步退出。本轮真实模型请求 0 次。已发布版本仍为 WIN7-55，见 [A9-40 §5.13](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#513-视觉补证与本轮收尾)。
-  原始 Runner BuildA/BuildB ZIP 已从原 Win10 `192.168.1.13` 取回到 `.acceptance/deps/a9-v26-managed-r3-original/`，完整 SHA、内部清单和既有证据绑定均匹配原锁，输入缺失阻断已解除。正常输入路径已完成一次本地开发打包，未重编原生或改锁。新包直接运行需新的目标窗口；正式构建与门 A/B 仍未开放，见 [§5.16～§5.17](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#516-原始-runner-双返回恢复完成)。
+  原始 Runner BuildA/BuildB ZIP 已从原 Win10 `192.168.1.13` 取回到 `.acceptance/deps/a9-v26-managed-r3-original/`，输入缺失阻断已解除。正常输入路径开发打包及新包 portable 最短链路已完成，未重编原生或改锁。新增窗口于 UTC `15:45:08` 收尾，零根内进程/任务、锁 inactive；准确 SGTool 环境实例仍按 ADR-0297 保留。负责人使用验收为 NOT_PERFORMED，正式构建与门 A/B 未开放，见 [§5.16～§5.19](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#516-原始-runner-双返回恢复完成)。
 - 第一批 20 文件已按批准清单删除；物理净释放未证实（APFS 克隆使重复 ZIP 删除几乎不释放）。
 - 第二轮删除清单 SHA `9c78aac6…9368` 已执行，0 失败；原件实际物理释放约 6.9 GB，低于已分配 16.52 GB，原因 UNKNOWN，见 ENGINEERING_05。
 - 新需求范围、重大架构/产品权限语义、系统权限/配置、超预算、正式签发、产品推送及发布仍单独决定。

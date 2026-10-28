@@ -151,6 +151,30 @@ test('fixture dispatch is limited to the selected prompt and exactly one backgro
   assert.throws(() => trial.fixtureStep({ tools: [{ function: { name: 'probe_test_echo' } }] }, commands, false), /FIXTURE_RESTART_REQUEST/);
 });
 
+test('portable admission separates the original-input package from recovery runs and preserves input roots', () => {
+  const config = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'portable-smoke',
+    source_commit: '158a737fc56247deea5351a94380533bcbf507ca',
+    zip_sha256: '1e8fb7724a378c4a0a2e803aeb1c0f11c61a1626ce4ee46a5832b7fb048f9429',
+    helper_sha256: '2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7',
+    manifest_sha256: '04f2b608ef41951773522f10792bb9fcccaff561e57d9cfddb3998632cc641ef',
+    driver_sha256: 'b'.repeat(64), run_root: 'C:\\A9-DEV\\trials\\portable',
+    package_root: 'C:\\A9-DEV\\portable\\one\\app', input_package_root: 'C:\\A9-DEV\\cand\\original\\app',
+    cmd_path: 'C:\\A9-DEV\\trials\\portable\\cmd.exe', real_model_request_limit: 0,
+    deadline_utc: '2026-10-28T18:00:00Z' };
+  assert.equal(trial.validateConfig(config), config);
+  for (const change of [
+    { profile: undefined }, { profile: 'unknown' },
+    { source_commit: 'f68b6c8eb748f548b2306f5263bc02cf180f1ef7' },
+    { zip_sha256: 'efccd14a97fd146aa22e37c23e028d1aa04a7a7590df80c9dbbd7a2182469bcc' },
+    { manifest_sha256: 'a'.repeat(64) }, { real_model_request_limit: 1 },
+    { input_package_root: 'C:\\outside\\app' },
+    { input_package_root: config.package_root.toUpperCase() },
+    { input_package_root: config.run_root },
+    { input_package_root: config.package_root + '\\source' },
+    { package_root: config.input_package_root + '\\copy' },
+  ]) assert.throws(() => trial.validateConfig({ ...config, ...change }));
+});
+
 test('actual loopback fixture returns SSE and rejects all restart requests', async () => {
   const logs = [];
   const fixture = trial.startFixture({ progress: 'fixed command' }, (entry) => logs.push(entry));
