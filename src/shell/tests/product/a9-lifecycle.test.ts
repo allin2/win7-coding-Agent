@@ -1882,3 +1882,175 @@ it('A9-32 permits a fresh continuation alongside a healthy owned background proc
     expect(result.ok).toBe(true); expect(result.continuation.turnId).not.toBe('continue-old'); expect(runtime.canLeaveWorkspace().allowed).toBe(false); db.close();
   } finally { await runtime.shutdown(); await fixture.close(); }
 });
+
+/** A9-34: real SQLite + current built Runner/State, without packaged/target runtime claims. */
+async function recoveredCleanupEnv(mode = 'read_only', providerBaseUrl?: string) {
+  const env = makeEnv(); const seed = makeRuntime(env);
+  seed.setMode(mode);
+  if (providerBaseUrl) await seed.configureProvider({ baseUrl: providerBaseUrl, model: 'fixture', skipProbe: true });
+  const conversationId = seed.getSnapshot().activeConversationId;
+  // Empty shutdown releases the actual SQLite workspace lock synchronously.
+  void seed.shutdown();
+  const { A9PersistenceManager } = require('../../../state/dist/a9-persistence');
+  const opened = A9PersistenceManager.open({ databasePath: path.join(env.dataRoot, 'a9-state.db'), dataRoot: env.dataRoot,
+    openDatabase: (p: string) => new Database(p) });
+  if (opened.status !== 'ready') throw new Error(opened.status);
+  const p = opened.manager;
+  p.upsertTask('disposition-task', conversationId, 'completed');
+  p.upsertTurn('disposition-turn', 'disposition-task', conversationId, 'completed');
+  const owner = { workspace: env.workspaceRoot, conversationId, taskId: 'disposition-task', turnId: 'disposition-turn', toolCallId: 'disposition-call' };
+  const fact = { handleId: 'recovered-cleanup', workspacePath: env.workspaceRoot, pid: 987654321,
+    command: 'echo authorization=Bearer do-not-project', cwd: env.workspaceRoot, startedAt: '2026-10-27T00:00:00.000Z', lastProbeStatus: 'exited', cleanupRequired: true };
+  p.recordManagedOwnership(fact, { schemaVersion: 1, owner, requestId: 'original-request', ownershipState: 'owned' });
+  p.db.close();
+  const db = new Database(path.join(env.dataRoot, 'a9-state.db'));
+  return { env, db, owner, fact, open: () => makeRuntime(env), input: (runtime: any) => {
+    const card = runtime.getSnapshot().managedProcesses.find((item: any) => item.handleId === fact.handleId);
+    return { conversationId, handleId: fact.handleId, recoveryRevision: card.recoveryRevision };
+  } };
+}
+
+it('A9-34 disposition closes Stop, switching, shutdown, lock and restart without claiming cleanup', async () => {
+  const f = await recoveredCleanupEnv(); let runtime = f.open(); let reopened: any;
+  try {
+    const input = f.input(runtime);
+    const first = runtime.getSnapshot();
+    expect(first.provider.configured).toBe(false); expect(first.mode).toBe('read_only');
+    expect(first.managedProcesses[0]).toMatchObject({ canDismissRecovered: true, recoveryRevision: input.recoveryRevision });
+    expect(first.managedProcesses[0].command).toContain('***redacted***');
+    expect(first.managedProcesses[0].command).not.toContain('do-not-project');
+    expect(runtime.getSnapshot().managedProcesses[0].recoveryRevision).toBe(input.recoveryRevision);
+    expect(runtime.canLeaveWorkspace().allowed).toBe(false);
+    expect(() => runtime.createConversation()).toThrow('CONVERSATION_BUSY');
+    expect(() => runtime.setMode('full_access')).toThrow('MODE_CHANGE_BLOCKED_MANAGED_PROCESS');
+    expect((await runtime.stop()).ok).toBe(false);
+    const result = runtime.dismissRecovered(input);
+    expect(result).toMatchObject({ ok: true, disposition: { disposition: 'user_attested_after_restart', requestId: 'original-request',
+      pidProbe: { pid: f.fact.pid, status: 'absent' } } });
+    expect(runtime.getSnapshot().controls).toEqual({ canStop: false, stopKind: 'none' });
+    expect((await runtime.stop()).error.code).toBe('NO_ACTIVE_TURN_OR_MANAGED_PROCESS');
+    expect(runtime.getSnapshot().managedProcesses[0]).toMatchObject({ lastProbeStatus: 'user_dismissed', cleanupRequired: false,
+      disposition: result.disposition });
+    expect(runtime.dismissRecovered(input)).toEqual(result);
+    expect(runtime.dismissRecovered({ ...input, recoveryRevision: 'b'.repeat(64) })).toMatchObject({ ok: false, error: { code: 'A9_MANAGED_RECOVERY_STALE' } });
+    expect(f.db.prepare("SELECT count(*) AS n FROM a9_events WHERE event_type='managed_process_disposition'").get()).toEqual({ n: 1 });
+    expect(runtime.canLeaveWorkspace().allowed).toBe(true);
+    const next = runtime.createConversation(); expect(next.ok).toBe(true);
+    expect(runtime.activateConversation(f.owner.conversationId).ok).toBe(true);
+    expect(runtime.setMode('full_access').ok).toBe(true);
+    expect(await runtime.shutdown()).toEqual({ stopped: [], leftToSystem: [], unresolved: [] });
+    expect(runtime.getSnapshot().lock.held).toBe(false);
+    expect(f.db.prepare('SELECT count(*) AS n FROM a9_workspace_locks').get()).toEqual({ n: 0 });
+    expect(f.db.prepare('SELECT last_probe_status FROM a9_managed_processes').get()).toEqual({ last_probe_status: 'user_dismissed' });
+    reopened = f.open();
+    expect(reopened.getSnapshot().controls.canStop).toBe(false);
+    expect(reopened.getSnapshot().managedProcesses[0]).toMatchObject({ lastProbeStatus: 'user_dismissed', disposition: result.disposition });
+    // Same identity remains idempotent across restart without a new PID probe.
+    const kill = jest.spyOn(process, 'kill');
+    expect(reopened.dismissRecovered(input)).toEqual(result);
+    expect(kill).not.toHaveBeenCalled(); kill.mockRestore();
+  } finally { if (reopened) await reopened.shutdown(); await runtime.shutdown(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true }); }
+});
+
+it.each(['wrong-conversation', 'wrong-workspace', 'unknown', 'revision', 'drift', 'owner-missing', 'release_intent', 'release_unknown', 'released',
+  'lock-lost', 'live-pid', 'probe-unknown'])('A9-34 runtime rejects without removing recovered facts: %s', async (bad) => {
+  const f = await recoveredCleanupEnv(); const runtime = f.open();
+  const Runner = require('../../../runner/dist/background-process-manager').BackgroundProcessManager;
+  const probe = Runner.probeProcessPresence;
+  try {
+    const input = f.input(runtime);
+    if (bad === 'wrong-conversation') input.conversationId = 'other';
+    if (bad === 'unknown') input.handleId = 'unknown';
+    if (bad === 'revision') input.recoveryRevision = 'b'.repeat(64);
+    if (bad === 'drift') f.db.prepare("UPDATE a9_managed_processes SET started_at='changed'").run();
+    if (bad === 'wrong-workspace') f.db.prepare("UPDATE a9_managed_processes SET workspace_path='/other'").run();
+    if (bad === 'owner-missing') f.db.prepare("DELETE FROM a9_events WHERE event_type='managed_process_ownership'").run();
+    if (['release_intent', 'release_unknown', 'released'].includes(bad)) {
+      f.db.prepare("UPDATE a9_events SET payload_json=json_set(payload_json,'$.ownershipState',?) WHERE event_type='managed_process_ownership'").run(bad);
+    }
+    if (bad === 'lock-lost') f.db.prepare("UPDATE a9_workspace_locks SET owner_id='other'").run();
+    if (bad === 'live-pid') Runner.probeProcessPresence = () => 'alive';
+    if (bad === 'probe-unknown') Runner.probeProcessPresence = () => 'unknown';
+    expect(runtime.dismissRecovered(input).ok).toBe(false);
+    expect(f.db.prepare("SELECT count(*) AS n FROM a9_events WHERE event_type='managed_process_disposition'").get()).toEqual({ n: 0 });
+    // No snapshot sync here: the original durable rejection state must remain unchanged.
+    expect(f.db.prepare('SELECT last_probe_status FROM a9_managed_processes').get()).toEqual({ last_probe_status: 'cleanup_required' });
+    expect(runtime.canLeaveWorkspace().allowed).toBe(false);
+    expect((await runtime.shutdown()).unresolved).toHaveLength(1);
+  } finally { Runner.probeProcessPresence = probe; await runtime.shutdown(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true }); }
+});
+
+it('A9-34 required disposition audit failure rolls back and retains the memory blocker', async () => {
+  const f = await recoveredCleanupEnv(); const runtime = f.open();
+  try {
+    const input = f.input(runtime);
+    f.db.exec("CREATE TRIGGER fail_disposition AFTER INSERT ON a9_events WHEN NEW.event_type='managed_process_disposition' BEGIN SELECT RAISE(FAIL,'required audit failed'); END");
+    expect(runtime.dismissRecovered(input)).toMatchObject({ ok: false, error: { code: 'A9_AUDIT_PERSISTENCE_FAILED' } });
+    expect(f.db.prepare("SELECT count(*) AS n FROM a9_events WHERE event_type='managed_process_disposition'").get()).toEqual({ n: 0 });
+    expect(runtime.getSnapshot().controls.canStop).toBe(true);
+    expect((await runtime.shutdown()).unresolved).toHaveLength(1);
+    expect(runtime.getSnapshot().lock.held).toBe(true);
+    // Fixing storage and disposing this fact does not erase the independent audit failure.
+    f.db.exec('DROP TRIGGER fail_disposition');
+    expect(runtime.dismissRecovered(input).ok).toBe(true);
+    expect((await runtime.submitTurn('do not dispatch')).error.code).toBe('A9_AUDIT_PERSISTENCE_FAILED');
+  } finally { await runtime.shutdown(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true }); }
+});
+
+it('A9-34 disposition leaves another recovered blocker and rejects overlap with Stop or shutdown', async () => {
+  const f = await recoveredCleanupEnv(); const runtime = f.open();
+  try {
+    const input = f.input(runtime);
+    const stopping = runtime.stop();
+    expect(runtime.dismissRecovered(input)).toMatchObject({ ok: false, error: { code: 'A9_MANAGED_DISPOSITION_BUSY' } });
+    await stopping;
+    const shuttingDown = runtime.shutdown();
+    expect(runtime.dismissRecovered(input)).toMatchObject({ ok: false, error: { code: 'A9_MANAGED_DISPOSITION_BUSY' } });
+    await shuttingDown;
+    // A second original fact is adopted only on a fresh Runtime, as in a real restart.
+    f.db.prepare("INSERT INTO a9_managed_processes SELECT 'other-recovered',workspace_path,pid,command,cwd,started_at,last_probe_status,pid_reuse_possible FROM a9_managed_processes WHERE handle_id=?").run(f.fact.handleId);
+    // The failed shutdown retained the lock. Reopen after an explicit test-only lock release.
+    f.db.prepare('DELETE FROM a9_workspace_locks').run();
+    const other = f.open();
+    try {
+      expect(other.dismissRecovered(f.input(other)).ok).toBe(true);
+      expect(other.getSnapshot().controls.canStop).toBe(true);
+      expect(other.canLeaveWorkspace().allowed).toBe(false);
+      expect(() => other.setMode('full_access')).toThrow('MODE_CHANGE_BLOCKED_MANAGED_PROCESS');
+      const result = await other.shutdown(); expect(result.unresolved).toHaveLength(1);
+      expect(result.unresolved[0]).toContain('other-recovered');
+      expect(other.getSnapshot().lock.held).toBe(true);
+    } finally { await other.shutdown(); }
+  } finally { await runtime.shutdown(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true }); }
+});
+
+it.each(['turn', 'approval'])('A9-34 disposition preserves the independent %s blocker', async (kind) => {
+  const fixture = kind === 'turn' ? await startDelayedFixture() : await startHeldApprovalFixture();
+  const f = await recoveredCleanupEnv('full_access', fixture.baseUrl); const runtime = f.open();
+  let turn: Promise<any> | undefined;
+  try {
+    const input = f.input(runtime);
+    turn = runtime.submitTurn(kind === 'turn' ? 'read note' : 'delete note');
+    if (kind === 'approval') expect((await turn).result.pendingApproval).toBeDefined();
+    else expect(runtime.getSnapshot().agentStatus).toBe('running');
+    expect(runtime.dismissRecovered(input).ok).toBe(true);
+    expect(runtime.getSnapshot().managedProcesses[0].lastProbeStatus).toBe('user_dismissed');
+    expect(runtime.canLeaveWorkspace().allowed).toBe(false);
+    expect(() => runtime.createConversation()).toThrow('A9_CONVERSATION_BUSY');
+    expect(() => runtime.setMode('read_only')).toThrow('A9_MODE_CHANGE_BLOCKED_ACTIVE_TURN');
+    expect((await runtime.submitTurn('blocked')).error.code).toBe(kind === 'turn' ? 'A9_TURN_ALREADY_ACTIVE' : 'A9_APPROVAL_REQUIRED');
+  } finally {
+    fixture.release(); await runtime.stop(); if (turn) await turn;
+    await runtime.shutdown(); await fixture.close(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true });
+  }
+});
+
+it('A9-34 rejects a disposition after the workspace lock has been released', async () => {
+  const f = await recoveredCleanupEnv(); const runtime = f.open();
+  try {
+    const input = f.input(runtime);
+    expect(runtime.dismissRecovered(input).ok).toBe(true);
+    await runtime.shutdown();
+    expect(runtime.dismissRecovered(input)).toMatchObject({ ok: false, error: { code: 'A9_WORKSPACE_LOCKED' } });
+  } finally { await runtime.shutdown(); f.db.close(); fs.rmSync(f.env.root, { recursive: true, force: true }); }
+});

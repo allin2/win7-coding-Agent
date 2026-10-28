@@ -69,6 +69,10 @@
         </div>
       </header>
       <div id="error-banner" class="global-error" role="alert" hidden></div>
+      <section id="a9-managed-processes" class="managed-processes" aria-label="后台进程记录" tabindex="-1" hidden>
+        <h2>后台进程记录</h2><div id="a9-managed-cards"></div>
+        <p id="a9-managed-result" role="status" aria-live="polite"></p>
+      </section>
       <div id="conversation" class="conversation" aria-live="polite" aria-label="任务执行记录">
         <section id="a9-empty-state" class="welcome">
           <div class="welcome-glyph" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 6h16v20H8zM12 11h8M12 16h5M12 21h7"/></svg></div>
@@ -130,6 +134,15 @@
 
   <div id="diagnostics-drawer" class="drawer" hidden><button class="drawer-backdrop" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"></button><section class="drawer-panel wide" role="dialog" aria-modal="true" aria-labelledby="diagnostics-title"><header><div><span class="eyebrow">原始事实</span><h2 id="diagnostics-title">诊断与运行时事实</h2></div><button class="icon-button" type="button" data-close="diagnostics-drawer" aria-label="关闭诊断"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><dl id="diagnostics" class="diagnostics"></dl><button id="refresh-diagnostics" class="secondary" type="button">刷新诊断</button></section></div>
 
+  <dialog id="a9-managed-dismiss-dialog" hidden aria-modal="true" aria-labelledby="a9-managed-dismiss-title" aria-describedby="a9-managed-dismiss-copy a9-managed-dismiss-identity">
+    <form id="a9-managed-dismiss-form" method="dialog">
+      <h2 id="a9-managed-dismiss-title">解除重启恢复记录</h2>
+      <p id="a9-managed-dismiss-copy">我已在系统中检查该进程及其残留，并确认解除此记录。应用未证实进程树已清理。本操作不停止任何进程。</p>
+      <p id="a9-managed-dismiss-identity"></p>
+      <p id="a9-managed-dismiss-error" class="field-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="a9-managed-dismiss-cancel" type="button" class="secondary">取消</button><button id="a9-managed-dismiss-confirm" type="submit" class="primary">确认解除记录</button></div>
+    </form>
+  </dialog>
   <script src="a9-workbench.js"></script>
 </body>
 </html>

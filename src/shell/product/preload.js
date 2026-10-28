@@ -64,6 +64,9 @@ const productApi = Object.freeze({
       approvalId, decision, bindingDigest, conversationId, taskId, turnId,
     }),
     stop: () => a9Request('a9.turn.stop', {}),
+    dismissRecovered: (conversationId, handleId, recoveryRevision) => a9Request('a9.managed.dismissRecovered', {
+      conversationId, handleId, recoveryRevision,
+    }),
     createConversation: () => a9Request('a9.conversation.create', {}),
     activateConversation: (conversationId) => a9Request('a9.conversation.activate', { conversationId }),
     renameConversation: (conversationId, title) => a9Request('a9.conversation.rename', { conversationId, title }),

@@ -284,6 +284,7 @@ function createA9AgentRuntime(options) {
   let activeLifecycle = null;
   let shutdownPromise = null;
   let managedStopPromise = null;
+  let managedDismissInFlight = false;
   let checkpointRecoveryDiagnostics = null;
   let checkpointRecoveryFatal = false;
 
@@ -1102,11 +1103,64 @@ function createA9AgentRuntime(options) {
     const byId = new Map(handles.map((handle) => [handle.handleId, handle]));
     return persistence.listManagedProcesses(workspaceRoot).map((fact) => ({
       ...fact,
+      command: redactSecrets(fact.command),
       ...(persistence.getManagedOwnership(fact.handleId) || {}),
+      ...managedDispositionCard(fact),
       ...((fact.cleanupRequired === true || byId.get(fact.handleId)?.cleanupRequired === true)
         ? { cleanupRequired: true }
         : {}),
     }));
+  }
+
+  function managedDispositionCard(fact) {
+    // 处置事件查询会扫描事件表；只对已处置的事实执行，避免每次快照对全部历史句柄全表扫描。
+    if (fact.lastProbeStatus === 'user_dismissed') {
+      return { canDismissRecovered: false, disposition: persistence.getManagedProcessDisposition(fact.handleId) };
+    }
+    const manager = loopTrustedRunner.getBackgroundManager();
+    if (!manager.isRecoveredFact(fact.handleId) || !fact.cleanupRequired) return { canDismissRecovered: false };
+    try {
+      const identity = persistence.getManagedProcessRecoveryIdentity(fact.handleId);
+      if (!lockHeld || workspaceLockReleased) throw Object.assign(new Error('工作区锁无效'), { code: 'A9_WORKSPACE_LOCKED' });
+      if (managedStopPromise || shutdownPromise || managedDismissInFlight) throw Object.assign(new Error('后台处置正在进行'), { code: 'A9_MANAGED_DISPOSITION_BUSY' });
+      manager.probeRecoveredCleanup(fact.handleId, { workspace: canonicalWorkspace, conversationId: a9SessionId });
+      return { recoveryRevision: identity.recoveryRevision, canDismissRecovered: true };
+    } catch (error) {
+      return { canDismissRecovered: false, dismissBlockedReason: error.code || 'A9_MANAGED_DISPOSITION_UNAVAILABLE' };
+    }
+  }
+
+  // 此动作在一次同步调用内完成校验、事务和内存移除，不能与 Stop/shutdown 交错。
+  function dismissRecovered(input) {
+    const fail = (code) => { throw Object.assign(new Error(code), { code }); };
+    try {
+      if (!input || Object.keys(input).length !== 3 || !['conversationId', 'handleId'].every((key) =>
+        typeof input[key] === 'string' && input[key].trim() && input[key].length <= 256)
+        || typeof input.recoveryRevision !== 'string' || !/^[a-f0-9]{64}$/.test(input.recoveryRevision)) fail('A9_PAYLOAD_INVALID');
+      if (!lockHeld || workspaceLockReleased) fail('A9_WORKSPACE_LOCKED');
+      if (input.conversationId !== a9SessionId) fail('A9_MANAGED_HANDLE_WRONG_OWNER');
+      if (managedStopPromise || shutdownPromise || managedDismissInFlight) fail('A9_MANAGED_DISPOSITION_BUSY');
+      managedDismissInFlight = true;
+      try {
+        const manager = loopTrustedRunner.getBackgroundManager();
+        const previous = persistence.getManagedProcessDisposition(input.handleId);
+        const checked = previous ? null : manager.probeRecoveredCleanup(input.handleId, { workspace: canonicalWorkspace, conversationId: a9SessionId });
+        let disposition;
+        try {
+          disposition = persistence.dismissRecoveredManagedProcess({ ...input, workspace: canonicalWorkspace, lockOwnerId: ownerId,
+            ...(checked ? { identity: { owner: checked.handle.owner, requestId: checked.handle.requestId,
+              pid: checked.handle.pid, startedAt: checked.handle.startTime }, pidProbe: checked.pidProbe } : {}) });
+        } catch (error) {
+          if (!error.code || !String(error.code).startsWith('A9_')) {
+            blockManagedAudit(checked && checked.handle.owner, 'managed_process_disposition');
+            fail('A9_AUDIT_PERSISTENCE_FAILED');
+          }
+          throw error;
+        }
+        if (!previous) manager.dismissRecoveredFact(input.handleId, { workspace: canonicalWorkspace, conversationId: a9SessionId });
+        return { ok: true, disposition };
+      } finally { managedDismissInFlight = false; }
+    } catch (error) { return { ok: false, error: presentError(error) }; }
   }
 
   // 崩溃恢复只采纳 PID 事实，不重放命令；PID 复用风险保留给显式 Stop 决策。
@@ -2570,7 +2624,7 @@ function createA9AgentRuntime(options) {
       // 保留既有无负载关闭语义：无需等待时同步释放锁，紧接着切换/重开
       // 同一工作区不会短暂误报 A9_WORKSPACE_LOCKED。
       releaseWorkspaceLock();
-      shutdownPromise = Promise.resolve({ stopped: [], leftToSystem: [] });
+      shutdownPromise = Promise.resolve({ stopped: [], leftToSystem: [], unresolved: [] });
       return shutdownPromise;
     }
     const attempt = (async () => {
@@ -2617,6 +2671,7 @@ function createA9AgentRuntime(options) {
     configureShell,
     submitTurn,
     continueTask,
+    dismissRecovered,
     resumeApproval,
     stop,
     saveDraft,

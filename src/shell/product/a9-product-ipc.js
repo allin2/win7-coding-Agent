@@ -18,6 +18,7 @@ const A9_ACTIONS = Object.freeze({
   TASK_CONTINUE: 'a9.task.continue',
   TURN_RESUME_APPROVAL: 'a9.turn.resumeApproval',
   TURN_STOP: 'a9.turn.stop',
+  MANAGED_DISMISS_RECOVERED: 'a9.managed.dismissRecovered',
   CONVERSATION_CREATE: 'a9.conversation.create',
   CONVERSATION_ACTIVATE: 'a9.conversation.activate',
   CONVERSATION_RENAME: 'a9.conversation.rename',
@@ -140,6 +141,13 @@ function createA9ProductRequestHandler(options) {
           }
           return await runtime.resumeApproval(payload);
         }
+        case A9_ACTIONS.MANAGED_DISMISS_RECOVERED:
+          exactObject(request.payload, ['conversationId', 'handleId', 'recoveryRevision'], 'A9_PAYLOAD_INVALID');
+          if (!['conversationId', 'handleId'].every((key) => typeof payload[key] === 'string' && payload[key].trim() && payload[key].length <= 256)
+              || typeof payload.recoveryRevision !== 'string' || !/^[a-f0-9]{64}$/.test(payload.recoveryRevision)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid recovered process identity'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return await runtime.dismissRecovered(payload);
         case A9_ACTIONS.TURN_STOP:
           return await runtime.stop();
         case A9_ACTIONS.CONVERSATION_CREATE:

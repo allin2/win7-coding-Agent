@@ -5,14 +5,14 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELIABILITY_HARDENING
 Target Branch: 执行代理在独立工作树分支实现，主会话审核后合入 main
 Source Baseline: 3f675f93b5ddbdc6be8aebbc39f5254b1b2a19d8
-Phase-Gate: A9_34_IMPLEMENTATION_AUTHORIZED
+Phase-Gate: A9_34_DEVELOPER_VERIFIED
 Win7-Validation: NOT_PERFORMED
 Decision: ADR-0294
 ```
 
 ## 1. 结论、来源与范围记录
 
-问题仍存在。执行代理在开发机只读核对了上述提交。
+下方 §2 保留实施前的问题与源码证据。当前实施结果见 §11。
 方案 U 已获负责人批准（ADR-0294）。§8 Q1～Q3 已裁决，Q4 待开发机验证通过后决定。批准记录见 §10。
 
 2026-10-27，负责人选 A：“A9-34 崩溃后的清理出口”。
@@ -179,20 +179,20 @@ Runtime `:1114` 不会再次采纳该值。
 它涉及 helper 身份、Job 生命周期证明与原生边界。
 是否另立任务，见 §8 Q2。
 
-## 5. 实现定位路径（待批准）
+## 5. 实现定位路径（已批准，入口定位已更正）
 
 原草案列出的源码与测试路径均存在。
-原清单遗漏 `renderer/index.html` 与新增 ADR 的索引文件。
+原清单误将 `renderer/index.html` 认作产品入口；实施核对后更正为 `renderer/workbench.html`。
 按 §4 的静态容器和 DOM 确认框方案补入下表。
 路径用于定位，不替代 ADR-0290 的结果与行为边界。
-本轮仍只允许修改本任务书。
+本节实现范围已按 §10 批准，入口更正是同一用户行为范围内的定位修复。
 
 | 责任 | 拟涉及路径 |
 |---|---|
 | Runner | `src/runner/src/background-process-manager.ts`；`src/runner/tests/background-process-manager.test.ts` |
 | State | `src/state/src/a9-persistence.ts`；`src/state/tests/a9-managed-process-ownership.test.ts` |
 | Runtime、IPC、preload | `src/shell/product/a9-agent-runtime.js`、`src/shell/product/a9-product-ipc.js`、`src/shell/product/preload.js` |
-| 工作台 | `src/shell/product/renderer/index.html`、`src/shell/product/renderer/a9-workbench.js`、`src/shell/product/renderer/a9-workbench.css` |
+| 工作台 | `src/shell/product/renderer/workbench.html`、`src/shell/product/renderer/a9-workbench.js`、`src/shell/product/renderer/a9-workbench.css` |
 | Shell 验证 | `src/shell/tests/product/a9-lifecycle.test.ts`、`src/shell/tests/product/a9-background-tools.test.ts`、`src/shell/tests/product/a9-preload-capability.test.ts`、`src/shell/tests/product/a9-workbench-contract.test.ts` |
 | 批准后文档 | 本任务书、`docs/DECISIONS.md`、`docs/DECISIONS_INDEX.md`、`docs/tasks/README.md`、`docs/STATUS.md`、`docs/STATUS_LOG.md`；运行结果沿用已有记录入口 |
 
@@ -311,3 +311,14 @@ A9-34 是 ADR-0240 决定一第 5 项的已知限制。
 - 实施方式：执行代理在独立工作树实现；主会话审核与反证后本地提交 main。
 - 未授权：§6.2 Win7 开发通道运行（Q4 待定）、候选号、门 A/B、推送、发布、方案 E。
 - 停止条件沿用 §1 范围表；需新系统 API、改 native 或扩大范围时停止并报告。
+
+
+## 11. 实施整合与入口修复（2026-10-27）
+
+- 实际实现分支 `t3/recovered-cleanup-disposition`，HEAD `fa5ec1ec4093f40b9b69d10519cfe5001882f45b`；DOM 测试分支 `t3/a9-34-workbench-dom-contract-tests`，同一 HEAD。主会话将成果整合到 main，保留原工作树及备份。
+- 开发机静态核对确认 main.js 默认加载 workbench.html；index.html 只用于历史 A8 冒烟入口。原任务书 §4.1 的 index.html 定位错误，不能据此证明正常产品可用。主会话将卡片与确认框接入 workbench.html，未修改旧入口。
+- 主会话保留 Runtime 已处置分支才查询处置事件的修复，避免每次快照对所有历史句柄扫描事件表。
+- DOM 契约改读真实默认入口；测试中的节点只在该 HTML 存在时才能取得。修复前 8 项失败/38 项通过，修复后 46 项通过，退出码 0；日志 `/tmp/a9-34-entry-red.log`、`/tmp/a9-34-entry-green.log`。
+- 最短本地交互检查使用真实 HTML/CSS/完整 Renderer 与桩 preload，11 项通过。覆盖可见卡片、文本输出、真实模态、取消零请求、绑定确认、刷新后焦点、错误及视口；1366×768 截图检查通过。结果在 `/tmp/a9-34-browser-s5j86koo/result.json`，只作开发浏览器证据，不替代 Electron/main/IPC/SQLite 或 Win7。
+- main 整合后的七模块日常集合 3452 项通过，12 项慢检查按日常配置跳过，退出码 0；慢检查不是本轮直接证据。日志仍有既有 Jest 句柄提示，测试进程最终正常结束。原日志及准确源码文件哈希保存在 `outputs/a9-34-main-integration/`，文档与差异检查通过。
+- 主会话按 §10 授权本地提交 A9-34；A9-40 与其他任务的文档修改继续留在工作区，不纳入该提交。Win7 开发运行、打包运行时和门 A/B 均 NOT_PERFORMED；Q4 未授权。

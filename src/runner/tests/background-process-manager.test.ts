@@ -535,3 +535,57 @@ it('v3 owned handles enforce three active processes and repeat Stop only after c
     await start('four'); expect(m.getActiveCount()).toBe(3);
   } finally { expect((await m.dispose({ stopManaged: true })).unresolved).toEqual([]); }
 });
+
+describe('A9-34 recovered cleanup disposition', () => {
+  const owner = { workspace: '/w', conversationId: 'c', taskId: 't', turnId: 'tr', toolCallId: 'call' };
+  function recovered() {
+    const changed = jest.fn();
+    const manager = new BackgroundProcessManager(undefined, (s) => s, () => [], changed);
+    manager.adoptRecoveredFact('h', { pid: 987654321, command: 'old', cwd: '/w', startTime: '2026-10-27',
+      requestId: 'request', owner, ownershipState: 'owned', cleanupRequired: true });
+    return { manager, changed };
+  }
+  afterEach(() => jest.restoreAllMocks());
+  it('removes only the qualified recovered fact without signals or old-state callbacks', () => {
+    const kill = jest.spyOn(process, 'kill').mockImplementation(() => { throw Object.assign(new Error('gone'), { code: 'ESRCH' }); });
+    const { manager, changed } = recovered();
+    manager.adoptRecoveredFact('other', { pid: 987654322, command: 'other', cwd: '/w', startTime: 'old', cleanupRequired: true });
+    expect(manager.probeRecoveredCleanup('h', owner).pidProbe).toMatchObject({ pid: 987654321, status: 'absent' });
+    manager.dismissRecoveredFact('h', owner);
+    expect(manager.list().map((item) => item.handleId)).toEqual(['other']);
+    expect(manager.getActiveCount()).toBe(1); expect(changed).not.toHaveBeenCalled();
+    expect(kill.mock.calls.every((call) => call[1] === 0)).toBe(true);
+  });
+  it.each(['unknown', 'wrong-workspace', 'wrong-conversation', 'non-recovered', 'not-cleanup', 'owner-missing',
+    'owner-incomplete', 'request-missing', 'start-missing', 'released', 'release_intent', 'release_unknown', 'pid-missing', 'pid-invalid'])('rejects recovered disposition qualification: %s', (bad) => {
+    const { manager } = recovered(); const entry = (manager as any).processes.get('h');
+    const expectedOwner = { ...owner };
+    if (bad === 'wrong-workspace') expectedOwner.workspace = '/other';
+    if (bad === 'wrong-conversation') expectedOwner.conversationId = 'other';
+    if (bad === 'non-recovered') entry.recoveredFact = false;
+    if (bad === 'not-cleanup') entry.handle.cleanupRequired = false;
+    if (bad === 'owner-missing') entry.handle.owner = undefined;
+    if (bad === 'owner-incomplete') entry.handle.owner = { ...owner, taskId: '' };
+    if (bad === 'request-missing') entry.handle.requestId = undefined;
+    if (bad === 'start-missing') entry.handle.startTime = '';
+    if (['released', 'release_intent', 'release_unknown'].includes(bad)) entry.handle.ownershipState = bad;
+    if (bad === 'pid-missing') entry.handle.pid = undefined;
+    if (bad === 'pid-invalid') entry.handle.pid = -1;
+    const before = manager.list();
+    const code = bad === 'unknown' ? 'HANDLE_UNKNOWN'
+      : ['wrong-workspace', 'wrong-conversation', 'owner-missing'].includes(bad) ? 'HANDLE_WRONG_OWNER'
+      : ['non-recovered', 'not-cleanup'].includes(bad) ? 'NOT_RECOVERED_CLEANUP'
+      : bad.startsWith('pid-') ? 'PID_INVALID' : 'OWNERSHIP_UNCONFIRMED';
+    expect(() => manager.dismissRecoveredFact(bad === 'unknown' ? 'unknown' : 'h', expectedOwner)).toThrow(`A9_MANAGED_${code}`);
+    expect(manager.list()).toEqual(before);
+  });
+  it.each(['alive', 'EPERM', 'EACCES', 'EIO'])('fails closed for PID presence: %s', (result) => {
+    const { manager } = recovered();
+    jest.spyOn(process, 'kill').mockImplementation(() => {
+      if (result === 'alive') return true;
+      throw Object.assign(new Error(result), { code: result });
+    });
+    expect(() => manager.probeRecoveredCleanup('h', owner)).toThrow(result === 'alive' || result === 'EPERM' ? 'A9_MANAGED_PID_ALIVE' : 'A9_MANAGED_PID_PROBE_UNKNOWN');
+    expect(manager.getActiveCount()).toBe(1);
+  });
+});

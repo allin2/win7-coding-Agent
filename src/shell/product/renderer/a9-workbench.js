@@ -59,6 +59,9 @@
     providerHydratedSignature: null,
     conversationSignature: null,
     continuingTaskId: null,
+    managedRenderSignature: null,
+    managedConfirmation: null,
+    managedDismissBusy: false,
     renderedConversationId: null,
     activeConversationId: null,
     checkpointScope: '',
@@ -197,6 +200,90 @@
 
   function activeManagedProcesses(snapshot) {
     return ((snapshot && snapshot.managedProcesses) || []).filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus) || item.cleanupRequired === true);
+  }
+
+  function renderManagedProcesses(snapshot) {
+    const container = el('a9-managed-processes');
+    if (!container) return;
+    const records = (snapshot.managedProcesses || []).filter((item) => !item.owner || item.owner.conversationId === snapshot.activeConversationId);
+    const signature = JSON.stringify([snapshot.workspaceRoot, snapshot.activeConversationId, records]);
+    container.hidden = records.length === 0;
+    if (state.managedRenderSignature === signature) return;
+    state.managedRenderSignature = signature;
+    const cards = el('a9-managed-cards'); cards.textContent = '';
+    for (const item of records) {
+      const card = document.createElement('article'); card.className = 'managed-process-card';
+      card.dataset.handleId = item.handleId;
+      card.dataset.conversationId = snapshot.activeConversationId;
+      card.dataset.recoveryRevision = item.recoveryRevision || '';
+      const title = document.createElement('strong'); title.textContent = item.handleId;
+      const identity = document.createElement('p'); identity.className = 'quiet';
+      identity.textContent = `PID ${item.pid || '未知'} · 启动时间 ${item.startedAt || '未知'}`;
+      const command = document.createElement('pre'); command.className = 'managed-process-command';
+      // command 已由 Runtime 的现有 redactSecrets 脱敏；仅以文本显示。
+      command.textContent = item.command || '';
+      const status = document.createElement('p'); status.className = 'managed-process-status';
+      status.textContent = item.lastProbeStatus === 'user_dismissed'
+        ? '用户确认处置，应用未证实清理'
+        : item.cleanupRequired ? '清理未确认' : item.lastProbeStatus || '状态未知';
+      card.append(title, identity, command, status);
+      if (item.canDismissRecovered) {
+        const button = document.createElement('button'); button.type = 'button';
+        button.dataset.action = 'dismiss-recovered'; button.textContent = '我已检查残留，解除此记录';
+        button.disabled = state.managedDismissBusy;
+        button.addEventListener('click', () => {
+          if (state.managedDismissBusy || state.managedConfirmation) return;
+          // 捕获本卡片身份，轮询刷新不能替换确认目标。
+          state.managedConfirmation = { conversationId: card.dataset.conversationId, handleId: item.handleId,
+            recoveryRevision: item.recoveryRevision, trigger: button };
+          const dialog = el('a9-managed-dismiss-dialog');
+          Object.assign(dialog.dataset, { conversationId: card.dataset.conversationId, handleId: item.handleId, recoveryRevision: item.recoveryRevision });
+          text('a9-managed-dismiss-identity', `${item.handleId} · PID ${item.pid} · ${item.startedAt}`);
+          setFieldError('a9-managed-dismiss-error', '');
+          openDialog(dialog); el('a9-managed-dismiss-cancel').focus();
+        });
+        card.appendChild(button);
+      } else if (item.dismissBlockedReason) {
+        const reason = document.createElement('p'); reason.className = 'quiet';
+        reason.textContent = `暂不能解除记录：${item.dismissBlockedReason}`; card.appendChild(reason);
+      }
+      cards.appendChild(card);
+    }
+  }
+
+  function closeManagedDismiss() {
+    if (state.managedDismissBusy) return;
+    const confirmation = state.managedConfirmation;
+    state.managedConfirmation = null;
+    closeDialog(el('a9-managed-dismiss-dialog'));
+    const trigger = confirmation && confirmation.trigger;
+    const fallback = el('a9-managed-processes');
+    const focus = trigger && trigger.isConnected ? trigger : fallback && !fallback.hidden ? fallback : el('task-prompt');
+    if (focus) focus.focus();
+  }
+
+  async function confirmManagedDismiss() {
+    const confirmation = state.managedConfirmation;
+    if (!confirmation || state.managedDismissBusy) return;
+    state.managedDismissBusy = true;
+    const dialog = el('a9-managed-dismiss-dialog'); dialog.setAttribute('aria-busy', 'true');
+    const buttons = [el('a9-managed-dismiss-confirm'), el('a9-managed-dismiss-cancel')];
+    buttons.forEach((button) => { button.disabled = true; });
+    setFieldError('a9-managed-dismiss-error', '');
+    let succeeded = false;
+    try {
+      const result = await a9.dismissRecovered(confirmation.conversationId, confirmation.handleId, confirmation.recoveryRevision);
+      if (!result || result.ok !== true) { setFieldError('a9-managed-dismiss-error', errorMessage(result, '解除记录失败，请刷新后重试。')); return; }
+      succeeded = true;
+      text('a9-managed-result', '用户确认处置，应用未证实清理');
+      await refreshSnapshot();
+    } catch (error) { setFieldError('a9-managed-dismiss-error', errorMessage(error, '解除记录失败，请刷新后重试。')); }
+    finally {
+      state.managedDismissBusy = false; dialog.removeAttribute('aria-busy');
+      buttons.forEach((button) => { button.disabled = false; });
+      if (succeeded) closeManagedDismiss();
+      else el('a9-managed-dismiss-cancel').focus();
+    }
   }
 
   function syncComposer() {
@@ -1950,6 +2037,7 @@
     modeButton.hidden = !ready || !workspace;
     modeButton.disabled = !ready || !workspace;
     modeButton.textContent = `权限：${modeLabel(snapshot.mode)}`;
+    renderManagedProcesses(snapshot);
     renderApproval(snapshot);
     state.running = ['running', 'cancelling'].includes(snapshot.agentStatus);
     const preview = snapshot.liveModelPreview;
@@ -2385,7 +2473,7 @@
     text('a9-mode-apply', needsSelection ? '使用所选模式' : '保存权限模式');
     el('a9-mode-cancel').hidden = needsSelection;
     dialog.dataset.required = needsSelection ? 'true' : 'false';
-    if (forceOpen || needsSelection) {
+    if (forceOpen || (needsSelection && !activeManagedProcesses(snapshot).some((item) => item.cleanupRequired))) {
       openDialog(dialog);
       const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
       if (selected && typeof selected.focus === 'function') selected.focus();
@@ -3051,6 +3139,20 @@
       const jump = el('jump-latest');
       if (jump) jump.hidden = true;
     });
+    const managedDismissForm = el('a9-managed-dismiss-form');
+    if (managedDismissForm) {
+      managedDismissForm.addEventListener('submit', (event) => { event.preventDefault(); void confirmManagedDismiss(); });
+      el('a9-managed-dismiss-cancel').addEventListener('click', closeManagedDismiss);
+      el('a9-managed-dismiss-dialog').addEventListener('cancel', (event) => { event.preventDefault(); closeManagedDismiss(); });
+      el('a9-managed-dismiss-dialog').addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') { event.preventDefault(); closeManagedDismiss(); }
+        if (event.key === 'Tab' && !state.managedDismissBusy) {
+          const first = el('a9-managed-dismiss-cancel'), last = el('a9-managed-dismiss-confirm');
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+      });
+    }
     el('a9-mode-open').addEventListener('click', () => { if (state.snapshot) configureModeDialog(state.snapshot, true); });
     el('a9-mode-apply').addEventListener('click', () => { void chooseMode(); });
     el('a9-mode-cancel').addEventListener('click', () => closeDialog(el('a9-mode-dialog')));

@@ -559,3 +559,13 @@ summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--focus
 .continuation-facts { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
 .continuation-reason { color: var(--muted); font-size: 12px; }
 .continuation-card button { min-height: 40px; }
+
+.managed-processes { flex: 0 0 auto; max-height: 30vh; overflow: auto; padding: 10px 20px; border-bottom: 1px solid var(--line); }
+.managed-processes h2 { font-size: 14px; margin: 0 0 8px; }
+.managed-process-card { padding: 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.managed-process-card button { min-height: 40px; white-space: normal; }
+.managed-process-command { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 100px; overflow: auto; }
+#a9-managed-dismiss-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); margin: auto; padding: 0; overflow: auto; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: 0 28px 90px rgba(31, 35, 40, .25); }
+#a9-managed-dismiss-dialog::backdrop { background: rgba(31, 35, 40, .35); }
+#a9-managed-dismiss-form { padding: 20px; overflow-wrap: anywhere; }
+#a9-managed-dismiss-form p { line-height: 1.6; }

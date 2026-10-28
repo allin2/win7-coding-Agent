@@ -1416,6 +1416,64 @@ export class A9PersistenceManager {
     const { handleId: _handleId, ...ownership } = payload; return ownership;
   }
 
+  /** 摘要绑定原始行和完整归属；刷新相同事实不推进 revision。 */
+  getManagedProcessRecoveryIdentity(handleId: string) {
+    const row = this.db.prepare('SELECT * FROM a9_managed_processes WHERE handle_id=?').get(handleId) as any;
+    if (!row) throw a9PersistenceError('A9_MANAGED_HANDLE_UNKNOWN', '恢复事实不存在');
+    const ownership = this.getManagedOwnership(handleId);
+    const owner = ownership?.owner;
+    if (!owner || !['workspace', 'conversationId', 'taskId', 'turnId', 'toolCallId'].every((key) =>
+      typeof owner[key as keyof typeof owner] === 'string' && owner[key as keyof typeof owner].trim())
+      || !ownership.requestId || ownership.ownershipState !== 'owned') throw a9PersistenceError('A9_MANAGED_OWNERSHIP_UNCONFIRMED', '归属未确认');
+    const origin = this.db.prepare(`SELECT s.workspace_path, s.state FROM a9_sessions s JOIN a9_tasks t ON t.session_id=s.session_id
+      JOIN a9_turns tr ON tr.task_id=t.task_id AND tr.session_id=s.session_id
+      WHERE s.session_id=? AND t.task_id=? AND tr.turn_id=?`).get(owner.conversationId, owner.taskId, owner.turnId) as any;
+    if (!origin || origin.state !== 'active' || !sameWorkspacePath(origin.workspace_path, owner.workspace)
+      || !sameWorkspacePath(row.workspace_path, owner.workspace)) throw a9PersistenceError('A9_MANAGED_HANDLE_WRONG_OWNER', '原归属不完整或工作区不符');
+    return { owner, requestId: ownership.requestId, pid: row.pid as number, startedAt: row.started_at as string,
+      lastProbeStatus: row.last_probe_status as string,
+      recoveryRevision: crypto.createHash('sha256').update(JSON.stringify({ row, ownership }), 'utf8').digest('hex') };
+  }
+
+  getManagedProcessDisposition(handleId: string): (Record<string, any> & { eventId: number }) | undefined {
+    const row = this.db.prepare("SELECT id, payload_json FROM a9_events WHERE event_type='managed_process_disposition' AND json_extract(payload_json, '$.handleId')=? ORDER BY id DESC LIMIT 1").get(handleId) as any;
+    return row ? { ...(safeParse(row.payload_json) as Record<string, any>), eventId: Number(row.id) } : undefined;
+  }
+
+  /** 必需事件与处置状态原子提交；不变更 ownership 或声明清理成功。 */
+  dismissRecoveredManagedProcess(input: {
+    workspace: string; conversationId: string; lockOwnerId: string; handleId: string; recoveryRevision: string;
+    identity?: { owner: Record<string, string>; requestId?: string; pid?: number; startedAt: string };
+    pidProbe?: { pid: number; status: string; checkedAt: string };
+  }) {
+    return this.db.transaction(() => {
+      const lock = this.db.prepare('SELECT owner_id FROM a9_workspace_locks WHERE workspace_path=?').get(input.workspace) as any;
+      if (lock?.owner_id !== input.lockOwnerId) throw a9PersistenceError('A9_WORKSPACE_LOCKED', '当前窗口未持有工作区锁');
+      const current = this.getManagedProcessRecoveryIdentity(input.handleId);
+      if (current.owner.workspace !== input.workspace || current.owner.conversationId !== input.conversationId) throw a9PersistenceError('A9_MANAGED_HANDLE_WRONG_OWNER', '仅允许当前工作区及对话');
+      const previous = this.getManagedProcessDisposition(input.handleId);
+      if (previous) {
+        if (previous.recoveryRevision !== input.recoveryRevision || current.lastProbeStatus !== 'user_dismissed'
+          || JSON.stringify(previous.owner) !== JSON.stringify(current.owner) || previous.requestId !== current.requestId
+          || previous.pidProbe?.pid !== current.pid || previous.startedAt !== current.startedAt) throw a9PersistenceError('A9_MANAGED_RECOVERY_STALE', '处置身份已变化');
+        return previous;
+      }
+      if (current.recoveryRevision !== input.recoveryRevision) throw a9PersistenceError('A9_MANAGED_RECOVERY_STALE', '恢复事实已变化');
+      if (current.lastProbeStatus !== 'cleanup_required') throw a9PersistenceError('A9_MANAGED_NOT_RECOVERED_CLEANUP', '不是待处置恢复事实');
+      const identity = input.identity;
+      if (!identity || JSON.stringify(identity.owner) !== JSON.stringify(current.owner) || identity.requestId !== current.requestId
+        || identity.pid !== current.pid || identity.startedAt !== current.startedAt) throw a9PersistenceError('A9_MANAGED_RECOVERY_STALE', '内存与持久化身份不符');
+      if (!Number.isSafeInteger(current.pid) || current.pid <= 0 || input.pidProbe?.pid !== current.pid
+        || input.pidProbe.status !== 'absent' || !Number.isFinite(Date.parse(input.pidProbe.checkedAt))) throw a9PersistenceError('A9_MANAGED_PID_PROBE_UNKNOWN', '缺少 PID 不存在的探测事实');
+      const disposition = { schemaVersion: 1, disposition: 'user_attested_after_restart', owner: current.owner,
+        handleId: input.handleId, requestId: current.requestId, startedAt: current.startedAt, recoveryRevision: input.recoveryRevision,
+        disposedAt: new Date().toISOString(), pidProbe: input.pidProbe };
+      this.db.prepare("UPDATE a9_managed_processes SET last_probe_status='user_dismissed' WHERE handle_id=?").run(input.handleId);
+      const event = this.recordToolEvent(current.owner.conversationId, current.owner.turnId, 'managed_process_disposition', disposition);
+      return { ...disposition, ...event };
+    })();
+  }
+
   listManagedProcesses(workspacePath: string): Array<{
     handleId: string; pid: number | null; command: string; cwd: string;
     startedAt: string; lastProbeStatus: string | null; pidReusePossible: boolean; cleanupRequired: boolean;

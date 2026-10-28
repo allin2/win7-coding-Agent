@@ -1241,3 +1241,322 @@ describe('A9-32 recovery card uses production DOM and preserves node identity', 
     box.render(block, null); expect(block.continueEl).toBeNull();
   });
 });
+
+describe('A9-34 recovered cleanup disposition DOM contract', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../../product/renderer/a9-workbench.js'), 'utf8');
+  const managedHtml = fs.readFileSync(path.join(__dirname, '../../product/renderer/workbench.html'), 'utf8');
+  // 任务书 §8 Q3 选项 A 原文（ADR-0294 已批准）。
+  const Q3_TITLE = '解除重启恢复记录';
+  const Q3_COPY = '我已在系统中检查该进程及其残留，并确认解除此记录。应用未证实进程树已清理。本操作不停止任何进程。';
+  const Q3_CONFIRM = '确认解除记录';
+  const Q3_CANCEL = '取消';
+
+  it('loads every disposition node from the default product entry', () => {
+    const main = fs.readFileSync(path.join(__dirname, '../../product/main.js'), 'utf8');
+    expect(main).toContain(": path.join(rendererRoot, 'workbench.html');");
+    expect(managedHtml).toContain('src="a9-workbench.js"');
+    const ids = ['a9-managed-processes', 'a9-managed-cards', 'a9-managed-result',
+      'a9-managed-dismiss-dialog', 'a9-managed-dismiss-form', 'a9-managed-dismiss-title',
+      'a9-managed-dismiss-copy', 'a9-managed-dismiss-identity', 'a9-managed-dismiss-error',
+      'a9-managed-dismiss-cancel', 'a9-managed-dismiss-confirm'];
+    for (const id of ids) expect(managedHtml.match(new RegExp(`id="${id}"`, 'g'))).toHaveLength(1);
+  });
+
+  // 契约 DOM 由实现声明（#a9-managed-*）；本 harness 注入与声明一致的节点，
+  // 以驱动 a9-workbench.js 的托管处置逻辑层（renderManagedProcesses /
+  // closeManagedDismiss / confirmManagedDismiss 及其 bind 绑定）。
+  function createManagedDismissHarness() {
+    const nodes = new Map<string, ManagedNode>();
+    const listeners = new WeakMap<ManagedNode, Array<{ type: string; handler: (event?: any) => void }>>();
+    let activeElement: ManagedNode | null = null;
+    class ManagedNode {
+      children: ManagedNode[] = [];
+      parentNode: ManagedNode | null = null;
+      dataset: Record<string, string> = {};
+      attrs = new Map<string, string>();
+      hidden = false;
+      disabled = false;
+      open = false;
+      className = '';
+      private ownText = '';
+      constructor(public tagName: string, public id = '') {}
+      get textContent() { return this.ownText + this.children.map((child) => child.textContent).join(''); }
+      set textContent(value: any) {
+        this.ownText = String(value == null ? '' : value);
+        this.children.forEach((child) => { child.parentNode = null; });
+        this.children = [];
+      }
+      appendChild(child: ManagedNode) { child.parentNode = this; this.children.push(child); return child; }
+      append(...children: ManagedNode[]) { children.forEach((child) => this.appendChild(child)); }
+      remove() {
+        if (!this.parentNode) return;
+        this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+        this.parentNode = null;
+      }
+      get isConnected() {
+        let current: ManagedNode | null = this.parentNode;
+        while (current) { if (current === documentStub.body) return true; current = current.parentNode; }
+        return false;
+      }
+      addEventListener(type: string, handler: (event?: any) => void) {
+        const list = listeners.get(this) || [];
+        list.push({ type, handler });
+        listeners.set(this, list);
+      }
+      fire(type: string, event?: any) {
+        (listeners.get(this) || []).filter((entry) => entry.type === type).forEach((entry) => entry.handler(event));
+      }
+      focus() { activeElement = this; }
+      setAttribute(name: string, value: string) { this.attrs.set(name, String(value)); }
+      removeAttribute(name: string) { this.attrs.delete(name); }
+      getAttribute(name: string) { return this.attrs.has(name) ? String(this.attrs.get(name)) : null; }
+      querySelectorAll() { return []; }
+      querySelector() { return null; }
+    }
+    const documentStub: any = {
+      body: new ManagedNode('body'),
+      activeElement: null,
+      getElementById: (id: string) => {
+        if (!managedHtml.includes(`id="${id}"`)) return null;
+        if (!nodes.has(id)) nodes.set(id, new ManagedNode('div', id));
+        return nodes.get(id);
+      },
+      createElement: (tagName: string) => new ManagedNode(String(tagName || 'div')),
+      querySelectorAll: () => [],
+      querySelector: () => null,
+    };
+    // 契约容器与确认框节点（含 button/input 常用属性）。
+    const sections: Array<[string, string]> = [
+      ['a9-managed-processes', 'section'], ['a9-managed-cards', 'div'], ['a9-managed-result', 'p'],
+      ['a9-managed-dismiss-dialog', 'dialog'], ['a9-managed-dismiss-form', 'form'],
+      ['a9-managed-dismiss-title', 'h2'], ['a9-managed-dismiss-copy', 'p'],
+      ['a9-managed-dismiss-identity', 'p'], ['a9-managed-dismiss-error', 'p'],
+      ['a9-managed-dismiss-cancel', 'button'], ['a9-managed-dismiss-confirm', 'button'],
+    ];
+    sections.forEach(([id, tagName]) => {
+      const node = documentStub.getElementById(id);
+      node.tagName = tagName;
+      node.id = id;
+      if (id === 'a9-managed-dismiss-confirm') node.type = 'submit';
+      if (id === 'a9-managed-dismiss-cancel' || id === 'a9-managed-dismiss-confirm') node.type = node.type || 'button';
+    });
+    documentStub.body.appendChild(documentStub.getElementById('a9-managed-processes'));
+    documentStub.getElementById('a9-managed-processes').appendChild(documentStub.getElementById('a9-managed-cards'));
+    documentStub.body.appendChild(documentStub.getElementById('a9-managed-dismiss-dialog'));
+    // openDialog / closeDialog / errorMessage / setFieldError 与生产实现一致。
+    const dialogHelpers = {
+      openDialog(dialog: ManagedNode) {
+        if (!dialog) return;
+        dialog.hidden = false;
+        if (!dialog.open) {
+          if (typeof (dialog as any).showModal === 'function') (dialog as any).showModal();
+          else dialog.setAttribute('open', '');
+        }
+      },
+      closeDialog(dialog: ManagedNode) {
+        if (!dialog) return;
+        if (dialog.open && typeof (dialog as any).close === 'function') (dialog as any).close();
+        else dialog.removeAttribute('open');
+        dialog.hidden = true;
+      },
+      errorMessage(response: any, fallback: string) {
+        const error = response && response.error ? response.error : response;
+        return error && (error.message || error.detail || error.reason)
+          ? String(error.message || error.detail || error.reason)
+          : fallback;
+      },
+      setFieldError(id: string, message: string) {
+        const node = documentStub.getElementById(id);
+        if (!node) return;
+        node.textContent = message || '';
+        node.hidden = !message;
+      },
+    };
+    const el = (id: string) => documentStub.getElementById(id);
+    const text = (id: string, value: any) => { const node = el(id); if (node) node.textContent = String(value == null ? '' : value); };
+    // 生产脚本片段：托管处置三函数 + bind() 中的托管绑定块。
+    const managedFunctions = script.slice(
+      script.indexOf('  function renderManagedProcesses('),
+      script.indexOf('  function syncComposer('),
+    );
+    const managedBind = script.slice(
+      script.indexOf("    const managedDismissForm = el('a9-managed-dismiss-form');"),
+      script.indexOf("    el('a9-mode-open').addEventListener('click', () => { if (state.snapshot) configureModeDialog(state.snapshot, true); });"),
+    );
+    const fireSubmit = () => el('a9-managed-dismiss-form').fire('submit', { preventDefault: jest.fn() });
+    const fireCancelClick = () => el('a9-managed-dismiss-cancel').fire('click', {});
+    const fireEscape = () => el('a9-managed-dismiss-dialog').fire('keydown', { key: 'Escape', preventDefault: jest.fn() });
+    return {
+      ManagedNode,
+      document: documentStub,
+      nodes,
+      get activeElement() { return activeElement; },
+      flush: async () => { for (let i = 0; i < 8; i += 1) await new Promise((resolve) => setImmediate(resolve)); },
+      fireSubmit,
+      fireCancelClick,
+      fireEscape,
+      triggerDismiss: () => {
+        const cards = nodes.get('a9-managed-cards');
+        const card = cards && cards.children[0];
+        const button = card && card.children[card.children.length - 1];
+        if (!button) throw new Error('managed dismiss trigger button 未渲染');
+        button.fire('click');
+        return button;
+      },
+      run(overrides: { state?: any; dismissRecovered?: jest.Mock; refreshSnapshot?: jest.Mock; snapshot?: jest.Mock } = {}) {
+        const state = overrides.state || { managedRenderSignature: null, managedConfirmation: null, managedDismissBusy: false };
+        const dismissRecovered = overrides.dismissRecovered || jest.fn(async () => ({ ok: true }));
+        const refreshSnapshot = overrides.refreshSnapshot || jest.fn(async () => {});
+        const context: any = {
+          state, document: documentStub, a9: { dismissRecovered, snapshot: overrides.snapshot || jest.fn(async () => ({ ok: true, snapshot: { managedProcesses: [] } })) },
+          refreshSnapshot, el, text, Promise, Object, Array, String, Number, Date, JSON, console,
+          ...dialogHelpers,
+        };
+        vm.runInNewContext(`${managedFunctions}\n${managedBind}\n;this.__a9_34 = { render: renderManagedProcesses, close: closeManagedDismiss, confirm: confirmManagedDismiss };`, context);
+        return {
+          state, dismissRecovered, refreshSnapshot,
+          render: (snapshot: any) => context.__a9_34.render(snapshot),
+          close: () => context.__a9_34.close(),
+          confirm: () => context.__a9_34.confirm(),
+          el,
+        };
+      },
+    };
+  }
+
+  const RECOVERY_RECORD = {
+    handleId: 'handle-9f3c2a',
+    pid: 4812,
+    startedAt: '2026-10-27T08:00:00.000Z',
+    command: 'ping -n 3 127.0.0.1',
+    lastProbeStatus: 'exited',
+    cleanupRequired: true,
+    recoveryRevision: 'a'.repeat(64),
+    canDismissRecovered: true,
+    owner: { conversationId: 'conversation-a9' },
+  };
+  const SNAPSHOT = { activeConversationId: 'conversation-a9', workspaceRoot: 'C:\\work', managedProcesses: [RECOVERY_RECORD] };
+
+  it.each([
+    ['取消按钮', (h: ReturnType<typeof createManagedDismissHarness>) => h.fireCancelClick()],
+    ['Escape', (h: ReturnType<typeof createManagedDismissHarness>) => h.fireEscape()],
+  ])('A9-34 契约1：%s 关闭确认框且 dismissRecovered 调用 0 次', async (_name, close) => {
+    const h = createManagedDismissHarness();
+    const box = h.run();
+    box.render(SNAPSHOT);
+    h.triggerDismiss();
+    expect(h.nodes.get('a9-managed-dismiss-dialog')!.hidden).toBe(false);
+    close(h);
+    await h.flush();
+    expect(box.dismissRecovered).not.toHaveBeenCalled();
+    expect(h.nodes.get('a9-managed-dismiss-dialog')!.hidden).toBe(true);
+  });
+
+  it('A9-34 契约2：确认后仅调用一次，参数与卡片三个 data 属性完全一致', async () => {
+    const h = createManagedDismissHarness();
+    const box = h.run();
+    box.render(SNAPSHOT);
+    const card = h.nodes.get('a9-managed-cards')!.children[0];
+    h.triggerDismiss();
+    h.fireSubmit();
+    await h.flush();
+    expect(box.dismissRecovered).toHaveBeenCalledTimes(1);
+    expect(box.dismissRecovered).toHaveBeenCalledWith(
+      card.dataset.conversationId,
+      card.dataset.handleId,
+      card.dataset.recoveryRevision,
+    );
+    expect(card.dataset.handleId).toBe(RECOVERY_RECORD.handleId);
+    expect(card.dataset.conversationId).toBe('conversation-a9');
+    expect(card.dataset.recoveryRevision).toBe(RECOVERY_RECORD.recoveryRevision);
+    expect(box.refreshSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('A9-34 契约3：提交进行中再次提交不产生第二次调用', async () => {
+    const h = createManagedDismissHarness();
+    let resolveDismiss: (value: any) => void = () => {};
+    const dismissRecovered = jest.fn(() => new Promise((resolve) => { resolveDismiss = resolve; }));
+    const box = h.run({ dismissRecovered });
+    box.render(SNAPSHOT);
+    h.triggerDismiss();
+    h.fireSubmit();
+    h.fireSubmit(); // 进行中重复提交
+    await h.flush();
+    expect(box.dismissRecovered).toHaveBeenCalledTimes(1);
+    resolveDismiss({ ok: true });
+    await h.flush();
+    expect(box.dismissRecovered).toHaveBeenCalledTimes(1);
+  });
+
+  it('A9-34 契约4：成功显示未证实清理文案；失败保持确认框打开并显示错误', async () => {
+    // 成功路径
+    const ok = createManagedDismissHarness();
+    const okBox = ok.run();
+    okBox.render(SNAPSHOT);
+    ok.triggerDismiss();
+    ok.fireSubmit();
+    await ok.flush();
+    expect(ok.nodes.get('a9-managed-result')!.textContent).toBe('用户确认处置，应用未证实清理');
+    expect(ok.nodes.get('a9-managed-dismiss-dialog')!.hidden).toBe(true);
+
+    // 失败路径：ok !== true
+    const fail = createManagedDismissHarness();
+    const failBox = fail.run({ dismissRecovered: jest.fn(async () => ({ ok: false, error: { message: 'A9_REVISION_MISMATCH' } })) });
+    failBox.render(SNAPSHOT);
+    fail.triggerDismiss();
+    fail.fireSubmit();
+    await fail.flush();
+    expect(fail.nodes.get('a9-managed-dismiss-dialog')!.hidden).toBe(false);
+    expect(fail.nodes.get('a9-managed-dismiss-error')!.hidden).toBe(false);
+    expect(fail.nodes.get('a9-managed-dismiss-error')!.textContent).toContain('A9_REVISION_MISMATCH');
+
+    // 失败路径：抛异常
+    const boom = createManagedDismissHarness();
+    const boomBox = boom.run({ dismissRecovered: jest.fn(async () => { throw new Error('A9_DISMISS_BOOM'); }) });
+    boomBox.render(SNAPSHOT);
+    boom.triggerDismiss();
+    boom.fireSubmit();
+    await boom.flush();
+    expect(boom.nodes.get('a9-managed-dismiss-dialog')!.hidden).toBe(false);
+    expect(boom.nodes.get('a9-managed-dismiss-error')!.textContent).toContain('A9_DISMISS_BOOM');
+  });
+
+  it('A9-34 契约5：确认框文案与 §8 Q3 选项 A 原文一致，界面文字不宣称已清理/已停止', () => {
+    // 标题、正文、两个按钮与 Q3 选项 A 原文一致。
+    const titleTag = managedHtml.match(/<h2 id="a9-managed-dismiss-title">([^<]+)<\/h2>/);
+    const copyTag = managedHtml.match(/<p id="a9-managed-dismiss-copy">([^<]+)<\/p>/);
+    const confirmTag = managedHtml.match(/id="a9-managed-dismiss-confirm"[^>]*>([^<]+)<\/button>/);
+    const cancelTag = managedHtml.match(/id="a9-managed-dismiss-cancel"[^>]*>([^<]+)<\/button>/);
+    expect(titleTag).not.toBeNull();
+    expect(copyTag).not.toBeNull();
+    expect(confirmTag).not.toBeNull();
+    expect(cancelTag).not.toBeNull();
+    expect(titleTag![1]).toBe(Q3_TITLE);
+    expect(copyTag![1]).toBe(Q3_COPY);
+    expect(confirmTag![1]).toBe(Q3_CONFIRM);
+    expect(cancelTag![1]).toBe(Q3_CANCEL);
+    // 界面渲染文案不出现“已停止”，也不出现独立宣称“已清理”的状态/结果/按钮文字。
+    const managedFragment = script.slice(script.indexOf('  function renderManagedProcesses('), script.indexOf('  function syncComposer('));
+    expect(managedFragment).not.toContain('已停止');
+    expect(managedFragment).not.toContain('已清理');
+    // 契约要求“未证实清理”语义明确可见。
+    expect(managedFragment).toContain('用户确认处置，应用未证实清理');
+    expect(managedFragment).toContain('清理未确认');
+  });
+
+  it('A9-34 契约6：关闭后焦点回到触发按钮', async () => {
+    const h = createManagedDismissHarness();
+    const box = h.run();
+    box.render(SNAPSHOT);
+    const button = h.triggerDismiss();
+    expect(h.activeElement).toBe(h.nodes.get('a9-managed-dismiss-cancel'));
+    h.fireCancelClick();
+    await h.flush();
+    expect(h.activeElement).toBe(button);
+    // 确认成功后关闭同样把焦点还给触发按钮。
+    h.triggerDismiss();
+    h.fireSubmit();
+    await h.flush();
+    expect(h.activeElement).toBe(button);
+  });
+});

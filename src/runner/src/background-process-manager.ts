@@ -642,6 +642,39 @@ export class BackgroundProcessManager {
     return this.processes.get(handleId)?.recoveredFact ?? false;
   }
 
+  /** 仅检查恢复事实资格；不操作进程、不写回旧状态。 */
+  inspectRecoveredCleanup(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>): BackgroundProcessHandle {
+    const entry = this.ownedEntry(handleId, owner);
+    const handle = entry.handle;
+    if (!entry.recoveredFact || handle.cleanupRequired !== true) throw managedError('A9_MANAGED_NOT_RECOVERED_CLEANUP');
+    if (handle.ownershipState !== 'owned' || !handle.owner
+      || !['workspace', 'conversationId', 'taskId', 'turnId', 'toolCallId'].every((key) =>
+        typeof handle.owner![key as keyof ManagedProcessOwner] === 'string' && handle.owner![key as keyof ManagedProcessOwner].trim())
+      || !handle.requestId || !handle.startTime) throw managedError('A9_MANAGED_OWNERSHIP_UNCONFIRMED');
+    if (!Number.isSafeInteger(handle.pid) || Number(handle.pid) <= 0) throw managedError('A9_MANAGED_PID_INVALID');
+    return { ...handle, owner: { ...handle.owner }, logs: { stdout: [...handle.logs.stdout], stderr: [...handle.logs.stderr] } };
+  }
+
+  /** SQLite 提交之后同步调用；不调用 Stop/release/状态回调。 */
+  dismissRecoveredFact(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>): void {
+    this.inspectRecoveredCleanup(handleId, owner);
+    this.processes.delete(handleId);
+  }
+
+  /** 只有 ESRCH 证明 PID 不存在；权限失败和其他错误保持未知。 */
+  static probeProcessPresence(pid: number): 'alive' | 'absent' | 'unknown' {
+    if (!Number.isSafeInteger(pid) || pid <= 0) return 'unknown';
+    try { process.kill(pid, 0); return 'alive'; }
+    catch (error: any) { return error?.code === 'ESRCH' ? 'absent' : error?.code === 'EPERM' ? 'alive' : 'unknown'; }
+  }
+
+  probeRecoveredCleanup(handleId: string, owner: Pick<ManagedProcessOwner, 'workspace' | 'conversationId'>) {
+    const handle = this.inspectRecoveredCleanup(handleId, owner);
+    const pidProbe = { pid: handle.pid!, status: BackgroundProcessManager.probeProcessPresence(handle.pid!), checkedAt: new Date().toISOString() };
+    if (pidProbe.status !== 'absent') throw managedError(pidProbe.status === 'alive' ? 'A9_MANAGED_PID_ALIVE' : 'A9_MANAGED_PID_PROBE_UNKNOWN');
+    return { handle, pidProbe };
+  }
+
   /** PID 存活探测（仅事实，不区分是否同一命令）。 */
   static probeProcessAlive(pid: number): boolean {
     if (!pid || pid <= 0) return false;

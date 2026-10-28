@@ -101,6 +101,41 @@ describe('A9 preload capability boundary', () => {
     expect(rejected).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
   });
 
+  it('A9-34 exposes only the narrow recovered disposition function and preserves its v7 identity', async () => {
+    const { api, invoke } = loadPreload(['electron', 'main.js']);
+    const revision = 'a'.repeat(64);
+    await api.a9.dismissRecovered('c', 'h', revision, { pid: 999, workspace: '/other' });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    const request: any = (invoke.mock.calls as any)[0][1];
+    expect(request).toEqual({ schemaVersion: 7, action: 'a9.managed.dismissRecovered',
+      payload: { conversationId: 'c', handleId: 'h', recoveryRevision: revision } });
+    expect(api.a9.request).toBeUndefined(); expect(api.a9.invoke).toBeUndefined();
+    const dismissRecovered = jest.fn(() => ({ ok: true }));
+    const getA9Runtime = jest.fn(() => ({ dismissRecovered }));
+    const { createA9ProductRequestHandler } = require('../../product/a9-product-ipc');
+    const denied = createA9ProductRequestHandler({ getA9Runtime, isValidRendererSender: () => false });
+    expect(await denied({}, request)).toMatchObject({ ok: false, error: { code: 'RENDERER_CAPABILITY_DENIED' } });
+    expect(getA9Runtime).not.toHaveBeenCalled(); expect(dismissRecovered).not.toHaveBeenCalled();
+    const handler = createA9ProductRequestHandler({ getA9Runtime, isValidRendererSender: () => true });
+    expect(await handler({}, request)).toEqual({ ok: true });
+    expect(dismissRecovered).toHaveBeenCalledWith(request.payload);
+    dismissRecovered.mockClear();
+    const invalid = [null, [], {}, { ...request.payload, pid: 999 }, { ...request.payload, workspace: '/other' },
+      ...['conversationId', 'handleId', 'recoveryRevision'].flatMap((key) => {
+        const missing = { ...request.payload }; delete missing[key];
+        return [missing, { ...request.payload, [key]: '' }, { ...request.payload, [key]: 42 },
+          { ...request.payload, [key]: ' '.repeat(3) }, { ...request.payload, [key]: 'a'.repeat(257) }];
+      }), { ...request.payload, recoveryRevision: 'A'.repeat(64) }, { ...request.payload, recoveryRevision: 'a'.repeat(63) }];
+    for (const payload of invalid) {
+      expect(await handler({}, { ...request, payload })).toMatchObject({ ok: false, error: { code: 'A9_PAYLOAD_INVALID' } });
+    }
+    expect(dismissRecovered).not.toHaveBeenCalled();
+    // The new action does not change acceptance of the existing schema 6 stop action.
+    const stop = jest.fn(() => ({ ok: true }));
+    const old = createA9ProductRequestHandler({ getA9Runtime: () => ({ stop }), isValidRendererSender: () => true });
+    expect(await old({}, { schemaVersion: 6, action: 'a9.turn.stop', payload: {} })).toEqual({ ok: true });
+  });
+
   it('exposes legacy Review methods only for the explicit historical smoke entry', async () => {
     const { api, invoke } = loadPreload(['electron', 'main.js', '--a8-review-smoke-report=report.json']);
     expect(api.applyReview).toBeDefined();
