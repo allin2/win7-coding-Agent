@@ -24,6 +24,7 @@ import {
 import { extractZip, getZipEntry, readZipEntries, readZipEntry, writeDeterministicZip } from './zip-utils.mjs';
 
 import { verifyV26ReturnReview } from './a9-v26-return-evidence.mjs';
+import { applyHelperRecoveryToSbom, loadRecoveredHelper, validateRunnerInputSelection, verifyHelperRecoveryManifest } from './a9-helper-recovery.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
@@ -523,6 +524,7 @@ export function buildA9ProductCandidate(options) {
   const lockPath = path.resolve(options.lockPath);
   const lock = loadJson(lockPath);
   const profile = validateA9Lock(lock);
+  validateRunnerInputSelection(options, profile);
   const currentHead = git(root, ['rev-parse', 'HEAD']).trim();
   const sourceCommit = options.sourceCommit || currentHead;
   if (!/^[a-f0-9]{40}$/.test(sourceCommit)) throw new Error('A9_SOURCE_COMMIT_INVALID');
@@ -540,14 +542,15 @@ export function buildA9ProductCandidate(options) {
   if (sourceStatus && !options.allowUncommitted) throw new Error('A9_SOURCE_WORKTREE_NOT_CLEAN');
 
   const electronZip = requiredInput(options.electronZip, 'A9_ELECTRON_ZIP');
-  const runnerZip = requiredInput(options.runnerZip, 'A9_RUNNER_ZIP');
+  const runnerZip = requiredInput(options.runnerProductZip || options.runnerZip, 'A9_RUNNER_ZIP');
   const storageZip = requiredInput(options.storageZip, 'A9_STORAGE_ZIP');
   verifyInput('A9_ELECTRON', electronZip, lock.inputs.electron_zip);
-  verifyInput('A9_RUNNER', runnerZip, lock.inputs.runner_return_zip);
+  const recovered = options.runnerProductZip ? loadRecoveredHelper(runnerZip, lock) : null;
+  if (!recovered) verifyInput('A9_RUNNER', runnerZip, lock.inputs.runner_return_zip);
   verifyInput('A9_STORAGE', storageZip, lock.inputs.storage_return_zip);
 
   const electronBytes = getZipEntry(electronZip, lock.inputs.electron_zip.required_entry);
-  const helperBytes = getZipEntry(runnerZip, lock.inputs.runner_return_zip.required_entry);
+  const helperBytes = recovered ? recovered.helperBytes : getZipEntry(runnerZip, lock.inputs.runner_return_zip.required_entry);
   const storageBytes = getZipEntry(storageZip, lock.inputs.storage_return_zip.required_entry);
   assertHash('A9_ELECTRON_ENTRY', sha256Bytes(electronBytes), lock.inputs.electron_zip.required_entry_sha256);
   assertHash('A9_RUNNER_ENTRY', sha256Bytes(helperBytes), lock.inputs.runner_return_zip.required_entry_sha256);
@@ -630,6 +633,7 @@ export function buildA9ProductCandidate(options) {
     if (!fs.existsSync(path.join(stage, 'LICENSE'))) throw new Error('A9_ELECTRON_LICENSE_MISSING');
     fs.copyFileSync(path.join(stage, 'LICENSE'), path.join(licensesRoot, 'ELECTRON-MIT.txt'));
     const sbom = buildSbom(lock, sourceCommit, electronZip, runnerZip, storageZip, runtimeDependencies);
+    if (recovered) applyHelperRecoveryToSbom(sbom, recovered.recovery);
     if (usesStreamingProtocol(profile)) {
       sbom.components.find((c) => c.name === 'D-013 native helper').properties = [{ name: 'win7:delivery_note', value: helperDeliveryNote(profile) }];
     }
@@ -709,7 +713,9 @@ export function buildA9ProductCandidate(options) {
       },
       locked_inputs: {
         electron_zip: { filename: path.basename(electronZip), sha256: sha256File(electronZip) },
-        runner_return_zip: { filename: path.basename(runnerZip), sha256: sha256File(runnerZip) },
+        ...(recovered
+          ? { runner_product_zip: { filename: recovered.recovery.filename, sha256: recovered.recovery.sha256 } }
+          : { runner_return_zip: { filename: path.basename(runnerZip), sha256: sha256File(runnerZip) } }),
         storage_return_zip: { filename: path.basename(storageZip), sha256: sha256File(storageZip) },
       },
       required_native: {
@@ -719,7 +725,8 @@ export function buildA9ProductCandidate(options) {
         better_sqlite3_node: lock.inputs.storage_return_zip.required_entry_sha256,
         electron_abi: lock.inputs.storage_return_zip.electron_abi,
       },
-      ...(profile.developmentOnly ? { development_inputs: { native_input_lock_sha256: sha256File(lockPath) } } : { release_authority: {
+      ...(profile.developmentOnly ? { development_inputs: { native_input_lock_sha256: sha256File(lockPath),
+        ...(recovered ? { helper_recovery: recovered.recovery } : {}) } } : { release_authority: {
         formal_input_lock_sha256: sha256File(lockPath),
         approval_registry_commit: lock.inputs.runner_return_zip.approval_registry.commit,
         approval_registry_sha256: lock.inputs.runner_return_zip.approval_registry.sha256,
@@ -733,6 +740,7 @@ export function buildA9ProductCandidate(options) {
         alpha: 'NOT_PERFORMED',
       },
     };
+    verifyHelperRecoveryManifest(manifest, lock, profile, sbom);
     writeJson(path.join(stage, 'release-manifest.json'), manifest);
     verifyA9Manifest(stage, manifest, lock);
 
@@ -783,6 +791,10 @@ export function verifyA9ProductZip(zipPath, lockOrPath) {
       manifest.status !== manifestStatus(profile) ||
       (stampsLockIdentity(profile) && manifest.lock_id !== lock.lock_id)) throw new Error('A9_ZIP_MANIFEST_IDENTITY_INVALID');
   const byName = new Map(entries.map((entry) => [entry.name, entry]));
+  const sbomEntry = byName.get(`${rootPrefix}SBOM.cdx.json`);
+  verifyHelperRecoveryManifest(manifest, lock, profile,
+    sbomEntry ? JSON.parse(readZipEntry(sbomEntry).toString('utf8')) : undefined);
+  if (manifest.development_inputs?.helper_recovery && !sbomEntry) throw new Error('A9_HELPER_RECOVERY_SBOM_MISMATCH');
   const expected = new Set([`${rootPrefix}release-manifest.json`]);
   for (const file of manifest.files || []) {
     const name = `${rootPrefix}${file.path}`;
@@ -2576,13 +2588,15 @@ function parseArguments(argv) {
     index += 1;
     if (key === '--electron-zip') values.electronZip = value;
     else if (key === '--runner-zip') values.runnerZip = value;
+    else if (key === '--runner-product-zip') values.runnerProductZip = value;
     else if (key === '--storage-zip') values.storageZip = value;
     else if (key === '--output') values.outputRoot = value;
     else if (key === '--source-commit') values.sourceCommit = value;
     else if (key === '--formal-input-lock') values.lockPath = value;
     else throw new Error(`A9_ARGUMENT_UNKNOWN:${key}`);
   }
-  if (!values.electronZip || !values.runnerZip || !values.storageZip) throw new Error('A9_ARGUMENT_REQUIRED_INPUT_ARCHIVES');
+  if (!values.electronZip || (!values.runnerZip && !values.runnerProductZip) || !values.storageZip) throw new Error('A9_ARGUMENT_REQUIRED_INPUT_ARCHIVES');
+  if (values.runnerZip && values.runnerProductZip) throw new Error('A9_RUNNER_INPUTS_MUTUALLY_EXCLUSIVE');
   return values;
 }
 
