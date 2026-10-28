@@ -551,3 +551,55 @@ Win10 `WIN-2JQ66JE4HTQ` 的准确待查路径：
 固定依赖目录的 `RECOVERY.json` 保留源主机、准确来源、检查报告哈希和本地副本哈希。
 本次只解除“原始 Runner 返回 ZIP 缺失”的输入阻断，不改历史失败、控制器 UNKNOWN 或已发布结论。
 现有开发 ZIP 字节及恢复来源记录保持；没有重编原生、重锁、重新装配、Win7 运行、门 A/B、推送或发布。
+
+### 5.17 原始输入路径开发重建与证据适用性
+
+负责人在原件恢复后要求“继续推动”。执行代理在开发机完成一次正常输入路径开发打包。
+源码来自 main `158a737fc56247deea5351a94380533bcbf507ca` 的干净隔离副本；
+沿用 Node 20.17.0、既有离线依赖和原开发锁，不重编原生。
+本轮使用 `--runner-zip` 指向 §5.16 的原 BuildA 返回，未使用 helper 恢复入口。
+锁及 Electron、Runner、Storage 三份输入哈希均匹配。
+
+证据目录为 `outputs/a9-34-main-integration/a9-3440-original-input-build-20261028T134411Z/`。
+入口为 `REPORT.md`，准确命令及输入绑定在 `preparation.json`。
+执行命令退出 0，耗时 16.417 秒。新包位于该目录 `build/`：
+
+| 身份 | 当前开发构建 |
+|---|---|
+| ZIP | `Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip`，101347801 字节 |
+| ZIP SHA-256 | `1e8fb7724a378c4a0a2e803aeb1c0f11c61a1626ce4ee46a5832b7fb048f9429` |
+| 清单 SHA-256 | `04f2b608ef41951773522f10792bb9fcccaff561e57d9cfddb3998632cc641ef` |
+| 构建结果 | `A9_32_DEVELOPER_PACKAGE_INTEGRITY_PASS`，source_dirty=false |
+| 产物等级 | `A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE`，external_acceptance_eligible=false |
+
+开发机直接验证新旧 ZIP：各含 784 个文件，其中 783 个由发布清单登记。
+项目既有 ZIP 读取器逐项解压、检查 CRC 并比较 SHA；没有新增或移除文件。
+781 个文件完全相同。三项差异仅为：
+
+1. `A9_32_DEVELOPER_CHECK.json` 更新源码提交。
+2. `SBOM.cdx.json` 更新源码与标识，将 helper 来源恢复为原返回 ZIP。
+3. `release-manifest.json` 更新源码、实际输入与上述两项文件哈希，移除本包不再使用的恢复来源记录。
+
+产品代码、Renderer、Electron、helper、SQLite、运行描述符与运行依赖字节均不变。
+执行代理在 macOS Node 中调用两个包实际的 `loadA9PackageRuntime`，描述符和原生文件哈希检查通过。
+该检查没有启动 Electron、加载 Windows 原生库或创建产品数据目录，不能替代目标平台运行。
+完整比较见 `package-comparison.json`、`package-file-inventory.json` 和 `evidence-applicability.json`。
+
+§5.12～§5.13 的三个 Win7 原始报告及可见确认框图片重新核对哈希。
+相同组件在原记录的配置、参数和隔离数据根下，只引用为 `INHERITED_EVIDENCE`，原等级仍为 DEV_CHANNEL。
+新 ZIP 的直接 Win7 运行、人工 portable 启动及负责人使用验收均为 `NOT_PERFORMED`。
+原试用包、交付目录及历史失败保持原样；不能把原包报告重绑到新 ZIP。
+
+正常输入构建已恢复。后续如需新 ZIP 的直接运行证据，只补包身份、正常启动与退出的最短链路，
+再按实际差异决定是否增加回归。原 Win7 窗口已关闭，新目标运行窗口尚未批准。
+正式候选、门 A/B、推送与发布未开放；11 项历史发布工具失败不因原件恢复而改判。
+
+收尾 `docs:check` 通过 391 份文档、62 份任务书；`git diff --check` 通过。
+构建后隔离源码仍干净，八项既有无关修改的 SHA 保持不变。
+本轮仅保存 STATUS 与本任务书的相关文档差异。
+
+待批准的下一轮范围为本节准确 ZIP 的 Win7 开发级最短链路：
+沿用 §5 的目标、普通用户身份和 `C:\A9-DEV\` 边界，在新的可写解压与数据目录内，
+核对包身份，使用正常 `--portable` 启动，检查主界面、新建对话和正常退出、锁及进程收尾。
+投入上限仍为从首次目标操作开始最多 60 分钟，最后 10 分钟不启动新场景，真实模型请求 0 次。
+局部诊断、有界重试和停止条件沿用 §5 与 ADR-0297；不开放正式门 A/B、推送或发布。
