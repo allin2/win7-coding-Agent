@@ -523,3 +523,31 @@ Win10 `WIN-2JQ66JE4HTQ` 的准确待查路径：
 实际走 `utun5` 隧道，不能将连接关闭直接归因于 Win10 SSH。
 当前需恢复原局域网连接或确认原机的可达地址；没有修改网络配置或扫描网段。
 证据另存 `outputs/a9-34-main-integration/runner-original-recovery-20261028-r2/REPORT.md`。
+
+### 5.16 原始 Runner 双返回恢复完成
+
+2026-10-28 UTC，负责人要求再次测试，并确认 Win10 当前地址为 `192.168.1.13`。
+本机恢复 `192.168.1.6/en0` 局域网后，原主机名解析同样得到该地址。
+连接以原 `192.168.1.4` 的已登记主机键进行严格核验，直接确认
+`WIN-2JQ66JE4HTQ` 后，只读取回 BuildA/BuildB 两份原始 ZIP 和 sidecar。
+原文件仍位于 §5.15 的原 Win10 `build-r3-a\result` 与相邻 `build-r3-b\result`。
+
+两份原件已保存到 `.acceptance/deps/a9-v26-managed-r3-original/`：
+
+| 返回 | 文件 | 字节数 | 完整 ZIP SHA-256 |
+|---|---|---|---|
+| BuildA | `WIN7_D013_V26_HELPER_ARTIFACTS_20261003-060935.zip` | 221660 | `251674103e519b4e642c46b38d2b8af29929732a209613cfc5d3721daba47a40` |
+| BuildB | `WIN7_D013_V26_HELPER_ARTIFACTS_20261003-061029.zip` | 221625 | `ce8679187e120d8c0c9896fd201f37dfb1187e87d58702c3529f24b73737ff44` |
+
+开发机恢复核验 PASS：完整 ZIP 与开发锁/正式 batch2 锁一致；每包 71 个唯一文件，
+清单 70 个成员的 size/SHA/CRC、源提交、run-id、kit 输入与证据绑定均匹配。
+两包 helper 均为 361472 字节、SHA `2036bf69…1e4b7`；
+项目既有返回证据验证器通过，没有执行原包内程序或改变验证器。
+首个通用 Python 检查不接受原 ZIP 的 Windows 反斜杠成员名；保留失败后改用项目既有 ZIP 读取器，
+未重压原件、未放宽项目的重复/越界/完整性门。
+
+证据位于 `outputs/a9-34-main-integration/runner-original-recovery-20261028T131127Z/`，
+入口为 `REPORT.md`、`original-integrity.json`、`restored-inputs.json`。
+固定依赖目录的 `RECOVERY.json` 保留源主机、准确来源、检查报告哈希和本地副本哈希。
+本次只解除“原始 Runner 返回 ZIP 缺失”的输入阻断，不改历史失败、控制器 UNKNOWN 或已发布结论。
+现有开发 ZIP 字节及恢复来源记录保持；没有重编原生、重锁、重新装配、Win7 运行、门 A/B、推送或发布。
