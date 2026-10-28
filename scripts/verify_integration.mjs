@@ -1,6 +1,7 @@
 import { spawnSync } from 'child_process';
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { createRequire } from 'module';
+import { tmpdir } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -40,6 +41,18 @@ if (requested.some((name) => !allModules.includes(name)) || (testFiles.length &&
     || name.split('/').includes('..') || !existsSync(join(repositoryRoot, 'src', requested[0], name)))) {
   console.error('VERIFY_SELECTION_INVALID'); process.exit(1);
 }
+// Route every child fixture into one run-scoped directory. Jest keeps its transform cache outside
+// that directory so a passing run can delete the fixtures without recompiling on the next run.
+const temporaryRoot = tmpdir();
+const verifyTempDir = mkdtempSync(join(temporaryRoot, 'win7-verify-'));
+const jestCacheDir = join(temporaryRoot, 'win7-agent-jest-cache');
+const childEnv = {
+  ...process.env,
+  CI: '1',
+  TMPDIR: verifyTempDir,
+  TMP: verifyTempDir,
+  TEMP: verifyTempDir,
+};
 const selected = requested.length ? [...new Set(requested)] : allModules;
 const closure = new Set(selected);
 function includeDependencies(name) {
@@ -98,7 +111,7 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
     }
     if (phase === 'build' && packageJson.scripts?.build) commands.push(['run', 'build']);
     if (phase === 'test' && packageJson.scripts?.test) {
-      const testArgs = ['test', '--', '--runInBand'];
+      const testArgs = ['test', '--', '--runInBand', '--cacheDirectory', jestCacheDir];
       if (testFiles.length) testArgs.push('--runTestsByPath', ...testFiles);
       else if (daily && dailyExcluded[moduleName]) {
         const { paths = [], names = [] } = dailyExcluded[moduleName];
@@ -119,7 +132,7 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
         cwd: moduleDir,
         stdio: 'inherit',
         shell: false,
-        env: { ...process.env, CI: '1' },
+        env: childEnv,
       });
       timings.push({ module: moduleName, command: args.join(' '), elapsed_ms: Date.now() - commandStarted, status: result.status });
       if (result.error || result.signal) {
@@ -137,6 +150,14 @@ for (const phase of quick ? ['build'] : ['build', 'test']) {
 console.log(`[verify-timing] ${JSON.stringify({ environment: { platform: process.platform, node: process.version }, selected, build_modules: modules, elapsed_ms: Date.now() - started, timings })}`);
 if (failures > 0) {
   console.error(`\n[verify] 失败：${failures} 个模块未通过。请从上方第一个失败命令开始处理。`);
+  console.error(`[verify] 本次运行的临时夹具保留在：${verifyTempDir}`);
+  process.exit(1);
+}
+
+try {
+  rmSync(verifyTempDir, { recursive: true, force: true });
+} catch (error) {
+  console.error(`[verify] 临时夹具目录删除失败：${verifyTempDir}；${String(error && error.message).slice(0, 400)}`);
   process.exit(1);
 }
 

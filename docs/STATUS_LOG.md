@@ -7818,3 +7818,12 @@ Win7 为 `NOT_PERFORMED`，A9-38 不在 WIN7-45 候选中。本轮未提交、�
 与 ENGINEERING_03 §10.2 常设授权 r2 原文一致；目标、SID、预算、命令范围不变，r2 原文未改。
 ADR-0264 夹具映像根外终止例外不随 r2 延长，仍至 2026-10-28T00:00:00Z。
 开发机 Node 20.17.0 `node --test scripts/win7-dev/test/` 39 PASS/0 FAIL；未连接 Win7。
+
+## 2026-10-27 日常验证入口不再残留临时夹具（CREW-T01）
+
+ENGINEERING_05 记录 `npm run test:local` 每次在 TMPDIR 留下测试夹具。`scripts/verify_integration.mjs` 现为每次运行建
+`win7-verify-*` 目录，经 TMPDIR/TMP/TEMP 传给子进程；全部通过即删除，失败则保留并在失败提示打印路径。
+jest 缓存改用固定目录 `<os.tmpdir()>/win7-agent-jest-cache`，不随夹具删除。执行代理 opencode 实现；独立审核 agy PASS、
+codex 5 项测试缺口中 3 项已补断言（失败提示路径、单文件运行的缓存参数、非法参数不建目录），2 项按 ADR-0288 不补。
+开发机 macOS、Node 20.17.0：`npm run test:local` 7 模块 PASS，78.99 秒，临时目录顶层条目前后均为 199；
+新增断言经三次错误注入均变红。产品代码未改；Win7 运行 NOT_PERFORMED。
