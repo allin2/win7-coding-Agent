@@ -101,6 +101,12 @@
     eventsLoading: false,
     eventsStatusNote: null,
     workspaceSelectionGeneration: 0,
+    snapshotGeneration: 0,
+    snapshotRequest: null,
+    snapshotPollingRequests: 0,
+    snapshotPollingPauses: 0,
+    snapshotPollingClosed: false,
+    stopSnapshotPolling: null,
     streamDom: new Map(),
     truncatedNote: null,
     localRequest: null,
@@ -2067,31 +2073,61 @@
   }
 
   async function refreshSnapshot(isCurrent = () => true) {
-    if (!a9) return null;
-    try {
-      const response = await a9.snapshot();
-      if (!isCurrent()) return null;
-      if (!response || response.ok !== true) {
-        const code = response && response.error && response.error.code;
-        if (code === 'A9_WORKSPACE_REQUIRED') {
-          state.snapshot = null;
-          const surface = el('a9-surface');
-          surface.hidden = false;
-          surface.dataset.a9Status = 'workspace_required';
-          text('runtime-status', '等待工作区');
-          syncComposer();
+    if (!a9 || state.snapshotPollingClosed) return null;
+    const generation = state.snapshotGeneration;
+    const isFresh = () => !state.snapshotPollingClosed && generation === state.snapshotGeneration && isCurrent();
+    // Explicit actions need facts read after the action. While a read is pending,
+    // coalesce those callers into one fresh follow-up; timer ticks never queue.
+    if (state.snapshotRequest) {
+      const pending = state.snapshotRequest;
+      if (!pending.next || pending.next.generation !== generation) {
+        pending.next = {
+          generation,
+          promise: pending.promise.then(() => isFresh() ? refreshSnapshot(isCurrent) : null),
+        };
+      }
+      const result = await pending.next.promise;
+      return isFresh() ? result : null;
+    }
+    const request = { generation, promise: null };
+    request.promise = Promise.resolve().then(async () => {
+      try {
+        const response = await a9.snapshot();
+        if (!isFresh()) return null;
+        if (!response || response.ok !== true) {
+          const code = response && response.error && response.error.code;
+          if (code === 'A9_WORKSPACE_REQUIRED') {
+            state.snapshot = null;
+            const surface = el('a9-surface');
+            surface.hidden = false;
+            surface.dataset.a9Status = 'workspace_required';
+            text('runtime-status', '等待工作区');
+            syncComposer();
+            return null;
+          }
+          showSnapshotError(response);
           return null;
         }
-        showGlobalError(errorMessage(response, 'A9 Runtime 初始化失败。'), '重试初始化', () => { void refreshSnapshot(); });
+        clearGlobalError();
+        renderSnapshot(response.snapshot);
+        return response.snapshot;
+      } catch (error) {
+        if (isFresh()) showSnapshotError(error);
         return null;
       }
-      clearGlobalError();
-      renderSnapshot(response.snapshot);
-      return response.snapshot;
-    } catch (error) {
-      showGlobalError(errorMessage(error, '无法读取 A9 Runtime 状态。'), '重试初始化', () => { void refreshSnapshot(); });
-      return null;
-    }
+    }).finally(() => {
+      if (state.snapshotRequest === request) state.snapshotRequest = null;
+      syncSnapshotPolling();
+    });
+    state.snapshotRequest = request;
+    return request.promise;
+  }
+
+  function showSnapshotError(error) {
+    const message = runtimeDiagnostic({ diagnostics: {
+      code: 'A9_SNAPSHOT_REFRESH_FAILED', detail: errorMessage(error, '无法读取 A9 Runtime 状态。'),
+    } });
+    showGlobalError(message, '重试状态读取', () => { void refreshSnapshot(); });
   }
 
   async function saveDraftNow() {
@@ -2118,6 +2154,9 @@
   }
 
   async function runConversationOperation(operation) {
+    state.snapshotGeneration += 1;
+    state.snapshotPollingPauses += 1;
+    syncSnapshotPolling();
     cancelPendingUndo();
     clearGlobalError();
     try {
@@ -2137,6 +2176,9 @@
     } catch (error) {
       showGlobalError(errorMessage(error, '对话操作失败。'), '刷新状态', () => { void refreshSnapshot(); });
       return null;
+    } finally {
+      state.snapshotPollingPauses -= 1;
+      syncSnapshotPolling();
     }
   }
 
@@ -2209,6 +2251,9 @@
 
   async function chooseWorkspace() {
     const selectionGeneration = ++state.workspaceSelectionGeneration;
+    state.snapshotGeneration += 1;
+    state.snapshotPollingPauses += 1;
+    syncSnapshotPolling();
     cancelPendingUndo();
     clearGlobalError();
     try {
@@ -2240,6 +2285,9 @@
       dismissNavigationDrawer();
     } catch (error) {
       showGlobalError(errorMessage(error, '工作区选择失败。'), '重新选择', () => { void chooseWorkspace(); });
+    } finally {
+      state.snapshotPollingPauses -= 1;
+      syncSnapshotPolling();
     }
   }
 
@@ -2426,13 +2474,41 @@
   }
 
   function beginSnapshotPolling() {
+    state.snapshotPollingRequests += 1;
+    syncSnapshotPolling();
+    return async () => {
+      state.snapshotPollingRequests -= 1;
+      syncSnapshotPolling();
+      if (state.snapshotRequest) await state.snapshotRequest.promise;
+    };
+  }
+
+  function syncSnapshotPolling() {
+    const snapshot = state.snapshot;
+    // cleanupRequired also covers historical recovery facts. It remains a UI /
+    // backend guard, but cannot by itself keep a live refresh timer running.
+    const hasLiveManaged = Boolean(snapshot && snapshot.status === 'ready'
+      && (snapshot.managedProcesses || []).some((item) =>
+        ['running', 'starting'].includes(item.lastProbeStatus) && item.pidReusePossible !== true
+        && !['released', 'release_unknown'].includes(item.ownershipState)));
+    const needed = state.snapshotPollingRequests > 0 || hasLiveManaged
+      || Boolean(snapshot && ['running', 'cancelling'].includes(snapshot.agentStatus));
+    if (state.snapshotPollingClosed || state.snapshotPollingPauses > 0 || !needed) {
+      if (state.stopSnapshotPolling) {
+        void state.stopSnapshotPolling();
+        state.stopSnapshotPolling = null;
+      }
+      return;
+    }
+    if (state.stopSnapshotPolling) return;
     let snapshotRefreshInFlight = null;
     const pollId = root.setInterval(() => {
-      if (snapshotRefreshInFlight) return;
+      if (snapshotRefreshInFlight || state.snapshotRequest) return;
       snapshotRefreshInFlight = Promise.resolve(refreshSnapshot())
+        .catch((error) => { if (!state.snapshotPollingClosed) showSnapshotError(error); })
         .finally(() => { snapshotRefreshInFlight = null; });
     }, 500);
-    return async () => {
+    state.stopSnapshotPolling = async () => {
       root.clearInterval(pollId);
       if (snapshotRefreshInFlight) await snapshotRefreshInFlight;
     };
@@ -3086,7 +3162,13 @@
   }
 
   function bind() {
-    if (typeof root.addEventListener === 'function') root.addEventListener('beforeunload', cancelPendingUndo);
+    if (typeof root.addEventListener === 'function') root.addEventListener('beforeunload', () => {
+      state.snapshotPollingClosed = true;
+      state.snapshotGeneration += 1;
+      syncSnapshotPolling();
+      stopLiveTracking();
+      cancelPendingUndo();
+    });
     el('workspace-select').addEventListener('click', () => { void chooseWorkspace(); });
     el('task-prompt').addEventListener('input', () => { resizeComposer(); scheduleDraftSave(); });
     el('task-prompt').addEventListener('blur', () => { void saveDraftNow(); });
