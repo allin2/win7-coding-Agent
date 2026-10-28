@@ -53,7 +53,7 @@ function Assert-Identity {
   if ($users.Count -ne 1 -or $users[0].SID -cne $AgentSid) { throw 'AGENT_SID_NOT_BOUND' }
 }
 function Assert-Active {
-  $expiry = [DateTime]::Parse('2026-10-28T00:00:00Z'); $expiry = $expiry.ToUniversalTime()
+  $expiry = [DateTime]::Parse('2026-11-28T00:00:00Z'); $expiry = $expiry.ToUniversalTime()
   if ([DateTime]::UtcNow -ge $expiry) { throw 'AUTHORIZATION_EXPIRED' }
 }
 function Lock-Rows {

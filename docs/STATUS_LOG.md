@@ -7811,3 +7811,10 @@ Win7 为 `NOT_PERFORMED`，A9-38 不在 WIN7-45 候选中。本轮未提交、�
 已知缺失记录在 `.acceptance/maintenance/unarchived-deletion-20261026-r1/INCIDENT.md`，状态为 `LOST`。
 此记录不改历史 PASS/FAIL，不将缺失材料当作本机现存或可恢复证据；当前 WIN7-55 原始证据另外保留。
 本轮范围、备份与验证见 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md#工作树整合2026-10-26)。
+
+## 2026-10-27 Win7 开发通道工具期限同步 r2
+
+负责人选甲后，执行代理将 `scripts/win7-dev` 写入口期限由 2026-10-28T00:00:00Z 改为 2026-11-28T00:00:00Z，
+与 ENGINEERING_03 §10.2 常设授权 r2 原文一致；目标、SID、预算、命令范围不变，r2 原文未改。
+ADR-0264 夹具映像根外终止例外不随 r2 延长，仍至 2026-10-28T00:00:00Z。
+开发机 Node 20.17.0 `node --test scripts/win7-dev/test/` 39 PASS/0 FAIL；未连接 Win7。

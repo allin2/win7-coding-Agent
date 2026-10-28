@@ -277,7 +277,7 @@ test('stop releases lock; successful close does not reconnect to a deleted root'
   }
 });
 test('expired authority rejects writing before a connection, allows read-only status and cleanup', async () => {
-  const { spawn, calls } = fakeTransport(); const out = dir(); const c = new DevChannel({ env: { WIN7_DEV_IDENTITY: path.join(out, 'mock-identity') }, spawn, out, now: () => new Date('2026-10-28T00:00:00Z') });
+  const { spawn, calls } = fakeTransport(); const out = dir(); const c = new DevChannel({ env: { WIN7_DEV_IDENTITY: path.join(out, 'mock-identity') }, spawn, out, now: () => new Date('2026-11-28T00:00:00Z') });
   const file = path.join(out, 'script.ps1'); fs.writeFileSync(file, "Write-Output 'hello'");
   await assert.rejects(() => c.execute(['ps', file]), /AUTHORIZATION_EXPIRED/); assert.equal(calls.length, 0);
   await c.execute(['status']); await c.execute(['close']);
