@@ -39,6 +39,7 @@ npm run docs:check                 # 文档与规则修改
 ## 待负责人决定与阻断
 
 - A9-34/A9-40 本轮获准的开发试用已完成，无待批窗口。最后开发根零进程、零任务、锁 inactive；准确 SGTool 环境实例按 ADR-0297 保留，不声称其同步退出。本轮真实模型请求 0 次。原始 Runner 返回 ZIP 仍缺，恢复 helper 仅允许开发装配；正式构建与门 A/B 未开放。已发布版本仍为 WIN7-55，见 [A9-40 §5.13](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#513-视觉补证与本轮收尾)。
+  原 ZIP 续查已定位原 Win10 BuildA 的 `result` 目录，但 `192.168.1.4:22` 在 SSH 身份核验前关闭连接，尚未取回；当前恢复阻断与准确路径见 [§5.15](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#515-原始返回-zip-恢复续查)。
 - 第一批 20 文件已按批准清单删除；物理净释放未证实（APFS 克隆使重复 ZIP 删除几乎不释放）。
 - 第二轮删除清单 SHA `9c78aac6…9368` 已执行，0 失败；原件实际物理释放约 6.9 GB，低于已分配 16.52 GB，原因 UNKNOWN，见 ENGINEERING_05。
 - 新需求范围、重大架构/产品权限语义、系统权限/配置、超预算、正式签发、产品推送及发布仍单独决定。
