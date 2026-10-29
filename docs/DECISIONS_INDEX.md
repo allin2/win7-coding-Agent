@@ -306,3 +306,4 @@
 | ADR-0300 | A9-42 问询与操作批准分离 | Accepted |
 | ADR-0301 | A9-42 有界本地图片输入 | Accepted |
 | ADR-0302 | A9-42 本地可选 Office Lite | Accepted |
+| ADR-0303 | A9-42 Office Lite交付子集与原始工件双重绑定 | Accepted |

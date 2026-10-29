@@ -1,9 +1,10 @@
 # A9-42 Office Lite 支持范围与实现
 
-状态：本地开发实现完成。2026-10-29，main `6ea0b9af…` 加未提交修改。
+状态：本地开发实现及限定Win7开发试用完成。后续本地迭代基线main `300fa178…`。
 负责人追加“实现Office Lite”，随后要求当前 Codex/Sol 接手未完成引擎。
 所属授权与直接证据：[A9-42](../tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md) §4.4～§4.5。
-Win7、产品 Electron、正式整包运行与视觉保真均 NOT_PERFORMED。
+Win7普通用户产品启动与模块试用见任务书§5.4，结果仅为DEV_CHANNEL。
+完整Office Agent GUI旅程、正式验收及视觉保真仍NOT_PERFORMED；前期记录按下列历史日期理解。
 
 ## 1. 总经理建议
 
@@ -86,3 +87,15 @@ XLSX示例：`{"schemaVersion":1,"format":"xlsx","sheets":[{"name":"数据","row
 资源测量绑定 PERFORMANCE_BUDGET #1/#2/#3/#10；先记录当前基线，再测启用、空闲、连续文档和退出释放。
 开发机小样本资源观察保存在 `outputs/a9-42-tools/office/resource-development.json`，不进入正式性能预算状态。
 Win7资源增量及产品Electron表现仍为UNKNOWN；其直接运行验证均NOT_PERFORMED。
+
+## 5. 后继运行证据与本地迭代
+
+§4末尾描述的是初始本地实现时点。2026-10-29已补实际Electron22/Node16模块和Win7普通agent开发试用，
+准确源码 `94135364fa922261d1f0b281ddb29c34b900c7b7`、ZIP `751c76f2…d72085d`。
+Win7中包内DOCX/XLSX真实Worker读写、原件保护、撤销及32次读取已直接执行，34个Worker均退出。
+产品portable启动/Read Only/对话持久化/正常关闭也已执行；办公工具与产品窗口的完整Agent旅程仍未证明。
+资源为限定样本，不作为长期性能或完整应用预算结论。原始证据见 [A9-42 §5.4](../tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#54-win7普通用户直接开发试用完成dev_channel)。
+
+负责人随后批准打包优化和界面链路的GPT重置Fast推进，范围见任务书§6。
+交付裁剪仅按ADR-0303生成新包子集，不改原始依赖或旧包；真实界面链路只用本地模型夹具，
+不得把Runtime替身或模块测试当完整产品链路；新Win7窗口另行批准。

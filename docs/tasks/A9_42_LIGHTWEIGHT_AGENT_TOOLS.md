@@ -500,3 +500,43 @@ PERFORMANCE_BUDGET #2/#3/#10的正式状态不变；没有10分钟空闲、多�
 不启用长路径系统配置或放宽守卫。后续精简非运行时依赖文件须另绑新包和复核，当前包不改字节。
 本轮本地准备及下载证据的只读盘点见 `outputs/a9-42-tools/win7-trial-closeout-r1.json`，全部KEEP。
 窗口准确最终只读动作结束时间15:10:25.726Z，见closed-window.json及SUMMARY.json；此后没有目标动作。
+
+## 6. GPT重置模式后续本地迭代（APPROVED_FOR_IMPLEMENTATION）
+
+负责人要求“用gpt重置模式推进后续”，在两工作包提案后明确要求“打包优化和界面链路都开启Fast”。
+本轮main基线 `300fa1786577630d65b02350a5c926ac57e4c3ba`，起始工作区干净。
+模式仅调整员工，主对话保留实际Sol/max/default；两项员工分别Terra/Sol、xhigh、priority，串行执行。
+重置时间未提供，已另行询问；用户明确Fast要求按本次指令执行，不推测额度时间或收益。
+
+1. 打包优化：去除造成Win7路径超限的已确认非运行时Office依赖源码/类型文件。
+   不升级、更换或新增依赖，不改原始安装工件；源锁和全文件验证保留，交付子集用版本化清单精确绑定。
+   保留运行JS、资源、元数据及许可证/SBOM；不以减少校验、放宽路径或系统长路径设置通过。
+   新包须直接通过标准cand目录的本地路径准入，运行真实复制后Worker并覆盖篡改/漏件拒绝。
+2. 界面链路：补真实产品Office Agent新稿/问询/读取/修改副本/原件不变/撤销与退出的最短本地链路。
+   只使用明确的本地HTTP模型夹具，不请求真实模型服务；保留产品main/preload/IPC/State/Worker及权限。
+   目标机驱动可本地准备，不能用Runtime内存替身冒充完整链路；实际运行时不可用时明确未执行部分。
+
+允许上述范围内本地实现、普通修复、针对性构建验证、既有授权的本地提交及新开发包；
+员工不得提交、安装、推送、删除或连接目标机。主会话负责文档、ADR、整合、证据与交付。
+§5窗口已结束；新Win7窗口、正式门A/B、真实外部模型、系统修改、推送发布及文件删除仍须相应明确授权。
+
+### 6.1 Office交付子集整合
+
+Terra/xhigh/priority员工在独立worktree完成打包优化两文件及3项定向检查；父工作区保持共享源依赖只读。
+主会话复核后整合，仅省略docx8.0.0的src/**/*.ts及build/**/*.d.ts，原main=build/index.js及版本必须匹配。
+完整源树哈希/缺失/符号链接验证仍在复制前执行，含被省略的源码；许可证声明与源证据必须一致。
+99项工件保留，原package-lock、DEPENDENCIES及安装树均未修改。
+
+新 `office-lite/DELIVERY_MANIFEST.json` 为schemaVersion1，绑定lockSha256和dependenciesSha256，
+copied/omitted逐文件列出SHA-256；omitted有明确理由。
+主会话补按实际路径去重，避免上游完整工件包含嵌套依赖时交付清单重复记录；不削减源树核对。
+实际交付2455个唯一依赖文件，省略826个非运行时TS文件。
+父直接执行3项定向检查PASS，覆盖复制后DOCX/XLSX Worker、源码和运行文件篡改、漏件、
+许可证声明缺失、符号链接及未知docx入口拒绝；源字节不匹配不能因文件被省略而绕过。
+
+真实macOS arm64 Electron22.3.27/Node16.17.1直接加载该复制闭包，
+DOCX源hash保护/原件保留/撤销、XLSX回读、nativeImage预览共3项PASS。
+报告及源码哈希绑定在 `outputs/a9-42-tools/package-optimization/`。
+该结果没有产品main/SQLite GUI，也不是新包Win7证据。
+受影响a9-package/a9-batch2-package合同已启动，结果另行补记；不预先宣称通过。
+完整产品ZIP将由正常本地提交后的干净源码构建，再使用原zipManifest路径守卫检查。
