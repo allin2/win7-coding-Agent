@@ -24,7 +24,7 @@ app.whenReady().then(async () => {
   const groups = Array.from({ length: 8 }, (_, i) => `<details class="activity-group" id="group-${i}"><summary>工具活动 · ${i + 1}</summary><ul class="activity-items"><li style="height:260px">原稿 样本.docx</li></ul></details>`).join('');
   const html = `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>${css}
   body{margin:0;height:100vh;display:flex;flex-direction:column}header,footer{height:92px;flex:none}main{flex:1;overflow:auto;padding:34px 28px}#a9-task-stream{display:grid;gap:18px;max-width:760px;margin:auto}#cover{position:fixed;inset:0;z-index:100;background:white}</style>
-  <header>Electron 原生点击夹具</header><main><div style="height:800px"></div><div id="a9-task-stream">${groups}</div><button id="disabled" disabled>禁用</button></main><footer>仅开发机交互证据</footer>`;
+  <header>Electron 原生点击夹具</header><main><div style="height:800px"></div><div id="a9-task-stream">${groups}</div><button id="disabled" disabled>禁用</button></main><footer>仅开发机交互证据<textarea id="fixture-composer"></textarea></footer>`;
   fs.writeFileSync(path.join(output, 'fixture.html'), html, { flag: 'wx' });
   win = new BrowserWindow({ width: 1104, height: 690, show: false,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
@@ -42,11 +42,15 @@ app.whenReady().then(async () => {
   await assert.rejects(clickUi(port, '#disabled'), /UI_ACTION_UNAVAILABLE/);
   assert.strictEqual(inputs, before);
   report.checks.push({ name: 'disabled_target_rejected_before_input', status: 'PASS' });
-  await port.evaluate('document.body.insertAdjacentHTML("beforeend",\'<div id="cover"></div>\')');
+  await port.evaluate('document.body.insertAdjacentHTML("beforeend",\'<div id="cover"><button id="close-cover" style="position:absolute;right:12px;top:12px;min-height:44px">关闭检查器</button></div>\');document.getElementById("close-cover").addEventListener("click",()=>document.getElementById("cover").remove())');
   await assert.rejects(clickUi(port, '#group-0 > summary'), /UI_ACTION_OCCLUDED/);
   assert.strictEqual(inputs, before);
   report.checks.push({ name: 'covered_target_rejected_before_input', status: 'PASS' });
-  await port.evaluate('document.getElementById("cover").remove()');
+  await clickUi(port, '#close-cover');
+  assert.strictEqual(await port.evaluate('document.getElementById("cover")===null'), true);
+  await clickUi(port, '#fixture-composer');
+  assert.strictEqual(await port.evaluate('document.activeElement.id'), 'fixture-composer');
+  report.checks.push({ name: 'native_drawer_close_allows_composer_input', status: 'PASS' });
   report.status = 'PASS'; write(); win.close();
 }).catch(error => {
   report.status = 'FAIL'; report.failure = String(error.message).slice(0, 500); write();

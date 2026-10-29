@@ -795,3 +795,75 @@ source-binding SHA-256 `3574a73d6333c48445ff1e6bbb5a4cce1b92c09d129a38fcf4230bf4
 本阶段已只读盘点四轮材料、原生点击夹具、复验材料、通道动作日志及Git worktree入口，
 记录见 `outputs/a9-42-tools/office-journey/r4-window-artifact-inventory.json`。
 原始失败、准确输入和恢复材料全部保留；本地/目标文件删除、推送均NOT_PERFORMED。
+
+### 7.9 20分钟复验批准与执行入口
+
+负责人对§7.8及准确复验材料回复“批准”。本次从main `4ad4f6a0d274ecad74b2a7ff6daa2d7c25a34865`
+执行该20分钟DEV_CHANNEL窗口，真实模型0次、夹具累计最多16次、最多2个新run，最后10分钟不开新场景。
+产品源/r4 ZIP、driver/source-binding及材料manifest哈希与§7.8相符，src树保持不变。
+首个run为 `a942o-b12c6d8e`，候选外证据位于 `outputs/a9-42-tools/office-journey/win7-r4-native-retry-r1/`。
+首次目标动作时固定起点、20分钟deadline及10分钟收尾线，不从上轮窗口续时或重置本轮请求预算。
+主机键、普通agent身份、会话2、自有inactive holder、容量和零未知生命周期通过后才部署。
+旧包/旧run/原失败全部保留；普通同范围取证修复不重复请批，不扩大系统权限、删除或发布范围。
+
+首个run已直接完成Office生成/读取、原稿hash副本、工具记录显示及界面撤销，原件/工作簿保持。
+随后 `UI_ACTION_OCCLUDED`精确定位到 `#task-prompt`：失败截图直接显示窄窗检查器抽屉及遮罩未关闭。
+首个run正常UI关闭，原HALTED不改判，夹具13次。完整旅程未在该run闭环。
+在本轮最多2个新run与剩余3次请求内，第二个run `a942o-f1a5c9d2`只独立覆盖取消问询/迟到回复拒绝，
+保留真实产品main/preload/IPC/Runtime/State/Core/Renderer，沿用同源r4包；不伪造Office前序事实。
+候选外第二场景材料位于 `win7-r4-native-retry-r2/`，驱动SHA-256
+`5fedb0205b5b1ddc45ddddf0862234883785abdd7c61ae3691a09a7d7d921446`，绑定SHA-256
+`ce2ddd02969fff4f692a66fd2fbde1b884eb5452249965d359da3e3aca1bb803`。
+该场景自身强制最多3次夹具请求，预计probe/ask共2次；不把两个独立run合写成一次完整旅程PASS。
+第二场景已通过开发机HTTP probe/ask序列及真实Electron22/Node16语法检查，再部署新独立工作根，未覆盖首轮文件。
+
+### 7.10 20分钟窗口结果与本地修复
+
+本轮首个run直接新增证明 `UI_OFFICE_TOOL_RECORDS`、`UI_REAL_TOOL_FACTS`和
+`UNDO_ORIGINAL_AND_BOOK_PRESERVED`：真实工具记录可见，界面撤销移除新副本，原件及工作簿保持。
+随后输入框被仍打开的窄窗检查器抽屉遮挡，首失败精确为 `UI_ACTION_OCCLUDED / #task-prompt`；
+失败截图已直接复核。该run继续保留HALTED，不重写为完整旅程PASS。
+
+第二run于UTC `23:11:03.488`进入controller，完成包校验及驱动运行时准备后，
+在 `23:11:29.719`触发 `WINDOW_NO_NEW_SCENARIO`，距已批准收尾线超过0.623秒，未启动UI或模型夹具。
+原RESULT保留；取消/迟到回复仍NOT_PERFORMED，不延长收尾线或重置run/请求预算。
+本窗口合计真实模型0次、Win7 loopback夹具13次，两个场景run均保留原结论。
+
+独立普通agent收尾直接确认原启动任务已删除、正常UI退出、SQLite锁为空、两轮completed_with_warnings、
+副本已撤销且原件/工作簿hash不变、所观察产品树已结束；原包/两个运行副本的manifest文件各3256项hash一致。
+诊断原 `NO_RAW_SENTINEL_IN_EVENTS`检查只扫描主库原始字节；另以真实SQLite只读查询全部54条事件payload补证，
+未发现本轮原始sentinel，含适用WAL投影，不将主库字节扫描冒充完整SQL事件查询。
+原报告及补充结果分别在 `win7-r4-native-retry-r1/postflight-result.json`和 `event-secret-check-result.json`。
+最终status于UTC `23:20:15.834`结束：根内零进程/任务、holder inactive、无解包标记；
+root_bytes=11736329591，free_bytes=881766809600。原20分钟窗口提前收尾，此后无目标动作。
+
+本地普通修复已在驱动submit前检查检查器遮罩，经真实关闭按钮收起抽屉并等遮罩消失，再点击输入框。
+Mac Electron22/Node16原生夹具新增“关闭遮罩后输入框可点击”，4项PASS；Node20驱动13项及Node16语法PASS。
+该源修改不改产品字节，Win7单次修正后完整旅程尚未执行；不得以Mac夹具补成该结论。
+完整单次Office GUI、取消/迟到回复、正式Gate、真实模型、发布仍NOT_PERFORMED或保留原HALTED。
+
+### 7.11 剩余取消链路的限定复验提案（PROPOSED，未授权）
+
+建议按增量证据只补剩余取消/迟到回复，Office生成/读取/副本/记录/撤销按同源r4 ZIP及准确组件hash
+引用a942o-b12c6d8e直接证据并标INHERITED_EVIDENCE；不再重复消耗其13次请求。
+两次独立场景不会改写为一次完整GUI旅程PASS，完整单次旅程继续保留原HALTED/NOT_PERFORMED。
+
+准确材料位于 `outputs/a9-42-tools/office-journey/prepared-r4-question-cancel/`。
+场景驱动沿用已通过本地HTTP序列和Electron22/Node16语法的准确派生字节，driver SHA-256
+`5fedb0205b5b1ddc45ddddf0862234883785abdd7c61ae3691a09a7d7d921446`，source-binding SHA-256
+`ce2ddd02969fff4f692a66fd2fbde1b884eb5452249965d359da3e3aca1bb803`，材料manifest SHA-256
+`d6a8492538ea768a5c407791b3686ece5898cccfbc4c74239129bab77e2f1827`。
+产品源/ZIP/runtime/依赖均不变；该候选外场景不属于产品src修改。模板deadline=null且执行拒绝已验证。
+
+提案为新15分钟DEV_CHANNEL窗口，最后10分钟不开新场景，真实模型0次，Win7夹具累计最多3次，
+最多2个场景run；预计probe与ask各1次，预算不足不重试。新首个工作根 `C:\A9-DEV\work\a942o-2e94bc71\`。
+严格原主机键、DCCS-CHAIZL-PC/7601/SP1/x64、普通agent Medium/会话2、自有inactive holder及容量/零未知生命周期
+按既有流程重新确认，其他holder不接管。只使用该准确包的真实main/preload/IPC/Runtime/State/Core/Renderer，
+仅目录选择器绑定独立工作区，Provider为本机夹具且不记住密钥。
+直接核对未回答时无重发/写入、点击取消、pending清除、真实IPC拒绝迟到旧身份/版本回答且不重发、
+原同批文档写入未落盘、SQL事件无原始sentinel、question pending/resolved各1与turn cancelled、正常关闭及独立postflight。
+保留全部旧包/旧run/首失败；不生成新Office文档，不删除旧文件、不安装/改系统、不根外终止、不签正式Gate或发布。
+该提案尚未授权目标执行，已关闭窗口不自动延长。
+
+本阶段只读盘点见 `outputs/a9-42-tools/office-journey/native-retry-artifact-inventory.json`；
+两轮原始结果、运行字节日志、失败/问询/副本截图及所有准备材料保留，未删除本地或目标文件。

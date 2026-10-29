@@ -660,6 +660,10 @@ async function ui(config) {
   };
   const submit = async prompt => {
     need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO');
+    if (await evaluate('!document.getElementById("inspector-backdrop").hidden')) {
+      await click('#close-inspector');
+      await wait(() => evaluate('document.getElementById("inspector-backdrop").hidden'), 10000, 'INSPECTOR_DRAWER_CLOSED');
+    }
     await wait(() => evaluate('!document.getElementById("task-prompt").disabled'), 10000, 'COMPOSER_READY');
     await fill('#task-prompt', prompt);
     await wait(() => evaluate('!document.getElementById("run-task").disabled'), 10000, 'SUBMIT_READY');

@@ -64,7 +64,7 @@ A9-42 Office真实界面驱动为 `scripts/win7-dev/a9-42-office-journey.cjs`，
 开发机数据/HTTP/身份反例入口为 `node --test scripts/win7-dev/test/a9-42-office-journey.test.mjs`。
 Mac原生点击夹具使用已锁定Electron22/Node16执行：
 `env -u ELECTRON_RUN_AS_NODE <Electron.app/Contents/MacOS/Electron> scripts/win7-dev/test/a9-42-office-ui.cjs --output=<绝对新目录>`。
-夹具直接检查原生details点击、滚动、禁用和遮挡，使用产品CSS；不运行产品main/Office/SQLite或连接Win7。
+夹具直接检查原生details点击、滚动、禁用、遮挡及关闭抽屉后输入，使用产品CSS；不运行产品main/Office/SQLite或连接Win7。
 它保留独立user-data及RESULT，不自动删除输出。实际Win7断点仍须在批准窗口复验。
 开发运行只作 DEV_CHANNEL 诊断；正式冻结、双构建、独立审核、门 A/B 只在正式节点执行。
 产品推送/发布、正式签发、新系统权限/配置或超预算仍由负责人决定。
