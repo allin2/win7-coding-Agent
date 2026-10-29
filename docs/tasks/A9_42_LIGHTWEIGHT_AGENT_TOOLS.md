@@ -593,3 +593,64 @@ canonical全小写路径比较；prepare改为使用产品相同编译参数在�
 
 驱动/测试属于候选外取证与开发测试，产品JS及原生工件不变。保存本地提交后绑定新包，
 再完成本地prepare正向检查；不再重复已有124项打包测试。新包、驱动正向绑定和Win7执行结果另记，不能提前宣称通过。
+
+### 6.4 两项本地交付完成与准确包绑定
+
+新增驱动/组合测试提交为 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，正常干净源码开发包在
+`outputs/a9-42-tools/developer-package-r4`，ZIP110534772字节，SHA-256为
+`845853613765327ccb41786fb1763a2ef4aed531c32bc1c426668e41911dc063`；
+manifest SHA-256为 `316a97129a92e2d00c5e6b12eecb69dd56cbd5d44981d1486d42d55778ef1a2c`。
+包完整性及原标准cand路径准入PASS，最长201字符。与r3相比所有运行文件字节相同，
+仅两份身份记录变化，r3实际Electron模块3项按完整发布清单精确哈希引用INHERITED_EVIDENCE。
+原生工件、99项Office版本/源锁、2455个交付依赖文件与省略826个TS文件的边界不变。
+报告见 `outputs/a9-42-tools/office-journey/package-r4-verification.json`。
+
+后续绑定工具修复保存为 `30eedc6…`、界面就绪等待保存为 `1763756…`，没有改变产品src源树。
+prepare允许包源与当前工具提交不同，但须src树哈希完全相同、无跟踪或未跟踪src改动，
+产品文件仍逐项匹配包源git blob；7模块以产品参数重新编译后逐字节匹配，不把去注释视为同字节。
+新增错误注入抓住旧任务名前缀、证据提交与源变化混淆、未跟踪源码漏检；最终10项检查PASS。
+真实Runtime套件5项PASS及两个CJS产品Node16语法PASS保持直接证据；没有重跑不受影响打包合同。
+
+正向prepare已直接对r4执行成功，绑定39个产品文件和117个编译文件，覆盖含Shell的7模块。
+最终材料位于 `outputs/a9-42-tools/office-journey/prepared-r4-final/`，
+driver SHA-256 `ce6c6fe8e5147d6c90373b5a0622106b0445081a2bb0023058de5535d115397f`，
+source-binding SHA-256 `1c0add16bce1d6a52db52a1b0e41f3a16619f13353e48d70c87ba0f932c1657e`。
+config-template严格绑定准确source/ZIP/manifest/driver，deadline=null且直接验证当前不能执行。
+launch-template使用真实CRLF，实际任务名为A9-DEV-a942o-9d503e71，与通道agent-run同前缀。
+更早准备副本及其编译目录保留，不复用或覆盖。正向报告local-checks.json及日志均在候选外。
+
+本轮共2次员工派单，实际Terra/Sol均xhigh+priority；主对话保持Sol/max/default。
+已完成本地打包优化和完整办公旅程驱动/组合验证的准备，完整GUI直接执行及r4 Win7仍NOT_PERFORMED。
+重置时间未提供，没有推测；没有新增员工、目标机动作、安装、真实外部模型、推送发布或删除。
+新包r3/r4、两工作包输出及绑定编译目录只读盘点见 `outputs/a9-42-tools/gpt-reset-closeout-r1.json`，
+工作树状态见 `office-journey/worktree-closeout.json`；全部KEEP，无删除。旧prepared副本不作为最终执行输入。
+收尾docs:check为394文档/64任务PASS；新增工具按既有verify:tools三条入口完成PASS，耗时4702毫秒，
+含29项文档工具反例、构建/失败屏障与真实CLI检查。日志保存在office-journey输出中，暂存diff检查PASS。
+
+## 7. r4实际办公界面Win7试用提案（PROPOSED，未授权）
+
+仅针对§6.4的准确source `5143b9cf…`、ZIP `84585361…1dc063`、最终driver/source-binding，
+建议从当前main沿用ENGINEERING_03 r2新增一次开发窗口，首次目标动作起最多60分钟，
+含传输/准备/执行/下载/收尾；最后10分钟不开新场景。真实模型请求0次，127.0.0.1夹具最多16次。
+本轮新增本地HTTP模型夹具，区别于§5完全无夹具请求；该差异须在批准时明确，不能复用已关闭窗口。
+
+目标仍DCCS-CHAIZL-PC/Win7 SP1 x64/普通agent Medium、会话按当前实查；准备模板暂记会话2，
+执行前身份或会话不符即停并重新绑定材料，不把UNKNOWN写成已验证。
+主机键/TLS/SSH、SID、空间与账本沿用r2。拟续用本会话自有holder `a942-751c-7f41ca1c`，
+仅在仍属本会话且inactive、零未知生命周期时继续；其他holder不接管。
+
+允许路径为标准 `C:\A9-DEV\cand\845853613765327c\`、
+独立 `C:\A9-DEV\work\a942o-9d503e71\` 及通道必要控制记录；不触碰已有用户数据或模型配置。
+经普通agent计划任务加载准确包内真实main/preload/strict IPC/Runtime/State/Core/Worker和Renderer。
+只将目录选择器绑定独立工作区；输入本地随机端口Provider且不记住密钥，禁止外部模型或Shell工具。
+操作为真实问题卡回答、DOCX/XLSX新稿和读取、按原稿hash生成新副本、原件保持、界面5秒撤销副本、
+取消第二问题及拒绝迟到回答、正常窗口关闭、SQLite事实与锁复核。
+本轮临时文档的界面撤销是产品功能检查，明确允许移除本轮新建副本；不授权其他文件或旧数据删除。
+原启动临时任务由既有通道正常移除，第二个普通用户入口只读postflight核对原任务不存在和零根内残留。
+保留原RESULT与独立POSTFLIGHT，不能把自任务仍运行报成已清理；无app.exit成功替身。
+
+身份、完整性、审计、未知进程生命周期失败停止依赖动作，先保存首失败；
+只允许窗口内同范围普通取证修复及有界新run重试，不延长窗口、不覆盖包或旧run。
+只停止本轮根内进程，SGTool继续按ADR-0297准确实例保留，不扩大根外权限。
+不安装依赖、不改系统/服务/账户、不发真实模型请求、不执行close删根、不签正式门A/B、不推送发布。
+当前r4目标动作和完整产品Office GUI均NOT_PERFORMED，待负责人批准准确材料后执行。

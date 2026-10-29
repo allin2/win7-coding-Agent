@@ -29,7 +29,9 @@
   包external_acceptance_eligible=false；真实模型、完整Office Agent GUI旅程、正式门A/B、长期预算、推送发布仍为 NOT_PERFORMED。
   后续已切换GPT重置，两项员工Fast，主对话保持Sol/max/default。打包优化提交 `c9e29545…`，r3开发ZIP SHA-256 `1d2a1289…7320f42`。
   原99工件/运行字节保持；完整新包标准cand路径最长201字符已直接通过，受影响合同及闭包124项、最终包Electron模块3项PASS。
-  实际Office界面链路员工仍运行，等完成通知整合；r3新包未连接Win7，原r2直接开发证据不重绑，见任务书§6。
+  两项Fast员工均已完成并整合；Office驱动/HTTP与绑定反例10项、真实Runtime/SQLite组合5项通过，完整GUI仍待直接执行。
+  最终开发包源 `5143b9cf…`、r4 ZIP SHA-256 `84585361…1dc063`，完整性/标准路径校验及39产品/117编译文件正向绑定PASS。
+  准确新窗口材料已准备，deadline为空不可执行；60分钟/0真实模型/最多16次loopback夹具提案见任务书§7。r4未连接Win7，原r2证据不重绑。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。
