@@ -55,6 +55,7 @@ const productApi = Object.freeze({
     setMode: (mode) => a9Request('a9.mode.set', { mode }),
     configureProvider: (values) => a9Request('a9.provider.configure', values),
     probeProvider: () => a9Request('a9.provider.probe', {}),
+    previewImage: (conversationId, reference) => a9Request('a9.image.preview', { conversationId, reference }),
     configureShell: (values) => a9Request('a9.shell.configure', values),
     submitTurn: (prompt) => a9Request('a9.turn.submit', { prompt }),
     continueTask: (conversationId, taskId, interruptedTurnId, recoveryRevision) => a9Request('a9.task.continue', {
@@ -62,6 +63,10 @@ const productApi = Object.freeze({
     }),
     resumeApproval: (approvalId, decision, bindingDigest, conversationId, taskId, turnId) => a9Request('a9.turn.resumeApproval', {
       approvalId, decision, bindingDigest, conversationId, taskId, turnId,
+    }),
+    replyQuestion: (conversationId, questionId, revision, decision, answer) => a9Request('a9.question.reply', {
+      conversationId, questionId, revision, decision,
+      ...(decision === 'answered' ? { answer } : {}),
     }),
     stop: () => a9Request('a9.turn.stop', {}),
     dismissRecovered: (conversationId, handleId, recoveryRevision) => a9Request('a9.managed.dismissRecovered', {

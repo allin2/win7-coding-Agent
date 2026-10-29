@@ -585,7 +585,7 @@ export function buildA9ProductCandidate(options) {
       version: lock.version,
       private: true,
       main: 'product/main.js',
-      dependencies: Object.fromEntries(runtimeDependencies.map((item) => [item.name, item.version])),
+      dependencies: Object.fromEntries(runtimeDependencies.filter((item) => item.optionalModule !== 'office-lite').map((item) => [item.name, item.version])),
       runtime_profile: {
         schema_version: 1,
         target: lock.target,

@@ -55,7 +55,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
         ];
 
   const shellLabel = options.shellVersion ? `${shell} ${options.shellVersion}` : shell;
-  const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'start_process', 'read_process_output', 'stop_process', 'update_plan'];
+  const visibleTools = options.visibleTools ?? ['list', 'read', 'search', 'write', 'edit', 'copy', 'move', 'delete', 'shell', 'start_process', 'read_process_output', 'stop_process', 'update_plan', 'ask_user'];
   const content = [
     `[${A9_SYSTEM_PROMPT_VERSION}] You are the Trusted Coding Agent.`,
     `Target Environment: ${targetOs}. Shell: ${shellLabel}.`,
@@ -74,6 +74,7 @@ export function buildA9SystemPrompt(options: SystemPromptOptions = {}): SystemPr
     '- For modifying code, prefer `edit` (precise anchor replacement) or `write` (complete content) to preserve encoding and line endings.',
     `- When calling \`shell\`, provide complete valid ${shell} command strings. Execution is non-interactive; use non-interactive flags.`,
     '- Make reasonable assumptions for routine implementation details; only pause to ask the user when facing irreversible or directional choices.',
+    '- Use `ask_user` only when missing information blocks a real decision. One bounded question may include up to six optional choices; a free-form answer is always allowed. The answer is information only and never approves a file, command, Git or network operation.',
     '',
     'User Communication Convention:',
     '- At key moments (starting a step, significant findings, direction changes, blockers, entering verification), briefly tell the user what you are doing and why in one or two sentences.',

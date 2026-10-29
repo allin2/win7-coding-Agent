@@ -231,6 +231,11 @@ function cleanSourceFixture(root, sourceRef = '') {
     fs.symlinkSync(fs.realpathSync(path.join(process.cwd(), 'src', module, 'node_modules')),
       path.join(snapshot, 'src', module, 'node_modules'), 'dir');
   }
+  const officeRoot = path.join(snapshot, 'src/shell/office-lite');
+  if (fs.existsSync(path.join(officeRoot, 'package.json'))) {
+    fs.symlinkSync(fs.realpathSync(path.join(process.cwd(), 'src/shell/office-lite/node_modules')),
+      path.join(officeRoot, 'node_modules'), 'dir');
+  }
   execFileSync('git', ['init', '--quiet'], { cwd: snapshot });
   execFileSync('git', ['add', '.'], { cwd: snapshot });
   execFileSync('git', ['-c', 'user.name=A9 Fixture', '-c', 'user.email=a9-fixture@example.invalid',

@@ -138,6 +138,51 @@ Runtime Profile 必须检测、安装/配置或提供明确失败说明的前置
 
 ## 6. 依赖评审登记表
 
+### A9-42 Office Lite Profile（ADR-0302，2026-10-29）
+
+负责人明确要求实现。复用 Electron 22.3.27 / Node 16.17.1 的 worker_threads、zlib 和 Buffer；
+新库仅随可选模块交付，无新原生 ABI、系统安装、权限、注册表、服务、KB 或 VC Runtime。
+运行依赖固定为 docx 8.0.0（MIT）、exceljs 4.4.0（MIT）、@xmldom/xmldom 0.9.12（MIT）、
+jszip 3.10.1（选择 MIT）。完整传递版本、来源与 SHA-512 integrity 以
+`src/shell/office-lite/package-lock.json` 为准；来源统一 npm 官方注册表并保留 TLS 默认校验。
+构建端从锁准备纯 JS 模块，安装禁用生命周期脚本；目标机不执行依赖解析。
+按需 Worker 不是安全沙箱；只接收内容字节，无模型可控模块路径或代码执行入口。
+资源限制与格式拒绝见 ADR-0302；依赖缺失明确禁用办公工具，文本能力保持可用。
+许可证、工件 SHA-256、闭包核对与安全审计结果在 A9-42 本轮记录中补齐；
+历史版本及 Node/Electron EOL 风险由项目维护方承担，不能用 engines 声明代替运行验证。
+Win7 真文档读取/生成、线程取消/退出、反复操作峰值与释放验证均 NOT_PERFORMED。
+资源预算继续引用 PERFORMANCE_BUDGET #1/#2/#3/#10；不把限制值写成实测结果。
+实现补记：可选依赖闭包99项，工件SHA-256与全部文件哈希在 `src/shell/office-lite/DEPENDENCIES.json`。
+ExcelJS传递uuid11.1.1/unzipper0.12.3精确override；最终注册表安全审计0项，不能视为无漏洞证明。
+副本发布使用已声明Node fs.linkSync，对同一目录的完整临时文件创建独占硬链接；原目标存在则拒绝。
+仅普通用户本地NTFS路径；不依赖管理员或系统配置。硬链接不可用、文件占用或权限不足即拒绝写入，不降级为覆盖原件。
+该发布路径及Worker退出仍需在产品Electron/Win7验证，开发机通过不代替平台证明。
+
+### A9-42 开发机运行时探针（2026-10-29）
+
+仅为执行已授权的本地兼容性检查，准备Electron22.3.27 darwin-arm64官方ZIP；
+它复用产品运行时版本，不进入Win7包或替换D-009的win32-x64工件。
+来源为 `https://github.com/electron/electron/releases/download/v22.3.27/electron-v22.3.27-darwin-arm64.zip`，
+上游SHASUMS256.txt绑定SHA-256 `2b87e9f766692caaa16d7750bfab2f609c0eab906f55996c7d438d8e18ac8867`。
+许可证沿用Electron MIT及随包Chromium许可证。仅解压在outputs，不安装到Applications，不改全局运行时、PATH或系统配置。
+检查Node16语法/模块/Worker以及nativeImage真解码；数据与报告只写候选外新目录。
+macOS架构和API实现与Win7不同，直接结果只标开发机Electron，不形成Win7或完整产品包PASS。
+
+### A9-42 图片 Profile（ADR-0301，2026-10-29）
+
+复用 D-009 的 Electron 22.3.27 x64 / Chromium 108 / Node 16.17.1，未新增工件或传递依赖。
+仅 main 进程按需使用 nativeImage 的 createFromBuffer、isEmpty、getSize、resize、toPNG。
+来源与 MIT/第三方许可证沿用 D-009；Electron ZIP SHA-256 为
+`ad723ed7dad32f9459f7a9de1fd6d718cf713c4809c2431503bea62ce8f786e6`，electron.exe 为
+`2ed9543796e0962bfcaae175794cfb1b3293f4f9e14fb1c3b37628f7cfd339cb`。
+不新增 KB、VC Runtime、管理员权限、网络解析、安装或系统配置；宿主先做字节/像素限制再解码。
+API 缺失、格式不支持、解码失败及尺寸矛盾均拒绝图片工具，文本功能仍可使用。
+图片默认关闭，缺省不加载图片处理，不安装 OCR 或本地推理组件。
+本 Profile 的接口依据为 Electron 22.3.27 官方文档；Win7 图片直接证据为 NOT_PERFORMED。
+目标验证需覆盖 PNG/JPEG 真解码、缩放、中文路径、取消、重复读取/释放和内存峰值。
+同步原生解码不能在中途取消，NativeImage 由 GC 回收；EOL 解码器风险由项目维护方承担。
+开发与证据记录集中在 [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)，不改写历史冻结 Profile。
+
 **规则：** 任何新的运行时、框架、第三方库、原生模块、系统 API 或外部可执行文件，
 必须先登记。第三方依赖是允许项，不是默认禁用项。
 

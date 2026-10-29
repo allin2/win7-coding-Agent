@@ -10,6 +10,7 @@ const {
   dialog,
   ipcMain,
   safeStorage,
+  nativeImage,
   session,
 } = require('electron');
 
@@ -999,6 +1000,7 @@ async function getOrCreateA9Runtime() {
     // Windows package path: Electron safeStorage is the DPAPI boundary. Without
     // this host injection Provider secrets silently degrade to process memory.
     safeStorage,
+    nativeImage,
     selectShellExecutable: async (kind) => {
       const result = await dialog.showOpenDialog(mainWindow, {
         title: `选择 ${kind} Shell 可执行文件`,

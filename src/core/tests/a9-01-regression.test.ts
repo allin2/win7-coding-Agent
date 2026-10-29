@@ -91,7 +91,7 @@ describe('A9-01 regression: Read Only mode', () => {
       runner,
       permissionMode: PermissionMode.READ_ONLY,
     });
-    expect(loop.getVisibleTools()).toEqual(['list', 'read', 'read_process_output', 'search', 'update_plan']);
+    expect(loop.getVisibleTools()).toEqual(['ask_user', 'list', 'read', 'read_process_output', 'search', 'update_plan']);
     expect(loop.getVisibleTools()).not.toContain('write');
     expect(loop.getVisibleTools()).not.toContain('delete');
     expect(loop.getVisibleTools()).not.toContain('shell');

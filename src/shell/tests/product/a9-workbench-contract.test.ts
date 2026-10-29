@@ -1079,6 +1079,35 @@ describe('A9 unified desktop workbench contract', () => {
     expect(navBtn.getAttribute('aria-expanded')).toBe('true');
   });
 
+  it.each([780, 900, 1366])('returns settings focus to a visible control at %ipx (A9-41)', (width) => {
+    const h = createPaneHarness();
+    h.windowStub.innerWidth = width;
+    const node = (id: string) => h.document.getElementById(id);
+    const rail = node('navigation-rail');
+    const settings = node('open-settings');
+    const drawer = node('settings-drawer');
+    const close = node('settings-close');
+    close.dataset.close = 'settings-drawer';
+    rail.appendChild(settings);
+    drawer.appendChild(close);
+    drawer.querySelector = () => close;
+    h.document.querySelectorAll = (selector: string) => selector === '[data-close]' ? [close] : [];
+    h.run(script);
+    h.ready();
+    if (width < 800) node('open-navigation').fire('click');
+    settings.focus();
+    settings.fire('click');
+    expect(drawer.hidden).toBe(false);
+    expect(h.document.activeElement).toBe(close);
+    expect((h.workbench as any).inert).toBe(true);
+    expect(rail.classList.contains('open')).toBe(false);
+    close.fire('click');
+    expect(drawer.hidden).toBe(true);
+    expect((h.workbench as any).inert).toBe(false);
+    expect(h.document.activeElement).toBe(width < 800 ? node('open-navigation') : settings);
+    expect(node('open-navigation').getAttribute('aria-expanded')).toBe(String(width >= 800));
+  });
+
   it('re-syncs drawer and desktop pane state across breakpoints without collapsing open sidebars (U06)', () => {
     const h = createPaneHarness();
     h.run(script);

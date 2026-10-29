@@ -1,5 +1,8 @@
 # 本机外证据归档与取回
 
+当前外置盘入口见 [从“相机盘”重新获取](EXTERNAL_ARCHIVE_RESTORE.md)。
+按卷 UUID 定位，处理改名、插拔和挂载路径变化；本轮迁移与源副本状态见 ENGINEERING_05。
+
 历史候选、双构建输出、Win7 运行证据和旧工件不进入本仓库 Git（`.acceptance/`、`outputs/` 等均被忽略），
 为减少开发机占用，已加密归档到私有仓库 `allin2/win7-coding-agent-archives` 的 Release，本机原件随后移除。
 文档中仍写作 `.acceptance/...` 等本机路径的证据，按本页取回。归档只保存历史事实，不改变任何候选的
@@ -15,8 +18,19 @@
 | `archive-20261026-slice1` | 2026-10-26 | 历史 diagnostic-3b / addendum11 原始搜索 JSON 与日志；3 个附件全部回下载 SHA 校验，实际恢复 2 文件通过；不含 Git bundle 或工作树 |
 | `archive-20261026-slice2` | 2026-10-26 | WIN7-54 门 A 修复轮 repair-1～10、13 与 tmp 共 12 个集合（开发机测试夹具与沙箱，647,850 文件）；见下文 |
 | `archive-20261026-slice3` | 2026-10-26 | Alpha 2 历史准备：w48 门 A 准备、diagnostic-3b 准备、rehearsal-3 准备 3 个集合（495,314 文件）；见下文 |
+| `archive-20261026-slice4` | 2026-10-26 | **不在 GitHub**；131 个加密附件在外置“相机盘”，本机保留恢复索引。A9-39 outputs/预演/w46～w53 材料与 WIN7-41～54 旧候选共 4 组 127 个集合；按 UUID 入口取回 |
 
 上述批次使用同一恢复密钥。密钥不在 GitHub，由负责人保管；位置与离机备份要求见私有仓库 README。
+
+### 存放位置
+
+| 位置 | 批次 | 取回前提 |
+|---|---|---|
+| GitHub 私有仓库 `allin2/win7-coding-agent-archives` 已发布 Release | `archive-20260911-v2`、`20260925`、`20260930`、`20261026-slice1`～`slice3` | `gh` 登录且有读权限 |
+| 本机 `.acceptance/maintenance/archive-20261026-slice4/`（catalog、manifest、工具与校验记录） | `archive-20261026-slice4` | 仅为索引；131 个本机加密附件已按本轮准确清单批准移除，恢复时需接外置盘 |
+| 外置“相机盘”（原 Untitled，UUID `C8BF5026-0077-3F03-AA08-019E0A1DC444`）下 `win7-coding-agent-archives/archive-20261026-slice4/` | `archive-20261026-slice4` | [UUID 恢复入口](EXTERNAL_ARCHIVE_RESTORE.md) 自动定位当前挂载点；附件、catalog、manifest、恢复工具齐全。本轮从盘上实际恢复 WIN7-42 并与原件字节/模式核对一致 |
+
+GitHub 上的草稿 `archive-20261026`（2 个附件）与 `archive-20261026-slice4`（135 个附件中只上传了 33 个）不完整，不作恢复依据。
 
 ## `archive-20260925` 原路径对照
 
@@ -189,6 +203,14 @@ WIN7-55 候选及两次构建保留副本的 ZIP SHA 均为 `7de63dd8db0fde0f7c7
 117 个恢复集合及原归档密钥。密钥仍在原有受限位置，没有复制到工作树或上传。
 slice4 的远端草稿不作为本次恢复依据；未经另轮确认，不得清理这些本地恢复来源。
 
+> **更正（2026-10-26 08:59 America/Los_Angeles）**：上表“第四批已恢复的 117 个整合树历史集合”所列
+> `archive-20261026-slice4/verified/` 已不存在。Claude Code 会话在负责人批准删除“还原副本 verified/”后执行删除，
+> 当时未获知本轮已将其登记为 KEEP。删除前 127 份 `*.verification.json` 已复制到同目录 `verification-reports/`。
+> 这 117 个集合本机不再有明文目录；恢复来源改为 slice4 加密归档：本机 `out/` 的 131 个 `.enc`（KEEP）与负责人外置硬盘副本，
+> 用 `restore_snapshot.py --candidate <集合>` 按需恢复到新目录。删除前已完成 127/127 解密重建与 `diff -r` 一致。
+> 上述是 08:59 时点记录。后续检查确认明文 `.tar.gz` 已不存在；本轮经负责人准确清单确认后，
+> 本机 `out/` 的 131 个 `.enc` 也已逐项移除。现用“相机盘”的 UUID 恢复入口；本机仅保留索引。
+
 恢复原工作树时，先按 `baseline.json` 中的原 HEAD/分支重新建立工作树，再将对应 `dirty-files.tar.gz`
 解包到该工作树，复核 `manifest.json` 的路径、模式和 SHA。本轮不删除 Git 分支或历史对象。
 整合树的 ignored 材料按 `preservation-result.json` 的 source/retained 映射恢复到原相对路径，
@@ -205,3 +227,21 @@ slice4 的远端草稿不作为本次恢复依据；未经另轮确认，不得�
 删除后再次核验 139 个保留根的 514,176 个成员、独立保存的 3 个 FIFO 类型、21 个 dirty 文件及 131 个加密附件通过。
 WIN7-55 三份 ZIP 与 192 个原只读目录的保留副本模式保持。Git 仅登记主工作树，分支与共享依赖目标未删除。
 本地保留位置仍全部为 KEEP，不能把原工作树移除扩展为这些恢复来源的清理授权。
+
+## 外置“相机盘”迁移后的当前入口（2026-10-26）
+
+本节更新当前保存位置，不改变上文历史核验时点或原 PASS/FAIL/LOST。
+负责人本轮授权迁移，并确认 SHA `0a63a349…0340e7` 的准确源副本移除清单。
+131 个本机 slice4 加密附件已移除；盘上原附件经核验保留。
+slice1 的两份加密附件、catalog、manifest 与恢复工具也已复制到盘上。
+slice2/slice3 只复制本机现有索引，不声称其完整附件已在外置盘。
+
+卷 UUID 为 `C8BF5026-0077-3F03-AA08-019E0A1DC444`，与旧 Untitled 相同。
+本轮没有新增第二块盘。Mac 附件移除后，slice4 加密归档只剩该外置卷一份；GitHub 草稿不能替代。
+本机保留 [外置登记](EXTERNAL_ARCHIVE.json) 和 [插拔及重新获取步骤](EXTERNAL_ARCHIVE_RESTORE.md)。
+盘上 `recovery-kit/` 另存同版脚本与登记，密钥不在盘上。
+
+本轮直接从外置盘解密、重建 WIN7-42，7 文件及目录成员、SHA 和 POSIX mode 与原件一致。
+离线拒绝、错 UUID、标识不符及路径逃逸检查通过；挂载路径变化使用模拟检查。
+真实物理拔插为 NOT_PERFORMED，未自动弹出用户磁盘。
+具体文件与源目录状态见 `.acceptance/maintenance/external-migration-20261026-r1/`。

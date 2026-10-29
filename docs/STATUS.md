@@ -12,6 +12,17 @@
 
 ## 进行中的工作与授权
 
+- [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：负责人授权按平民模式推进六项轻量工具与文档能力。
+  main `6ea0b9af…` 加未提交修改；编辑反馈、环境、Skills、ask_user 已整合并通过开发机定向检查。
+  图片全链路本地实现及文件/数量/生命周期/历史隔离定向检查通过；五项完成开发交付。
+  [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 的 DOCX/XLSX 有界读、新稿与修改副本已在主工作区实现；相关开发机定向验证通过。
+  六项均完成本地开发交付；开发机Electron22/Node16模块探针5项PASS，包含真实图片解码与Office Worker。
+  Office打包夹具依赖缺口已修复；相关打包回归123项PASS，0跳过。完整release组仍有11项历史FAIL及5项未执行，独立记录。
+  负责人已批准审阅清单82项改动保存为本地提交并构建开发包，正在执行；准确授权见任务书§4.7。
+  真实模型、Win32产品GUI、Win7、完整产品打包与发布仍为 NOT_PERFORMED，构建结果另行补记。
+- [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
+  main `6ea0b9af…` 加未提交差异已完成长标题开关、窄窗焦点、导航及状态可读性优化。
+  开发机定向测试 73 PASS、当前 Renderer 桩交互 14 PASS；打包、Electron 22 与 Win7 为 NOT_PERFORMED，未提交或发布。
 - 本轮 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)：规则和日常入口已落地，真实 Win7 锁 bug 已修复；第二轮（ADR-0291）把日常集合降到 107.74 秒并加 Node ABI 前置。
   第一批 20 项清理完成；第二、三批归档核验后经负责人批准删除 1,143,164 个原件，df 可用空间增加 10.94 GB。ADR-0290 授权在 main 连续执行；未授权产品推送、发布或正式签发。
   本轮本地工作树整合已保存 21 个未提交文件并核销旧治理差异；139 个材料根已在工作树外核验保留。

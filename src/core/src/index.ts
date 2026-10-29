@@ -169,6 +169,21 @@ export {
 } from './a9-tools';
 
 export {
+  A9_QUESTION_SCHEMA_VERSION,
+  A9_QUESTION_PROMPT_MAX_CHARS,
+  A9_QUESTION_OPTION_MAX_CHARS,
+  A9_QUESTION_OPTIONS_MAX,
+  A9_QUESTION_ANSWER_MAX_CHARS,
+  A9QuestionIdentity,
+  A9PendingQuestion,
+  A9QuestionReplyInput,
+  A9ValidatedQuestionInput,
+  validateA9QuestionInput,
+  validateA9QuestionReply,
+  buildA9PendingQuestion,
+} from './a9-question';
+
+export {
   GitCommandCategory,
   GitCommandDecision,
   GitCommandApprovalBinding,
@@ -200,6 +215,7 @@ export {
 export { loadProjectInstructions, ProjectInstructionResult, ProjectInstructionStatus } from './a9-project-instructions';
 export { assembleWithinBudget, ContextBudgetStats } from './a9-context-budget';
 export { buildEnvironmentFacts, EnvironmentFactsInput } from './a9-environment-facts';
+export { loadSkillCatalog, skillCatalogMessage, SkillCatalog } from './a9-skills';
 
 export {
   VerificationRequirement,
@@ -285,6 +301,7 @@ export {
   A9TurnResult,
   A9ApprovalRequest,
   A9ApprovalDecision,
+  A9QuestionResumeDecision,
   A9VisiblePlan,
   A9AgentLoop,
   buildA9ApprovalRequest,

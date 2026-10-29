@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "project": "allin2/win7-coding-Agent",
+  "volume_uuid": "C8BF5026-0077-3F03-AA08-019E0A1DC444",
+  "preferred_volume_name": "相机盘",
+  "relative_root": "win7-coding-agent-archives",
+  "marker_file": ".win7-coding-agent-archives-volume.json",
+  "marker_sha256": "458a658534e632b3cc653788d20005dc01e57527937319538acb67210e2bc11a",
+  "batches": {
+    "archive-20261026-slice1": {
+      "relative_path": "archive-20261026-slice1",
+      "catalogs": {
+        "diagnostic3b-records": {
+          "path": "catalogs/catalog-diagnostic3b-records.json",
+          "sha256": "b6e7a7f26e028a57652aedec940a51e4a67022e8c3c81d2c23f50737eb96a994"
+        }
+      },
+      "restore_tool": {
+        "path": "restore_snapshot.py",
+        "sha256": "957ddd0b6d6473b6022f5979eb8670f5355b37cd88b9fe72f7532fcc44ce4656"
+      }
+    },
+    "archive-20261026-slice4": {
+      "relative_path": "archive-20261026-slice4",
+      "catalogs": {
+        "slice4-rehearsals": {
+          "path": "catalogs/catalog-slice4-rehearsals.json",
+          "sha256": "59c6f1a3359ccd5c23b867f031429b40836a974c1d9c5d78640c8ffadfb71242"
+        },
+        "slice4-candidates-w41-w54": {
+          "path": "catalogs/catalog-slice4-candidates-w41-w54.json",
+          "sha256": "a0369388ceaea9cf8d8c19f9f9b53ab0581a96b8aea3d837961d8c326d222087"
+        },
+        "slice4-outputs-other": {
+          "path": "catalogs/catalog-slice4-outputs-other.json",
+          "sha256": "f2da462ce83b31b3d05c9bfeeb9bc66d3444189e99fdeff7a6adf1381e4af012"
+        },
+        "slice4-a9-39-acceptance": {
+          "path": "catalogs/catalog-slice4-a9-39-acceptance.json",
+          "sha256": "b7c9ab72a233a343fe4b247ae03634fa0786ea6d0a0df4b2a4a182dfc8fb65cd"
+        }
+      },
+      "restore_tool": {
+        "path": "restore_snapshot.py",
+        "sha256": "957ddd0b6d6473b6022f5979eb8670f5355b37cd88b9fe72f7532fcc44ce4656"
+      }
+    }
+  },
+  "index_only_batches": {
+    "archive-20261026-slice2": {
+      "relative_path": "archive-20261026-slice2",
+      "assets": "GitHub published Release; not fetched in this migration",
+      "restore": "See EVIDENCE_ARCHIVE_RETRIEVAL.md existing gh download instructions"
+    },
+    "archive-20261026-slice3": {
+      "relative_path": "archive-20261026-slice3",
+      "assets": "GitHub published Release; not fetched in this migration",
+      "restore": "See EVIDENCE_ARCHIVE_RETRIEVAL.md existing gh download instructions"
+    }
+  }
+}

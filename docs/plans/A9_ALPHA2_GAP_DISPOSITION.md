@@ -464,3 +464,37 @@ A9-36 状态仍为 `DRAFT_READY_FOR_REVIEW`，Win7 为 `NOT_PERFORMED`。本节�
 | 门 A | 门 A r5（请求 `1ff2376f…`）与修订 1（`dd0d19ef…`）已签，m4 第二次尝试 `EPIPE` 停止（任务书 §10.7）；门 A r6（请求 `9a13a17e…`，运行 `76c7f922…`）已签，R0 至 R3 通过、m4 在编排器完整性检查 `A9_36_CANDIDATE_CHANGED` 处 `FAIL`，账本 `HALTED`（任务书 §10.9）；完整性检查已改走 `original-fs`；r7 作废，按 ADR-0251 改在 WIN7-46 执行；改绑见[任务书 §10.12](../tasks/A9_36_ALPHA2_SUPPLEMENTAL_ACCEPTANCE.md#1012-codex-接手候选改绑2026-10-17)；旧门 A（`f1c0d968…`）已过期，续期草案（`14a9680e…`）作废 |
 
 未验证的产品行为假设、六路径字节和复审明细见任务书 §10；第四轮复审（0 P0、0 P1、0 P2）和新门 A 请求材料见 §10.2、§10.6。本节不授权目标机动作，不提交。
+
+## 24. 完整 Alpha 2 签发对账（2026-10-27，草案）
+
+负责人选 A：用 WIN7-55 现有证据申请完整 Alpha 2 签发。执行代理在开发机只读对账，绑定 source `b4ce2be4…`、ZIP `7de63dd8…`。
+总控 run `f9ae2982…` 为 FORMAL；补充组 run `cdb82d32…` 为 DEV_CHANNEL。签发草案见 ADR-0292，独立审核待执行。
+“总控”指 A9-33 批次 2 套件在 WIN7-55 上扩展后的 37 用例/67 断言；与原 25 用例/43 断言的逐项对应由独立审核核对。
+
+| 编号 | 本次直接证据（层级） | 随结论携带 | 处置 |
+|---|---|---|---|
+| G01 Shell 实时输出 | 总控 p04-streaming（FORMAL） | KL-3、原生 Esc、CP936/UTF-16LE | 关闭，带限制 |
+| G02 后台工具 | 总控 p05-session-bg（FORMAL） | KL-12、A9-34（ADR-0240） | 关闭，带限制 |
+| G03 用户显式继续 | 总控 p03 `B2-CH-05`、p06-continue（FORMAL） | CONT-02、SAFE-01、未知 write/edit/delete 只验证 Shell 场景 | 关闭，带限制；A9-32 §5 的预算零发送与再次主动尝试未覆盖 |
+| G04 预算/验证/审计/Provider | 补充组 M2（DEV） | SAFE-01 | 关闭，开发级证据 |
+| G05 改动审阅 | 补充组 M3（DEV） | 按 ADR-0143，不含暂存区式 Review | 关闭，开发级证据 |
+| G06 响应式 | 总控 p08-ui（FORMAL） | ≤799px（ADR-0240） | 关闭，带限制 |
+| G07 Policy/高影响/Git 形态 | 补充组 M1（DEV） | F-01（ADR-0239） | 关闭，开发级证据 |
+| G08 checkpoint/恢复目录 | 补充组 M3（DEV） | `git clean -fdx` 限制 | 关闭，开发级证据 |
+| G09 IPC/秘密/TLS | 补充组 M4（DEV）；M5 默认 TLS 验证 | 企业 CA/代理（ADR-0240） | 关闭，开发级证据 |
+| G10 真实 Provider | 补充组 M5（DEV），sent=22/settled=22 | 企业 CA/代理（ADR-0240） | 普通 Provider 关闭；企业环境为限制 |
+| G11 J1～J3 | 补充组 M5（DEV） | 无 | 关闭，开发级证据 |
+| G12 J4 Shell/Git | 总控 p04（FORMAL）与补充组 M1、M3（DEV） | 外部 push 真实写入未执行 | 关闭，带限制 |
+| G13 POSIX/`/Command` | 无 | ADR-0240 | 已知限制 |
+| G14 J5 撤销/恢复 | 补充组 M3（DEV）、总控 p06（FORMAL） | A9-34 | 关闭，带限制 |
+| G15 启动与内存 | 无 | ADR-0240 | 已知限制 |
+| G16 A8-06 | 不适用 | ADR-0241 | N/A |
+| G17 部署/回退/闭包 | 总控 p02-integrity（FORMAL，zip_entries 801）；补充组 M6（DEV） | DPAPI、备份生成、诊断包导出、SBOM 内容适用性（ADR-0241）；R-1、R-2 | G17-a 关闭；G17-b 组件级通过，完整升级/回退产品旅程 NOT_PERFORMED |
+
+表中各阶段与 G 行的对应是执行代理依据 §7.3 分组和阶段名的判断，未逐断言展开。
+标“开发级证据”的行只有 DEV_CHANNEL 证据；按 ADR-0289 边界不计入 Alpha 结论，除非负责人对本次开例外（ADR-0292 决定一）。
+独立审核须逐行核对阶段内断言是否覆盖该行“仍缺什么”；任一行不成立，则该行改为 NOT_PERFORMED，并在签发前报告负责人。
+
+2026-10-27 独立审核（只读，Sonnet）：P0 为 0，P1 为 4。总控 37/67/0、M1～M6 PASS、M5 sent=22 与 TLS 验证、两处 SHA 复算一致。P1-2～P1-4 与 P2 已按上表和 ADR-0292 修订；P1-1（与 ADR-0289 冲突）由负责人 2026-10-27 选 B 处置：补充组 M1～M6 在门 A 授权下正式执行一次；上表“开发级证据”各行待正式 run PASS 后改填正式证据。门 A 材料准备中，正式执行 NOT_PERFORMED。
+
+2026-10-27 定位后负责人改选 C：不签完整 Alpha 2（ADR-0292 决定一）。上表“开发级证据”各行及 G17-b 保持未关闭，留待 RC 正式验收；本表作为 RC 的输入保留。补充组 FORMAL 草稿 run `20f1bd74…` 未签未执行，作废。

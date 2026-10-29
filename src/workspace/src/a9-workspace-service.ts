@@ -26,8 +26,15 @@ import {
   WritableEncoding,
 } from './encoding';
 import { atomicWrite } from './atomic';
+import { officePath, createOfficeCopy } from './a9-office-files';
 import { createWorkspaceIgnoreFilter, IgnoreFilter } from './a9-ignore';
 import { CheckpointManager } from './checkpoint-manager';
+import {
+  A9EditFeedbackV1,
+  DEFAULT_EDIT_DIFF_MAX_BYTES,
+  buildEditFeedback,
+  unavailableEditFeedback,
+} from './a9-edit-feedback';
 import { WorkspaceError } from './types';
 
 export interface A9ListResult {
@@ -89,6 +96,9 @@ export interface A9EditResult {
   eol: string;
   outsideWorkspace: boolean;
   diffSummary: string;
+  noOp: boolean;
+  /** Bounded preview computed from the actual re-encoded result. */
+  feedback: A9EditFeedbackV1;
 }
 
 export interface A9DeleteResult {
@@ -148,6 +158,7 @@ export class A9WorkspaceService {
   private readonly checkpointManager: CheckpointManager;
   private readonly baselines = new Map<string, BaselineFact>();
   private readonly containsSensitiveData: (value: string | Buffer) => boolean;
+  private readonly containsSensitiveFeedbackData: (value: string | Buffer) => boolean;
 
   private hashFile(filePath: string): string {
     const digest = crypto.createHash('sha256');
@@ -167,7 +178,8 @@ export class A9WorkspaceService {
 
   constructor(
     workspaceRoot: string,
-    options: { containsSensitiveData?: (value: string | Buffer) => boolean } = {},
+    options: { containsSensitiveData?: (value: string | Buffer) => boolean;
+      containsSensitiveFeedbackData?: (value: string | Buffer) => boolean } = {},
   ) {
     // 规范化工作区根本身（macOS /var → /private/var、junction 等），
     // 否则 realpathSync 的文件会得到跨前缀的 ../../ 相对路径。
@@ -179,6 +191,7 @@ export class A9WorkspaceService {
     }
     this.workspaceRoot = canonicalRoot;
     this.containsSensitiveData = options.containsSensitiveData ?? (() => false);
+    this.containsSensitiveFeedbackData = options.containsSensitiveFeedbackData ?? this.containsSensitiveData;
     this.ignoreFilter = createWorkspaceIgnoreFilter(canonicalRoot);
     this.checkpointManager = new CheckpointManager(canonicalRoot, undefined, this.containsSensitiveData);
     if (fs.existsSync(this.checkpointManager.getRecoveryRoot())) {
@@ -671,6 +684,16 @@ export class A9WorkspaceService {
   // write
   // -------------------------------------------------------------------------
 
+  /** Office outputs create new files and participate in the existing undo chain. */
+  async writeDocumentCopy(target: string, buffer: Buffer, options: { turnId: string }): Promise<A9WriteResult> {
+    const resolved = officePath(this.workspaceRoot, target, true);
+    this.checkpointManager.recordPreMutation(options.turnId, resolved.relative);
+    const relative = createOfficeCopy(this.workspaceRoot, target, buffer);
+    this.checkpointManager.recordPostMutation(options.turnId, relative, 'create');
+    this.recordBaseline(relative, resolved.absolute);
+    return { path: relative, bytesWritten: buffer.length, encoding: 'binary', created: true, outsideWorkspace: false };
+  }
+
   async write(
     targetPath: string,
     content: string,
@@ -759,8 +782,6 @@ export class A9WorkspaceService {
     // 编辑必须基于新鲜读取基线；外部变化后拒绝覆盖。
     const baseline = this.ensureWritableBaseline(absPath, relPath)!;
 
-    this.checkpointManager.recordPreMutation(turnId, relPath);
-
     const raw = fs.readFileSync(absPath);
     const detection = detectEncoding(raw);
     const encoding = baseline.encoding || (detection.encoding === 'ambiguous' ? undefined : detection.encoding as WritableEncoding);
@@ -799,6 +820,42 @@ export class A9WorkspaceService {
       throw err;
     }
 
+    const noOp = raw.equals(preserved.buffer);
+    let feedback: A9EditFeedbackV1;
+    try {
+      const afterText = decodeBuffer(preserved.buffer, preserved.encoding);
+      if (afterText === undefined) throw new Error('re-encoded edit result could not be decoded');
+      // Classify before clipping: a truncated credential cannot be redacted later.
+      if (this.containsSensitiveFeedbackData(raw) || this.containsSensitiveFeedbackData(preserved.buffer) ||
+          this.containsSensitiveFeedbackData(originalText) || this.containsSensitiveFeedbackData(afterText)) {
+        feedback = { ...unavailableEditFeedback(raw, preserved.buffer), unavailableReason: 'A9_EDIT_FEEDBACK_SENSITIVE' };
+      } else feedback = buildEditFeedback(
+        raw,
+        preserved.buffer,
+        originalText,
+        afterText,
+        { maxDiffBytes: DEFAULT_EDIT_DIFF_MAX_BYTES },
+      );
+    } catch (_err) {
+      // The edit already passed encoding and re-encoding; feedback failure must
+      // never be reported as a failed write.
+      feedback = unavailableEditFeedback(raw, preserved.buffer);
+    }
+
+    if (noOp) {
+      return {
+        path: relPath,
+        replaced: false,
+        encoding: preserved.encoding,
+        eol: preserved.eol,
+        outsideWorkspace: isOutside,
+        diffSummary: `No change: anchor matched, but the re-encoded result is byte-identical (encoding ${preserved.encoding} preserved).`,
+        noOp: true,
+        feedback,
+      };
+    }
+
+    this.checkpointManager.recordPreMutation(turnId, relPath);
     this.ensureParentDir(absPath);
     atomicWrite(absPath, preserved.buffer);
 
@@ -812,6 +869,8 @@ export class A9WorkspaceService {
       eol: preserved.eol,
       outsideWorkspace: isOutside,
       diffSummary: `Replaced anchor of length ${oldText.length} with ${newText.length} characters (encoding ${preserved.encoding} preserved).`,
+      noOp: false,
+      feedback,
     };
   }
 

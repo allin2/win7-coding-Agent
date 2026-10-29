@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { copyOfficeLiteRuntime } from './office-lite-runtime.mjs';
 import { extractZip, getZipEntry, readZipEntries, readZipEntry, writeDeterministicZip } from './zip-utils.mjs';
 
 export function sha256Bytes(value) {
@@ -113,7 +114,7 @@ export function buildRelease(options) {
     version: lock.version,
     private: true,
     main: 'product/main.js',
-    dependencies: Object.fromEntries(runtimeDependencies.map((item) => [item.name, item.version])),
+    dependencies: Object.fromEntries(runtimeDependencies.filter((item) => item.optionalModule !== 'office-lite').map((item) => [item.name, item.version])),
     runtime_profile: {
       schema_version: 1,
       target: lock.target,
@@ -397,7 +398,7 @@ export function copyRuntimeJavaScript(source, destination) {
 
 export function copyRuntimeDependencies(root, appRoot) {
   const names = ['ajv', 'fast-deep-equal', 'fast-uri', 'json-schema-traverse', 'require-from-string'];
-  return names.map((name) => {
+  const primary = names.map((name) => {
     const source = path.join(root, 'src', 'shell', 'node_modules', name);
     const packageJson = loadJson(path.join(source, 'package.json'));
     copyDirectory(source, path.join(appRoot, 'node_modules', name));
@@ -408,6 +409,7 @@ export function copyRuntimeDependencies(root, appRoot) {
       package_json_sha256: sha256File(path.join(source, 'package.json')),
     };
   });
+  return [...primary, ...copyOfficeLiteRuntime(root, appRoot, copyDirectory)];
 }
 
 export function verifyPackagedJavaScript(appRoot) {
@@ -495,7 +497,7 @@ function component(type, name, version, license, hash, note) {
     name,
     version,
     hashes: [{ alg: 'SHA-256', content: hash }],
-    licenses: [{ license: licenseDeclaration }],
+    licenses: /\s(?:OR|AND)\s/.test(license) ? [{ expression: license }] : [{ license: licenseDeclaration }],
     properties: [{ name: 'win7:delivery_note', value: note }],
   };
 }

@@ -10,6 +10,7 @@ export enum TurnOutcome {
   COMPLETED = 'completed',
   COMPLETED_WITH_WARNINGS = 'completed_with_warnings',
   NEEDS_APPROVAL = 'needs_approval',
+  NEEDS_INPUT = 'needs_input',
   BUDGET_EXCEEDED = 'budget_exceeded',
   CANCELLED = 'cancelled',
   STUCK = 'stuck',

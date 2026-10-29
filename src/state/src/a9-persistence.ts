@@ -22,7 +22,7 @@ export const A9_MAX_ACTIVE_CONVERSATIONS = 16;
 
 export type A9PermissionModeValue = 'full_access' | 'review' | 'read_only';
 export type A9ConversationStateValue = 'active' | 'archived';
-export type A9ConversationActivityValue = 'idle' | 'running' | 'waiting_approval' | 'interrupted';
+export type A9ConversationActivityValue = 'idle' | 'running' | 'waiting_approval' | 'waiting_input' | 'interrupted';
 export type A9ConversationTitleSource = 'auto' | 'manual' | 'legacy';
 
 function a9PersistenceError(code: string, message: string): Error & { code: string } {
@@ -82,6 +82,43 @@ export interface A9TaskRecovery extends A9TaskContinueInput {
   changedPaths: string[];
   verification: string;
   unknownResults: Array<{ toolName: string; callId: string; status: 'result_unknown'; paths: string[] }>;
+  answeredQuestion?: {
+    questionId: string;
+    revision: number;
+    prompt: string;
+    answer: string;
+  };
+}
+
+export interface A9PendingQuestionFact {
+  schemaVersion: 1;
+  questionId: string;
+  revision: number;
+  workspace: string;
+  conversationId: string;
+  taskId: string;
+  turnId: string;
+  callId: string;
+  prompt: string;
+  options: string[];
+  recovered: boolean;
+}
+
+export interface A9QuestionReplyFact {
+  conversationId: string;
+  questionId: string;
+  revision: number;
+  decision: 'answered' | 'cancelled';
+  answer?: string;
+}
+
+export interface A9QuestionResolution extends A9QuestionReplyFact {
+  schemaVersion: 1;
+  workspace: string;
+  taskId: string;
+  turnId: string;
+  resolvedAt: string;
+  duplicate: boolean;
 }
 
 export class A9PersistenceManager {
@@ -789,6 +826,11 @@ export class A9PersistenceManager {
       SELECT s.*,
         CASE
           WHEN EXISTS (SELECT 1 FROM a9_approvals a WHERE a.session_id = s.session_id AND a.decision = 'pending') THEN 'waiting_approval'
+          WHEN EXISTS (SELECT 1 FROM a9_events e WHERE e.session_id = s.session_id AND e.event_type = 'question_pending'
+            AND NOT EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = e.session_id
+              AND r.event_type = 'question_resolved'
+              AND json_extract(r.payload_json, '$.questionId') = json_extract(e.payload_json, '$.questionId')
+              AND json_extract(r.payload_json, '$.revision') = json_extract(e.payload_json, '$.revision'))) THEN 'waiting_input'
           WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'active') THEN 'running'
           WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'interrupted') THEN 'interrupted'
           ELSE 'idle'
@@ -837,6 +879,11 @@ export class A9PersistenceManager {
       SELECT s.*,
         CASE
           WHEN EXISTS (SELECT 1 FROM a9_approvals a WHERE a.session_id = s.session_id AND a.decision = 'pending') THEN 'waiting_approval'
+          WHEN EXISTS (SELECT 1 FROM a9_events e WHERE e.session_id = s.session_id AND e.event_type = 'question_pending'
+            AND NOT EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = e.session_id
+              AND r.event_type = 'question_resolved'
+              AND json_extract(r.payload_json, '$.questionId') = json_extract(e.payload_json, '$.questionId')
+              AND json_extract(r.payload_json, '$.revision') = json_extract(e.payload_json, '$.revision'))) THEN 'waiting_input'
           WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'active') THEN 'running'
           WHEN EXISTS (SELECT 1 FROM a9_tasks t WHERE t.session_id = s.session_id AND t.status = 'interrupted') THEN 'interrupted'
           ELSE 'idle'
@@ -976,10 +1023,34 @@ export class A9PersistenceManager {
     const requestPayload = request ? safeParse(request.payload_json) as any : {};
     const originalGoal = typeof requestPayload.requestPrompt === 'string' ? requestPayload.requestPrompt.slice(0, 2000) : '';
     if (!originalGoal) throw a9PersistenceError('A9_RECOVERY_GOAL_UNAVAILABLE', '原用户目标不可核验，请输入新的任务要求。');
+    const answeredQuestionRow = this.db.prepare(`SELECT payload_json FROM a9_events e WHERE e.session_id = ?
+      AND e.event_type = 'question_pending'
+      AND EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = e.session_id
+        AND r.event_type = 'question_resolved'
+        AND json_extract(r.payload_json, '$.questionId') = json_extract(e.payload_json, '$.questionId')
+        AND json_extract(r.payload_json, '$.revision') = json_extract(e.payload_json, '$.revision')
+        AND json_extract(r.payload_json, '$.decision') = 'answered')
+      ORDER BY e.id DESC LIMIT 1`).get(sessionId) as any;
+    const answeredQuestionPayload = answeredQuestionRow ? safeParse(answeredQuestionRow.payload_json) as any : null;
+    const answerRow = answeredQuestionPayload ? this.db.prepare(`SELECT payload_json FROM a9_events WHERE session_id = ?
+      AND event_type = 'question_resolved'
+      AND json_extract(payload_json, '$.questionId') = ?
+      AND json_extract(payload_json, '$.revision') = ?
+      AND json_extract(payload_json, '$.decision') = 'answered'
+      ORDER BY id DESC LIMIT 1`).get(sessionId, answeredQuestionPayload.questionId, answeredQuestionPayload.revision) as any : null;
+    const answerPayload = answerRow ? safeParse(answerRow.payload_json) as any : null;
     const recoveryRevision = crypto.createHash('sha256').update(JSON.stringify({ workspacePath, sessionId, task, turn, rows, checkpoint }), 'utf8').digest('hex');
     return { conversationId: sessionId, taskId, interruptedTurnId: turn.turn_id, recoveryRevision, originalGoal,
       confirmedSteps: confirmedSteps.slice(-12), changedPaths: [...new Set(changes)].slice(-12),
-      verification: checkpointPayload.verification === 'verified' ? 'historical_verified' : 'not_verified', unknownResults };
+      verification: checkpointPayload.verification === 'verified' ? 'historical_verified' : 'not_verified', unknownResults,
+      ...(answeredQuestionPayload && typeof answerPayload?.answer === 'string'
+        ? { answeredQuestion: {
+          questionId: answeredQuestionPayload.questionId,
+          revision: answeredQuestionPayload.revision,
+          prompt: answeredQuestionPayload.prompt,
+          answer: answerPayload.answer,
+        } }
+        : {}) };
   }
 
   listTaskRecoveries(workspacePath: string, sessionId: string): A9TaskRecovery[] {
@@ -1345,6 +1416,142 @@ export class A9PersistenceManager {
       approval.decision === 'pending' ? null : new Date().toISOString(),
       new Date().toISOString(),
     );
+  }
+
+  /** Persist one versioned question fact before the UI may display it. */
+  recordQuestionPending(workspacePath: string, question: A9PendingQuestionFact): { eventId: number } {
+    const conversation = this.requireConversation(question.conversationId);
+    if (!sameWorkspacePath(conversation.workspacePath, workspacePath)
+      || question.schemaVersion !== 1
+      || question.revision !== 1
+      || !question.questionId || question.questionId.length > 256
+      || typeof question.prompt !== 'string' || !question.prompt.trim() || question.prompt.length > 2000
+      || !Array.isArray(question.options) || question.options.length > 6
+      || question.options.some((option) => typeof option !== 'string' || !option.trim() || option.length > 200)
+      || !question.taskId || question.taskId.length > 256
+      || !question.turnId || question.turnId.length > 256
+      || !question.callId || question.callId.length > 256
+      || question.workspace !== workspacePath) {
+      throw a9PersistenceError('A9_QUESTION_FACT_INVALID', '问询事实身份或边界无效。');
+    }
+    return this.db.transaction(() => {
+      const duplicate = this.db.prepare(`SELECT id FROM a9_events WHERE session_id = ?
+        AND event_type = 'question_pending'
+        AND json_extract(payload_json, '$.questionId') = ?
+        AND json_extract(payload_json, '$.revision') = ? LIMIT 1`)
+        .get(question.conversationId, question.questionId, question.revision) as any;
+      if (duplicate) {
+        const stored = safeParse((this.db.prepare('SELECT payload_json FROM a9_events WHERE id = ?').get(duplicate.id) as any)?.payload_json);
+        if (JSON.stringify(stored) !== JSON.stringify(question)) {
+          throw a9PersistenceError('A9_QUESTION_FACT_CONFLICT', '同一问题身份出现不同事实。');
+        }
+        return { eventId: Number(duplicate.id) };
+      }
+      const pending = this.db.prepare(`SELECT id FROM a9_events WHERE session_id = ?
+        AND event_type = 'question_pending'
+        AND NOT EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = a9_events.session_id
+          AND r.event_type = 'question_resolved'
+          AND json_extract(r.payload_json, '$.questionId') = json_extract(a9_events.payload_json, '$.questionId')
+          AND json_extract(r.payload_json, '$.revision') = json_extract(a9_events.payload_json, '$.revision'))
+        LIMIT 1`).get(question.conversationId);
+      if (pending) throw a9PersistenceError('A9_QUESTION_ALREADY_PENDING', '当前对话已有未解决问询。');
+      return this.insertEvent(question.conversationId, question.turnId, 'tool', 'question_pending', {
+        ...question,
+      });
+    })();
+  }
+
+  getPendingQuestion(workspacePath: string, sessionId: string): A9PendingQuestionFact | null {
+    const conversation = this.requireConversation(sessionId);
+    if (!sameWorkspacePath(conversation.workspacePath, workspacePath)) return null;
+    const row = this.db.prepare(`SELECT id, payload_json FROM a9_events e WHERE e.session_id = ?
+      AND e.event_type = 'question_pending'
+      AND NOT EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = e.session_id
+        AND r.event_type = 'question_resolved'
+        AND json_extract(r.payload_json, '$.questionId') = json_extract(e.payload_json, '$.questionId')
+        AND json_extract(r.payload_json, '$.revision') = json_extract(e.payload_json, '$.revision'))
+      ORDER BY e.id DESC LIMIT 1`).get(sessionId) as any;
+    if (!row) return null;
+    const payload = safeParse(row.payload_json) as any;
+    if (!payload || payload.schemaVersion !== 1 || typeof payload.questionId !== 'string'
+      || !Number.isSafeInteger(payload.revision) || !Array.isArray(payload.options)
+      || typeof payload.prompt !== 'string') {
+      throw a9PersistenceError('A9_QUESTION_FACT_CORRUPT', '持久化问询事实损坏。');
+    }
+    return {
+      schemaVersion: 1,
+      questionId: payload.questionId,
+      revision: payload.revision,
+      workspace: payload.workspace,
+      conversationId: payload.conversationId,
+      taskId: payload.taskId,
+      turnId: payload.turnId,
+      callId: payload.callId,
+      prompt: payload.prompt,
+      options: payload.options,
+      recovered: payload.recovered === true,
+    };
+  }
+
+  /**
+   * Atomically commit the answer/cancel fact. Repeating the exact same reply
+   * returns the original resolution without another event or side effect.
+   */
+  resolveQuestion(workspacePath: string, input: A9QuestionReplyFact): A9QuestionResolution {
+    const conversation = this.requireConversation(input.conversationId);
+    if (!sameWorkspacePath(conversation.workspacePath, workspacePath)
+      || !input.questionId || input.questionId.length > 256
+      || !Number.isSafeInteger(input.revision) || input.revision < 1
+      || (input.decision !== 'answered' && input.decision !== 'cancelled')
+      || (input.decision === 'answered'
+        && (typeof input.answer !== 'string' || !input.answer.trim() || input.answer.length > 2048))
+      || (input.decision === 'cancelled' && input.answer !== undefined)) {
+      throw a9PersistenceError('A9_QUESTION_REPLY_INVALID', '问询回复无效。');
+    }
+    return this.db.transaction(() => {
+      const pendingRow = this.db.prepare(`SELECT payload_json FROM a9_events e WHERE e.session_id = ?
+        AND e.event_type = 'question_pending'
+        AND json_extract(e.payload_json, '$.questionId') = ?
+        AND json_extract(e.payload_json, '$.revision') = ?
+        AND NOT EXISTS (SELECT 1 FROM a9_events r WHERE r.session_id = e.session_id
+          AND r.event_type = 'question_resolved'
+          AND json_extract(r.payload_json, '$.questionId') = json_extract(e.payload_json, '$.questionId')
+          AND json_extract(r.payload_json, '$.revision') = json_extract(e.payload_json, '$.revision'))
+        ORDER BY e.id DESC LIMIT 1`).get(input.conversationId, input.questionId, input.revision) as any;
+      if (!pendingRow) {
+        const existingRow = this.db.prepare(`SELECT payload_json FROM a9_events WHERE session_id = ?
+          AND event_type = 'question_resolved'
+          AND json_extract(payload_json, '$.questionId') = ?
+          AND json_extract(payload_json, '$.revision') = ?
+          ORDER BY id DESC LIMIT 1`).get(input.conversationId, input.questionId, input.revision) as any;
+        if (!existingRow) throw a9PersistenceError('A9_QUESTION_STALE', '问询不存在、已变化或不属于当前对话。');
+        const existing = safeParse(existingRow.payload_json) as any;
+        if (existing.decision !== input.decision || existing.answer !== input.answer) {
+          throw a9PersistenceError('A9_QUESTION_REPLY_CONFLICT', '同一问题已用不同回答解决。');
+        }
+        return { ...existing, duplicate: true } as A9QuestionResolution;
+      }
+      const pending = safeParse(pendingRow.payload_json) as any;
+      if (pending.conversationId !== input.conversationId || pending.workspace !== workspacePath) {
+        throw a9PersistenceError('A9_QUESTION_IDENTITY_MISMATCH', '问询不属于当前工作区或对话。');
+      }
+      const resolvedAt = new Date().toISOString();
+      const resolution: A9QuestionResolution = {
+        schemaVersion: 1,
+        conversationId: input.conversationId,
+        questionId: input.questionId,
+        revision: input.revision,
+        decision: input.decision,
+        ...(input.decision === 'answered' ? { answer: input.answer } : {}),
+        workspace: workspacePath,
+        taskId: pending.taskId,
+        turnId: pending.turnId,
+        resolvedAt,
+        duplicate: false,
+      };
+      this.insertEvent(input.conversationId, pending.turnId, 'tool', 'question_resolved', { ...resolution });
+      return resolution;
+    })();
   }
 
   recordManagedProcess(fact: {

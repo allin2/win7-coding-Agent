@@ -16,7 +16,7 @@ describe('A9-01: A9 Tool Spec Catalog', () => {
     expect(properties.maxLines.description).toContain('正整数');
     expect(properties.maxLines.maximum).toBe(2000);
   });
-  it('declares all 13 standard A9 tools for Full Access mode', () => {
+  it('declares all 14 standard A9 tools for Full Access mode', () => {
     const specs = a9ToolSpecs(PermissionMode.FULL_ACCESS);
     const names = specs.map((s) => s.name);
     expect(names).toEqual([
@@ -24,6 +24,7 @@ describe('A9-01: A9 Tool Spec Catalog', () => {
       'read',
       'search',
       'update_plan',
+      'ask_user',
       'read_process_output',
       'write',
       'edit',
@@ -36,10 +37,22 @@ describe('A9-01: A9 Tool Spec Catalog', () => {
     ]);
   });
 
+  it('bounds ask_user prompt/options while keeping free-form answers available', () => {
+    const spec = a9ToolSpecs(PermissionMode.FULL_ACCESS).find((item) => item.name === 'ask_user')!;
+    expect(spec.approvalLevel).toBe(ApprovalLevel.READ_ONLY);
+    expect(spec.capability).toBe('agent_control.ask_user');
+    expect(spec.inputSchema.required).toEqual(['prompt']);
+    expect(spec.inputSchema.properties.prompt.maxLength).toBe(2000);
+    expect(spec.inputSchema.properties.options.type).toBe('string[]');
+    expect(spec.inputSchema.properties.options.items).toBe('string');
+    expect(spec.inputSchema.properties.options.maxItems).toBe(6);
+    expect(spec.inputSchema.properties.options.maxLength).toBe(200);
+  });
+
   it('filters tool catalog in Read Only mode', () => {
     const specs = a9ToolSpecs(PermissionMode.READ_ONLY);
     const names = specs.map((s) => s.name);
-    expect(names).toEqual(['list', 'read', 'search', 'update_plan', 'read_process_output']);
+    expect(names).toEqual(['list', 'read', 'search', 'update_plan', 'ask_user', 'read_process_output']);
     expect(specs.every((s) => s.approvalLevel === ApprovalLevel.READ_ONLY)).toBe(true);
   });
 

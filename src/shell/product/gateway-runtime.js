@@ -160,6 +160,9 @@ function toOpenAIFunctionTool(spec, modelName) {
       ...(property.default !== undefined ? { default: property.default } : {}),
       ...(property.minimum !== undefined ? { minimum: property.minimum } : {}),
       ...(property.maximum !== undefined ? { maximum: property.maximum } : {}),
+      ...(property.items !== undefined ? { items: { type: property.items } } : {}),
+      ...(property.maxItems !== undefined ? { maxItems: property.maxItems } : {}),
+      ...(property.maxLength !== undefined ? { maxLength: property.maxLength } : {}),
     };
   });
   return {
@@ -191,7 +194,8 @@ function toGatewayMessage(message, coreToModel) {
       } : {}),
     };
   }
-  return { role: message.role, content: String(message.content || '') };
+  return { role: message.role, content: String(message.content || ''),
+    ...(message.role === 'user' && message.images ? { images: message.images } : {}) };
 }
 
 function createToolNameMap(specs) {

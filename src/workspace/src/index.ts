@@ -6,6 +6,7 @@
  */
 
 // Types & error class
+export * from './a9-office-files';
 export {
   Encoding,
   EncodingResult,
@@ -120,6 +121,7 @@ export {
 } from './apply';
 
 // A9 Full Access Workspace Service, Checkpoint & Ignore Filter
+export { readWorkspaceImage, inspectImage, ImageMetadata, MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS } from './a9-image';
 export {
   A9WorkspaceService,
   A9ListResult,

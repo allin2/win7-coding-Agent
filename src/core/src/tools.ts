@@ -7,6 +7,7 @@ export type ToolInputValue = string | number | boolean | string[];
 
 export type ToolCapability =
   | 'agent_control.update_plan'
+  | 'agent_control.ask_user'
   | 'code.search'
   | 'workspace.read'
   | 'workspace.search'
@@ -29,6 +30,12 @@ export interface ToolInputProperty {
   default?: ToolInputValue;
   minimum?: number;
   maximum?: number;
+  /** Array item type for string[] properties. */
+  items?: ToolInputType;
+  /** Maximum array length for string[] properties. */
+  maxItems?: number;
+  /** Maximum string or array-item length. */
+  maxLength?: number;
 }
 
 export interface ToolInputSchema {
@@ -106,6 +113,26 @@ export class ToolRegistry {
           throw new Error(`Tool input default is outside numeric bounds for ${spec.name}.${name}`);
         }
       }
+      if (property.items !== undefined && property.type !== 'string[]') {
+        throw new Error(`Tool input items requires string[] type for ${spec.name}.${name}`);
+      }
+      if (property.maxItems !== undefined && property.type !== 'string[]') {
+        throw new Error(`Tool input maxItems requires string[] type for ${spec.name}.${name}`);
+      }
+      if (property.maxLength !== undefined && property.type !== 'string' && property.type !== 'string[]') {
+        throw new Error(`Tool input maxLength requires string or string[] type for ${spec.name}.${name}`);
+      }
+      if (property.items !== undefined && property.items !== 'string') {
+        throw new Error(`Tool input items currently supports only string items for ${spec.name}.${name}`);
+      }
+      if (property.maxItems !== undefined
+        && (!Number.isSafeInteger(property.maxItems) || property.maxItems < 0)) {
+        throw new Error(`Tool input maxItems must be a non-negative integer for ${spec.name}.${name}`);
+      }
+      if (property.maxLength !== undefined
+        && (!Number.isSafeInteger(property.maxLength) || property.maxLength < 1)) {
+        throw new Error(`Tool input maxLength must be a positive integer for ${spec.name}.${name}`);
+      }
       if (spec.inputSchema.required.includes(name) && property.default !== undefined) {
         throw new Error(`Required tool input cannot declare a default for ${spec.name}.${name}`);
       }
@@ -153,6 +180,13 @@ export class ToolRegistry {
         errors.push(`type:${key}:${property.type}`);
       } else if (property.enum && !property.enum.some((candidate) => valuesEqual(candidate, value))) {
         errors.push(`enum:${key}`);
+      } else if (typeof value === 'string' && property.maxLength !== undefined && value.length > property.maxLength) {
+        errors.push(`maxLength:${key}`);
+      } else if (Array.isArray(value) && property.maxItems !== undefined && value.length > property.maxItems) {
+        errors.push(`maxItems:${key}`);
+      } else if (Array.isArray(value) && property.maxLength !== undefined
+        && value.some((item) => typeof item === 'string' && item.length > property.maxLength!)) {
+        errors.push(`itemMaxLength:${key}`);
       } else if (
         typeof value === 'number' &&
         (
@@ -222,6 +256,9 @@ function cloneSpec(spec: ToolSpec): ToolSpec {
             ...property,
             ...(property.enum ? { enum: property.enum.map(cloneValue) } : {}),
             ...(property.default !== undefined ? { default: cloneValue(property.default) } : {}),
+            ...(property.items !== undefined ? { items: property.items } : {}),
+            ...(property.maxItems !== undefined ? { maxItems: property.maxItems } : {}),
+            ...(property.maxLength !== undefined ? { maxLength: property.maxLength } : {}),
           },
         ]),
       ),

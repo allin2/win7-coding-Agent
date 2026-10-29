@@ -11,7 +11,7 @@ import { ToolRegistry, ToolSpec } from './tools';
  * 生成 A9 核心工具规格列表
  * @param mode 权限模式（默认 FULL_ACCESS）
  */
-export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): ToolSpec[] {
+export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS, options: { images?: boolean; office?: boolean } = {}): ToolSpec[] {
   const writeLevel = mode === PermissionMode.FULL_ACCESS
     ? ApprovalLevel.FULL_ACCESS
     : mode === PermissionMode.REVIEW
@@ -140,6 +140,31 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): 
         additionalProperties: false,
       },
     },
+    {
+      schemaVersion: '2.0',
+      name: 'ask_user',
+      description: '向用户提出一个有界问题并暂停本轮，等待回答后由模型重新规划。只补充信息，不批准任何文件、命令、Git 或网络操作。',
+      approvalLevel: ApprovalLevel.READ_ONLY,
+      capability: 'agent_control.ask_user',
+      inputSchema: {
+        properties: {
+          prompt: {
+            type: 'string',
+            description: '要向用户展示的问题；最多 2000 字符。',
+            maxLength: 2000,
+          },
+          options: {
+            type: 'string[]',
+            description: '可选回答项，最多 6 项、每项最多 200 字符；用户始终可以自由填写回答。',
+            items: 'string',
+            maxItems: 6,
+            maxLength: 200,
+          },
+        },
+        required: ['prompt'],
+        additionalProperties: false,
+      },
+    },
   ];
 
   readOnlyTools.push({
@@ -149,6 +174,36 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS): 
       maxBytes: { type: 'number', description: '安全文本 UTF-8 字节预算。', default: 8192, minimum: 1, maximum: 16384 } }, required: ['handleId'], additionalProperties: false },
   });
 
+  if (options.images) readOnlyTools.push({
+    schemaVersion: '2.0', name: 'read_image',
+    description: '读取工作区内 PNG/JPEG 供当前已启用图片输入的模型查看。单图最多 2 MiB/400 万像素，必要时缩至最长边 1280；每次请求最多 2 张，每轮最多 4 次。',
+    approvalLevel: ApprovalLevel.READ_ONLY, capability: 'workspace.read',
+    inputSchema: { properties: { path: { type: 'string', description: '工作区内 PNG/JPEG 图片路径。' } },
+      required: ['path'], additionalProperties: false },
+  });
+
+  if (options.office) {
+    for (const name of ['document_inspect', 'document_read']) readOnlyTools.push({
+      schemaVersion: '2.0', name,
+      description: name === 'document_inspect' ? '检查 DOCX/XLSX 内容能力、单元数、保真限制与修改支持。PDF 和旧二进制格式不支持。' :
+        '分页读取 DOCX 段落/标题/表格行或 XLSX 单元格；公式和缓存值分开，不重算。使用 nextStart 续读。',
+      approvalLevel: ApprovalLevel.READ_ONLY, capability: 'workspace.read',
+      inputSchema: { properties: { path: { type: 'string', description: '工作区内 .docx 或 .xlsx 文件。', maxLength: 4096 },
+        ...(name === 'document_read' ? { start: { type: 'number' as const, description: '零起始单元位置。', minimum: 0, default: 0 },
+          limit: { type: 'number' as const, description: '单次最多单元数。', minimum: 1, maximum: 200, default: 50 } } : {}) },
+      required: ['path'], additionalProperties: false },
+    });
+    if (mode === PermissionMode.FULL_ACCESS) readOnlyTools.push({
+      schemaVersion: '2.0', name: 'document_write_copy', approvalLevel: writeLevel, capability: 'workspace.write',
+      description: '创建新的 DOCX/XLSX 副本，拒绝覆盖。content 是 schemaVersion:1 的 JSON。DOCX: {schemaVersion:1,format:"docx",blocks:[{type:"paragraph",text:"正文"},{type:"heading",level:1,text:"标题"},{type:"table",rows:[["单元格"]]}]}。XLSX: {schemaVersion:1,format:"xlsx",sheets:[{name:"Sheet1",rows:[["文本",12,true,null]]}]}。修改本模块文档时提供 sourcePath 与 document_read/inspect 返回的 sha256，再给完整替换内容；不承诺原稿版式保真。',
+      inputSchema: { properties: {
+        path: { type: 'string', description: '工作区内尚不存在的输出路径，父目录须存在。', maxLength: 4096 },
+        content: { type: 'string', description: 'schemaVersion:1 的结构化 JSON 内容，最多256 KiB。', maxLength: 262144 },
+        sourcePath: { type: 'string', description: '可选原件路径，仅允许本模块生成的受支持子集。', maxLength: 4096 },
+        sourceSha256: { type: 'string', description: '原件的 SHA-256；与 sourcePath 一起提供。', maxLength: 64 },
+      }, required: ['path', 'content'], additionalProperties: false },
+    });
+  }
   if (mode === PermissionMode.READ_ONLY) {
     return readOnlyTools;
   }

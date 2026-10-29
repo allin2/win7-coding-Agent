@@ -32,6 +32,7 @@ describe('Agent Loop control contracts', () => {
       'completed',
       'completed_with_warnings',
       'needs_approval',
+      'needs_input',
       'budget_exceeded',
       'cancelled',
       'stuck',

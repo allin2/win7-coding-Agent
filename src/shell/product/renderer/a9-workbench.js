@@ -55,6 +55,7 @@
     running: false,
     outputGapRequests: new Set(),
     approvalDecision: null,
+    questionReply: null,
     lastFocused: null,
     providerHydratedSignature: null,
     conversationSignature: null,
@@ -62,6 +63,8 @@
     managedRenderSignature: null,
     managedConfirmation: null,
     managedDismissBusy: false,
+    // 用户手动收起后台进程记录后，轮询不再把它重新展开。
+    managedUserCollapsed: false,
     renderedConversationId: null,
     activeConversationId: null,
     checkpointScope: '',
@@ -199,7 +202,7 @@
       SUPPORTED_MODES.has(snapshot.mode) &&
       snapshot.provider && snapshot.provider.configured &&
       snapshot.provider.probe && snapshot.provider.probe.classification === 'tool_calling' &&
-      !state.running && snapshot.agentStatus !== 'needs_approval' &&
+      !state.running && snapshot.agentStatus !== 'needs_approval' && snapshot.agentStatus !== 'needs_input' &&
       el('task-prompt').value.trim(),
     );
   }
@@ -213,7 +216,9 @@
     if (!container) return;
     const records = (snapshot.managedProcesses || []).filter((item) => !item.owner || item.owner.conversationId === snapshot.activeConversationId);
     const signature = JSON.stringify([snapshot.workspaceRoot, snapshot.activeConversationId, records]);
+    const wasHidden = container.hidden;
     container.hidden = records.length === 0;
+    syncManagedProcessesDisclosure(records, wasHidden);
     if (state.managedRenderSignature === signature) return;
     state.managedRenderSignature = signature;
     const cards = el('a9-managed-cards'); cards.textContent = '';
@@ -257,6 +262,27 @@
     }
   }
 
+  /**
+   * 后台进程记录默认收起，只在“从无到有”时自动展开一次；用户手动收起后
+   * 保持收起，不被后续轮询重新弹开。摘要行始终给出数量与运行中状态，
+   * 收起时也能判断是否还有东西在跑。
+   */
+  function syncManagedProcessesDisclosure(records, wasHidden) {
+    const details = el('a9-managed-details');
+    if (!details) return;
+    text('a9-managed-count', String(records.length));
+    const activeCount = records.filter((item) => ['running', 'starting', 'running_unknown', 'identity_mismatch'].includes(item.lastProbeStatus)).length;
+    const cleanupCount = records.filter((item) => item.cleanupRequired === true).length;
+    text('a9-managed-summary-state', activeCount > 0
+      ? `运行中 ${activeCount}`
+      : cleanupCount > 0 ? `待处置 ${cleanupCount}` : '已结束');
+    const container = el('a9-managed-processes');
+    if (container) container.dataset.active = activeCount > 0 ? 'true' : 'false';
+    if (wasHidden && records.length > 0 && !state.managedUserCollapsed) {
+      details.open = true;
+    }
+  }
+
   function closeManagedDismiss() {
     if (state.managedDismissBusy) return;
     const confirmation = state.managedConfirmation;
@@ -297,6 +323,7 @@
     const runtimeUnavailable = Boolean(snapshot && snapshot.status !== 'ready');
     const blockedMode = !snapshot || runtimeUnavailable || !SUPPORTED_MODES.has(snapshot.mode);
     const blockedApproval = Boolean(snapshot && (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval'));
+    const blockedQuestion = Boolean(snapshot && (snapshot.pendingQuestion || snapshot.agentStatus === 'needs_input'));
     const prompt = el('task-prompt');
     const send = el('run-task');
     const stop = el('cancel-task');
@@ -306,7 +333,7 @@
     const stopKind = state.running
       ? 'turn'
       : snapshot && snapshot.controls ? snapshot.controls.stopKind : hasManaged ? 'managed_process' : 'none';
-    prompt.disabled = blockedMode || blockedApproval || state.running;
+    prompt.disabled = blockedMode || blockedApproval || blockedQuestion || state.running;
     send.hidden = state.running;
     stop.hidden = !canStop;
     // A9-19 L04：运行中只保留 Composer 的停止按钮；左栏只显示状态（元素保留以兼容既有身份）。
@@ -321,6 +348,7 @@
     else if (!snapshot) text('session-status', '选择一个本地工作区后再开始任务。');
     else if (blockedMode) text('session-status', '先为当前工作区明确选择 Full Access 或 Read Only。');
     else if (blockedApproval) text('session-status', '先处理当前绑定审批；同一工作区一次只执行一个 A9 任务。');
+    else if (blockedQuestion) text('session-status', '先回答或取消当前问题；等待时不会继续模型请求，也不会自动同意任何操作。');
     else if (!snapshot.provider || !snapshot.provider.configured) text('session-status', 'Provider 尚未配置。打开设置并完成原生 tool_calls 探测。');
     else if (!snapshot.provider.probe || snapshot.provider.probe.classification !== 'tool_calling') text('session-status', 'Provider 尚未通过原生 tool_calls 探测；任务发送保持禁用。');
     else if (state.running) text('session-status', '任务正在执行；可随时停止。工具调用与退出码会写入活动记录。');
@@ -332,7 +360,7 @@
     }
     else text('session-status', '当前工作区已就绪。高影响操作会在执行前显示精确目标并请求批准。');
     // A9-19 L03：阻断原因始终可见；例行说明在较矮窗口中收起（文本保留在 DOM 中）。
-    const routine = Boolean(snapshot) && !runtimeUnavailable && !blockedMode && !blockedApproval
+    const routine = Boolean(snapshot) && !runtimeUnavailable && !blockedMode && !blockedApproval && !blockedQuestion
       && Boolean(snapshot.provider && snapshot.provider.configured && snapshot.provider.probe
         && snapshot.provider.probe.classification === 'tool_calling') && !hasManaged;
     el('session-status').dataset.tone = routine ? 'info' : 'block';
@@ -819,6 +847,10 @@
   }
 
   function attachActivityDetail(item, data) {
+    if (data.image && data.image.reference && window.A9ImagePreview) {
+      item.li.appendChild(window.A9ImagePreview.create(data.image, (conversationId, reference) =>
+        api.a9.previewImage(conversationId, reference)));
+    }
     const detailText = item.streamOutput ? [
       `退出：${data.shell && data.shell.exitCode !== null ? data.shell.exitCode : '未知'}`,
       data.shell && data.shell.processTreeReaped === true ? '进程树清理已确认' : '进程树清理未确认，请检查残留',
@@ -2001,6 +2033,9 @@
     // A9-19 L02：Provider 分类属于诊断信息；探测通过时头部不再显示，异常时显示可操作的中文提示。
     const providerHealthy = provider.configured && provider.probe && provider.probe.classification === 'tool_calling';
     el('a9-provider-open').hidden = Boolean(providerHealthy);
+    // 顶栏胶囊只在真实异常时用琥珀点；未配置属于“尚未设置”，用中性色，
+    // 避免与“检查中”并列时出现两个琥珀点、读起来像两处故障。
+    el('a9-provider-open').dataset.tone = provider.configured ? 'error' : 'unset';
     text('a9-provider-chip', !provider.configured ? '模型未配置'
       : provider.probe && provider.probe.classification ? `模型不可用：${provider.probe.classification}` : '模型未探测');
     text('a9-provider-key-state', provider.configured ? `key: ${provider.apiKey && provider.apiKey.remembered ? '已由 DPAPI 记住' : '仅当前进程'} (${provider.apiKey && provider.apiKey.source || 'none'})` : 'key: 未配置');
@@ -2012,6 +2047,7 @@
       configured: provider.configured === true,
       baseUrl: provider.baseUrl || '',
       model: provider.model || '',
+      imageInputEnabled: provider.imageInputEnabled === true,
       remembered: Boolean(provider.apiKey && provider.apiKey.remembered),
       caBundle: provider.caBundle || '',
       customHeaderNames: provider.customHeaderNames || [],
@@ -2021,6 +2057,7 @@
     if (state.providerHydratedSignature !== providerHydratedSignature) {
       el('a9-provider-url').value = provider.baseUrl || '';
       el('a9-provider-model').value = provider.model || '';
+      el('a9-provider-images').checked = provider.imageInputEnabled === true;
       el('a9-provider-remember').checked = Boolean(provider.apiKey && provider.apiKey.remembered);
       el('a9-provider-ca').value = provider.caBundle || '';
       el('a9-provider-header-name').value = (provider.customHeaderNames || [])[0] || '';
@@ -2045,6 +2082,7 @@
     modeButton.textContent = `权限：${modeLabel(snapshot.mode)}`;
     renderManagedProcesses(snapshot);
     renderApproval(snapshot);
+    renderQuestion(snapshot);
     state.running = ['running', 'cancelling'].includes(snapshot.agentStatus);
     const preview = snapshot.liveModelPreview;
     state.liveModelPreview = preview && preview.turnId && typeof preview.text === 'string' ? preview : null;
@@ -2064,7 +2102,8 @@
     const active = ['running', 'cancelling'].includes(snapshot.agentStatus);
     const managedActive = activeManagedProcesses(snapshot).length;
     state.running = active;
-    if (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval') setTaskState('等待批准', 'running', '操作已暂停，等待你的决定。');
+    if (snapshot.pendingQuestion || snapshot.agentStatus === 'needs_input') setTaskState('等待回答', 'running', '任务已暂停；回答只补充信息，不批准操作。');
+    else if (snapshot.pendingApproval || snapshot.agentStatus === 'needs_approval') setTaskState('等待批准', 'running', '操作已暂停，等待你的决定。');
     else if (active) setTaskState(snapshot.agentStatus === 'cancelling' ? '正在停止' : '运行中', 'running');
     else if (snapshot.agentStatus === 'failed') setTaskState('失败', 'failed');
     else if (managedActive > 0) setTaskState(`后台运行 ${managedActive}`, 'running', '托管后台进程可通过下方停止按钮回收。');
@@ -2409,8 +2448,30 @@
       await refreshSnapshot();
       await loadConversationEvents();
       syncComposer();
+      restoreComposerFocus();
     }
     return response;
+  }
+
+  /**
+   * 任务结束后把焦点交还输入框，让用户可以直接输入下一条。
+   * 只在焦点仍在「本轮相关区域」时才接管：用户若已主动点到设置、审批卡
+   * 或其他控件，不抢回来。输入框被禁用（模式未选、Provider 未就绪、
+   * 等待审批）时也不接管，避免把焦点塞进不可用控件。
+   */
+  function restoreComposerFocus() {
+    const prompt = el('task-prompt');
+    if (!prompt || prompt.disabled) return;
+    const active = document.activeElement;
+    const withinConversation = !active
+      || active === document.body
+      || active === document.documentElement
+      || (el('conversation') && el('conversation').contains(active))
+      || (el('a9-task-stream') && el('a9-task-stream').contains(active))
+      || (el('a9-empty-state') && el('a9-empty-state').contains(active));
+    if (withinConversation && typeof prompt.focus === 'function') {
+      prompt.focus({ preventScroll: true });
+    }
   }
 
   async function continueInterruptedTask(recovery, block) {
@@ -2535,9 +2596,16 @@
     const supported = SUPPORTED_MODES.has(snapshot.mode);
     const needsSelection = snapshot.mode === 'needs_selection' || !supported;
     const selectedMode = supported ? snapshot.mode : (snapshot.modeRecommended || 'full_access');
-    dialog.querySelectorAll('input[name="a9-mode-choice"]').forEach((radio) => {
-      radio.checked = radio.value === selectedMode;
-    });
+    // 轮询每 500ms 重跑本函数。对话框打开期间用户的单选必须先被尊重：只在
+    // 对话框由关闭转为打开时按 snapshot 预选，否则用户刚选的 Read Only 会被
+    // 下一次轮询改回 Full Access——那是权限选择被静默覆盖，不只是焦点问题。
+    const willOpen = forceOpen || (needsSelection && !activeManagedProcesses(snapshot).some((item) => item.cleanupRequired));
+    const alreadyOpen = dialog.open === true;
+    if (!alreadyOpen || forceOpen) {
+      dialog.querySelectorAll('input[name="a9-mode-choice"]').forEach((radio) => {
+        radio.checked = radio.value === selectedMode;
+      });
+    }
     text('a9-mode-workspace', snapshot.workspaceRoot || '尚未绑定工作区');
     text('a9-mode-title', needsSelection ? '选择此工作区的权限' : '更改此工作区的权限');
     text('a9-mode-badge', needsSelection ? '必须选择' : '可随时更改');
@@ -2547,12 +2615,27 @@
         ? '每个工作区单独保存权限。Full Access 使用当前 Windows 用户权限，不提供额外沙箱。'
         : '模式将保存到此工作区；正在执行的任务不会被静默改变。');
     text('a9-mode-apply', needsSelection ? '使用所选模式' : '保存权限模式');
-    el('a9-mode-cancel').hidden = needsSelection;
+    // 轮询每 500ms 重跑本函数。若直接改 hidden，浏览器会把「正持有焦点」的取消
+    // 按钮隐藏，焦点随即掉回 BODY——用户表现为刚点走的焦点被弹窗抢回。因此先把
+    // 焦点转移到仍然可见的选项，再调整 hidden。
+    const cancel = el('a9-mode-cancel');
+    if (cancel.hidden !== needsSelection) {
+      if (needsSelection && cancel.contains(document.activeElement)) {
+        const fallback = dialog.querySelector('input[name="a9-mode-choice"]:checked')
+          || dialog.querySelector('input[name="a9-mode-choice"]');
+        if (fallback && typeof fallback.focus === 'function') fallback.focus();
+      }
+      cancel.hidden = needsSelection;
+    }
     dialog.dataset.required = needsSelection ? 'true' : 'false';
-    if (forceOpen || (needsSelection && !activeManagedProcesses(snapshot).some((item) => item.cleanupRequired))) {
+    if (willOpen) {
+      // 已打开的对话框不再重复 showModal 与抢焦点，否则用户刚移开的焦点会被
+      // 下一次轮询拽回，表现为“弹窗关不掉”。
       openDialog(dialog);
-      const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
-      if (selected && typeof selected.focus === 'function') selected.focus();
+      if (!alreadyOpen) {
+        const selected = dialog.querySelector('input[name="a9-mode-choice"]:checked');
+        if (selected && typeof selected.focus === 'function') selected.focus();
+      }
     }
   }
 
@@ -2650,6 +2733,67 @@
       }
     })();
     return state.approvalDecision;
+  }
+
+  function renderQuestion(snapshot) {
+    const host = el('a9-question-host');
+    const pending = snapshot.pendingQuestion;
+    if (!pending) {
+      if (state.questionCard) state.questionCard.update(null);
+      host.hidden = true;
+      host.textContent = '';
+      state.questionCard = null;
+      return;
+    }
+    host.hidden = false;
+    if (!state.questionCard) {
+      const card = document.createElement('section');
+      card.id = 'a9-question-card';
+      card.className = 'a9-question-card';
+      host.textContent = '';
+      host.appendChild(card);
+      state.questionCard = root.A9QuestionCard.create(card, replyQuestion);
+    }
+    state.questionCard.update(pending, state.questionReply !== null);
+  }
+
+  async function replyQuestion(reply) {
+    if (state.questionReply) return state.questionReply;
+    const pending = state.snapshot && state.snapshot.pendingQuestion;
+    if (!pending) return null;
+    setFieldError('a9-turn-error', '');
+    state.questionReply = (async () => {
+      state.running = true;
+      state.streamFollow = true;
+      setTaskState('正在提交回答', 'running', '回答已提交，正在核对当前任务状态；这不批准任何操作。');
+      syncComposer();
+      startLiveTracking();
+      const finishPolling = beginSnapshotPolling();
+      let response;
+      try {
+        response = await a9.replyQuestion(
+          pending.conversationId, pending.questionId, pending.revision, reply.decision, reply.answer,
+        );
+        if (!response || response.ok !== true) {
+          setFieldError('a9-turn-error', errorMessage(response, '回答提交失败，问题仍保留。'));
+          return response;
+        }
+        state.snapshot = { ...state.snapshot, pendingQuestion: null };
+        return response;
+      } catch (error) {
+        setFieldError('a9-turn-error', errorMessage(error, '回答提交失败，问题仍保留。'));
+        return null;
+      } finally {
+        await finishPolling();
+        state.running = false;
+        stopLiveTracking();
+        await refreshSnapshot();
+        await loadConversationEvents();
+        syncComposer();
+        state.questionReply = null;
+      }
+    })();
+    return state.questionReply;
   }
 
   async function getReview(turnId) {
@@ -2803,6 +2947,7 @@
       baseUrl: el('a9-provider-url').value.trim(),
       model: el('a9-provider-model').value.trim(),
       rememberApiKey: el('a9-provider-remember').checked,
+      imageInputEnabled: el('a9-provider-images').checked,
     };
     const apiKey = el('a9-provider-key').value;
     if (apiKey) values.apiKey = apiKey;
@@ -3073,6 +3218,7 @@
     drawer.hidden = false;
     el('navigation-rail').classList.remove('open');
     el('navigation-backdrop').hidden = true;
+    syncPaneState();
     const workbench = document.querySelector('.workbench');
     if (workbench) workbench.inert = true;
     const focusTarget = drawer.querySelector('input:not(:disabled), button:not(:disabled)');
@@ -3084,7 +3230,13 @@
     drawer.hidden = true;
     const workbench = document.querySelector('.workbench');
     if (workbench) workbench.inert = false;
-    if (state.lastFocused && typeof state.lastFocused.focus === 'function') state.lastFocused.focus();
+    if (state.lastFocused && typeof state.lastFocused.focus === 'function') {
+      // A drawer may have closed the narrow navigation containing its trigger.
+      // Return to the visible navigation toggle rather than a hidden control.
+      const target = navigationIsDrawer() && el('navigation-rail').contains(state.lastFocused)
+        && !el('navigation-rail').classList.contains('open') ? el('open-navigation') : state.lastFocused;
+      target.focus();
+    }
     state.lastFocused = null;
   }
 
@@ -3243,6 +3395,7 @@
     el('open-settings').addEventListener('click', () => openDrawer('settings-drawer'));
     el('open-diagnostics').addEventListener('click', () => { openDrawer('diagnostics-drawer'); void refreshDiagnostics(); });
     document.querySelectorAll('[data-close]').forEach((button) => button.addEventListener('click', () => closeDrawer(button.dataset.close)));
+    ['a9-provider-url', 'a9-provider-model'].forEach((id) => el(id).addEventListener('input', () => { el('a9-provider-images').checked = false; }));
     el('a9-provider-apply').addEventListener('click', () => { void applyProvider(); });
     el('a9-provider-probe').addEventListener('click', () => { void probeProvider(); });
     el('a9-shell-path').readOnly = true;
@@ -3279,6 +3432,13 @@
     el('navigation-backdrop').addEventListener('click', closeNavigation);
     syncPaneState();
     el('refresh-diagnostics').addEventListener('click', () => { void refreshDiagnostics(); });
+    const managedDetails = el('a9-managed-details');
+    if (managedDetails) {
+      // 用户主动收起后记住意图，后续轮询不再自动展开；重新展开则恢复自动展开。
+      managedDetails.addEventListener('toggle', () => {
+        state.managedUserCollapsed = !managedDetails.open;
+      });
+    }
     document.addEventListener('keydown', (event) => {
       // ADR-0114：Ctrl+K 聚焦目录搜索；Ctrl+I 切换检查器（A9-16 桌面四态/抽屉）。
       const key = String(event.key || '').toLowerCase();
@@ -3335,6 +3495,7 @@
     stopTurn,
     continueInterruptedTask,
     decideApproval,
+    replyQuestion,
     chooseMode,
     applyProvider,
     selectTab,

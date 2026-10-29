@@ -1,0 +1,32 @@
+.a9-question-card {
+  padding: 16px;
+  border: 1px solid var(--line, var(--border));
+  border-radius: var(--r-md, var(--radius));
+  background: var(--raised, var(--card));
+  color: var(--text, var(--foreground));
+  overflow-wrap: anywhere;
+}
+.a9-question-host { flex: 0 0 auto; margin-bottom: 10px; }
+.a9-question-host[hidden] { display: none; }
+.a9-question-card h3 { margin: 0 0 8px; font-size: 16px; }
+.a9-question-prompt { margin: 8px 0 12px; white-space: pre-wrap; line-height: 1.6; }
+.a9-question-card fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.a9-question-card legend, .a9-question-hint { color: var(--text-secondary, var(--muted-foreground)); font-size: 13px; }
+.a9-question-option { display: flex; gap: 8px; align-items: start; margin: 10px 0; }
+.a9-question-option input { flex: 0 0 auto; margin-top: 5px; }
+.a9-question-card textarea {
+  display: block; box-sizing: border-box; width: 100%; margin-top: 6px; padding: 9px;
+  border: 1px solid var(--line-strong, var(--border)); border-radius: 6px;
+  background: var(--raised, var(--background)); color: inherit; font: inherit; resize: vertical;
+}
+.a9-question-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.a9-question-actions button {
+  padding: 8px 12px; border: 1px solid var(--line-strong, var(--border)); border-radius: 6px;
+  background: var(--panel, var(--secondary)); color: inherit; cursor: pointer; font: inherit;
+}
+.a9-question-actions button:disabled { cursor: not-allowed; opacity: .6; }
+.a9-question-card :focus-visible { outline: 2px solid var(--focus, var(--ring)); outline-offset: 2px; }
+.a9-question-error { color: var(--red, var(--destructive)); margin-bottom: 0; }
+.a9-question-error[hidden] { display: none; }
+.a9-question-card[aria-busy="true"] { cursor: progress; }
+.a9-question-card[hidden] { display: none; }

@@ -13,10 +13,12 @@ const A9_ACTIONS = Object.freeze({
   MODE_SET: 'a9.mode.set',
   PROVIDER_CONFIGURE: 'a9.provider.configure',
   PROVIDER_PROBE: 'a9.provider.probe',
+  IMAGE_PREVIEW: 'a9.image.preview',
   SHELL_CONFIGURE: 'a9.shell.configure',
   TURN_SUBMIT: 'a9.turn.submit',
   TASK_CONTINUE: 'a9.task.continue',
   TURN_RESUME_APPROVAL: 'a9.turn.resumeApproval',
+  QUESTION_REPLY: 'a9.question.reply',
   TURN_STOP: 'a9.turn.stop',
   MANAGED_DISMISS_RECOVERED: 'a9.managed.dismissRecovered',
   CONVERSATION_CREATE: 'a9.conversation.create',
@@ -109,7 +111,7 @@ function createA9ProductRequestHandler(options) {
           return await runtime.setMode(payload.mode);
         }
         case A9_ACTIONS.PROVIDER_CONFIGURE: {
-          const allowed = ['baseUrl', 'model', 'apiKey', 'rememberApiKey', 'customHeaders', 'caBundle', 'proxy'];
+          const allowed = ['baseUrl', 'model', 'apiKey', 'rememberApiKey', 'customHeaders', 'caBundle', 'proxy', 'imageInputEnabled'];
           for (const key of Object.keys(payload)) {
             if (!allowed.includes(key)) throw Object.assign(new Error(`A9_PAYLOAD_INVALID: unknown '${key}'`), { code: 'A9_PAYLOAD_INVALID' });
           }
@@ -117,6 +119,13 @@ function createA9ProductRequestHandler(options) {
         }
         case A9_ACTIONS.PROVIDER_PROBE:
           return { ok: true, probe: await runtime.probeProvider() };
+        case A9_ACTIONS.IMAGE_PREVIEW:
+          exactObject(payload, ['conversationId', 'reference'], 'A9_PAYLOAD_INVALID');
+          if (typeof payload.conversationId !== 'string' || !payload.conversationId || payload.conversationId.length > 256 ||
+              typeof payload.reference !== 'string' || !/^[a-f0-9]{40}$/.test(payload.reference)) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: image identity'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return await runtime.previewImage(payload);
         case A9_ACTIONS.SHELL_CONFIGURE: {
           // The Renderer cannot name an executable. For an explicit kind the
           // main process opens a native file picker and supplies the path.
@@ -140,6 +149,26 @@ function createA9ProductRequestHandler(options) {
             throw Object.assign(new Error('A9_PAYLOAD_INVALID: decision must be approved|denied'), { code: 'A9_PAYLOAD_INVALID' });
           }
           return await runtime.resumeApproval(payload);
+        }
+        case A9_ACTIONS.QUESTION_REPLY: {
+          exactObject(payload, ['conversationId', 'questionId', 'revision', 'decision'], 'A9_PAYLOAD_INVALID', ['answer']);
+          if (typeof payload.conversationId !== 'string' || !payload.conversationId || payload.conversationId.length > 256
+            || typeof payload.questionId !== 'string' || !payload.questionId || payload.questionId.length > 256
+            || !Number.isSafeInteger(payload.revision) || payload.revision < 1
+            || (payload.decision !== 'answered' && payload.decision !== 'cancelled')) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: invalid question identity or decision'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.decision === 'answered') {
+            if (typeof payload.answer !== 'string' || !payload.answer.trim() || payload.answer.length > 2048) {
+              throw Object.assign(new Error('A9_PAYLOAD_INVALID: answer must be non-empty and at most 2048 characters'), { code: 'A9_PAYLOAD_INVALID' });
+            }
+          } else if (payload.answer !== undefined) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: cancelled replies must not contain an answer'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          if (payload.conversationId !== runtime.getSnapshot().activeConversationId) {
+            throw Object.assign(new Error('A9_PAYLOAD_INVALID: conversation mismatch'), { code: 'A9_PAYLOAD_INVALID' });
+          }
+          return await runtime.answerQuestion(payload);
         }
         case A9_ACTIONS.MANAGED_DISMISS_RECOVERED:
           exactObject(request.payload, ['conversationId', 'handleId', 'recoveryRevision'], 'A9_PAYLOAD_INVALID');

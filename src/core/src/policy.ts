@@ -70,6 +70,7 @@ const TOOL_WHITELIST: ReadonlySet<string> = new Set([
   'delete',
   'shell',
   'update_plan',
+  'ask_user',
 ]);
 
 const SHELL_DELETE_COMMANDS = new Set(['remove-item', 'ri', 'rm', 'rmdir', 'rd', 'del', 'erase', 'unlink']);

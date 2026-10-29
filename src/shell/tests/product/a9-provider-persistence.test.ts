@@ -72,7 +72,7 @@ function startFixtureModel(options: { probeToolCalling?: boolean; failProbe?: bo
 }
 
 /** 记录型 fixture：secondModelTextOnly 时新模型首个请求直接返回文本。 */
-function startRecordingModel(seenRequests: any[], options: { secondModelTextOnly?: boolean } = {}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+function startRecordingModel(seenRequests: any[], options: { secondModelTextOnly?: boolean; editFeedback?: boolean } = {}): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   let switched = false;
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
@@ -93,6 +93,8 @@ function startRecordingModel(seenRequests: any[], options: { secondModelTextOnly
             send({ choices: [{ delta: { content: 'continued with full history' }, finish_reason: 'stop' }] });
           } else if (toolMsgs.length === 0) {
             send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'r1', function: { name: 'read', arguments: '{"path":"note.txt"}' } }] }, finish_reason: 'tool_calls' }] });
+          } else if (options.editFeedback && toolMsgs.length === 1) {
+            send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'e1', function: { name: 'edit', arguments: '{"path":"note.txt","oldText":"old","newText":"new"}' } }] }, finish_reason: 'tool_calls' }] });
           } else {
             send({ choices: [{ delta: { content: switched ? 'done again' : 'done' }, finish_reason: 'stop' }] });
           }
@@ -150,6 +152,69 @@ describe('R4: provider config persistence and DPAPI integration', () => {
       ...extra,
     });
   }
+
+  it.each([false, true])('A9-42 edit feedback reaches the model and UI projection safely (sensitive=%s)', async (sensitive) => {
+    const requests: any[] = [];
+    const fixture = await startRecordingModel(requests, { editFeedback: true });
+    const runtime = makeRuntime();
+    const file = path.join(env.workspaceRoot, 'note.txt');
+    const suffix = sensitive ? '\nauthorization: Bearer fixture-password-42\n' : '\ncontext\n';
+    fs.writeFileSync(file, 'old' + suffix, 'utf8');
+    try {
+      runtime.setMode('full_access');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'edit-fixture' });
+      expect((await runtime.submitTurn('Edit old to new')).ok).toBe(true);
+      const editResults = requests.flatMap((r) => (r.messages || []).filter((m: any) => m.role === 'tool' && m.name === 'edit'));
+      expect(editResults).toHaveLength(1);
+      const result = JSON.parse(editResults[0].content);
+      expect(result.replaced).toBe(true);
+      expect(result.feedback.patchApplicable).toBe(false);
+      if (sensitive) {
+        expect(result.feedback).toMatchObject({ available: false, unifiedDiff: '', unavailableReason: 'A9_EDIT_FEEDBACK_SENSITIVE' });
+        expect(editResults[0].content).not.toContain('fixture-password-42');
+        expect(JSON.stringify(runtime.getSnapshot())).not.toContain('fixture-password-42');
+      } else {
+        expect(result.feedback).toMatchObject({ available: true, firstChangedLine: 1 });
+        expect(result.feedback.unifiedDiff).toContain('-old\n+new');
+      }
+      expect(fs.readFileSync(file, 'utf8')).toBe('new' + suffix);
+    } finally { await runtime.shutdown(); await fixture.close(); }
+  });
+
+  it('A9-42 refreshes bounded environment discovery through the product runtime each turn', async () => {
+    const seen: any[] = [];
+    const fixture = await startRecordingModel(seen);
+    const priorPath = process.env.PATH;
+    const toolDir = path.join(env.root, '中文 tools');
+    const gitPath = path.join(toolDir, process.platform === 'win32' ? 'git.exe' : 'git');
+    fs.mkdirSync(toolDir);
+    // A directory bearing a tool name must not be reported as an executable file.
+    fs.mkdirSync(gitPath);
+    fs.writeFileSync(path.join(env.workspaceRoot, 'note.txt'), 'fixture', 'utf8');
+    const runtime = makeRuntime();
+    try {
+      process.env.PATH = toolDir;
+      runtime.setMode('read_only');
+      await runtime.configureProvider({ baseUrl: fixture.baseUrl, model: 'environment-fixture' });
+      expect((await runtime.submitTurn('ENV-FIRST')).ok).toBe(true);
+      const facts = () => seen.filter((r) => r.messages?.some((m: any) => m.role === 'user' && m.content === 'ENV-SECOND'))
+        .flatMap((r) => r.messages.filter((m: any) => m.role === 'system' && m.content.startsWith('<environment_facts>')));
+      const first = seen.flatMap((r) => (r.messages || []).filter((m: any) => m.role === 'system' && m.content.startsWith('<environment_facts>')));
+      expect(first[0].content).toContain('git=PATH 中未发现');
+      fs.renameSync(gitPath, path.join(toolDir, 'not-a-tool'));
+      fs.writeFileSync(gitPath, 'fixture-only; never executed', 'utf8');
+      expect((await runtime.submitTurn('ENV-SECOND')).ok).toBe(true);
+      expect(facts().length).toBeGreaterThan(0);
+      expect(facts()[0].content).toContain(`git=发现文件 ${gitPath}`);
+      expect(facts()[0].content).toContain('版本/可运行性=UNKNOWN');
+      expect(facts()[0].content).toContain(`Node=${process.versions.node}`);
+    } finally {
+      if (priorPath === undefined) delete process.env.PATH;
+      else process.env.PATH = priorPath;
+      await runtime.shutdown();
+      await fixture.close();
+    }
+  });
 
   it('restores non-secret provider configuration after restart (fixture probe verified)', async () => {
     const fixture = await startFixtureModel();

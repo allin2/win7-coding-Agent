@@ -128,7 +128,7 @@ export interface ModelResponse {
 
 export type Message =
   | { role: 'system'; content: string }
-  | { role: 'user'; content: string }
+  | { role: 'user'; content: string; images?: Array<{ mimeType: 'image/png'; data: string }> }
   | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
   | { role: 'tool'; toolCallId: string; content: string; name?: string };
 

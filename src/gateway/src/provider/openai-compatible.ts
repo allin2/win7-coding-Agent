@@ -47,6 +47,7 @@ import {
   MAX_TOOL_CALL_SLOTS,
 } from './sse-parser';
 import type { TruncationInfo } from '../types';
+import { imageContent, ModelImageInput } from './image-input';
 
 /** A9-21 M2 G-1：单响应内容上限（UTF-8 字节）。 */
 const MAX_RESPONSE_CONTENT_BYTES = 1024 * 1024;
@@ -84,6 +85,7 @@ export type ProviderMessageInput =
   | {
       role: 'system' | 'user' | 'assistant' | 'tool';
       content: string;
+      images?: ModelImageInput[];
       toolCallId?: string;
       toolName?: string;
       toolCalls?: ToolCall[];
@@ -280,9 +282,23 @@ export class OpenAICompatibleProvider {
    * tool 消息的 tool_call_id/name 必须完整回传，否则第二次请求 400。
    */
   buildOpenAIMessages(messages: ProviderMessageInput[]): Array<Record<string, unknown>> {
+    let imageCount = 0;
     return messages.map((raw) => {
       const m = raw as Record<string, unknown>;
       const role = m.role as string;
+      if (m.images !== undefined) {
+        if (role !== 'user') throw new GatewayError(ErrorCode.INVALID_FRAME, 'A9_IMAGE_ROLE_INVALID');
+        if (Object.keys(m).some((key) => !['role', 'content', 'images'].includes(key))) {
+          throw new GatewayError(ErrorCode.INVALID_FRAME, 'A9_IMAGE_REQUEST_INVALID');
+        }
+        if (typeof m.content !== 'string') {
+          throw new GatewayError(ErrorCode.INVALID_FRAME, 'A9_IMAGE_REQUEST_INVALID');
+        }
+        const content = imageContent(m.content, m.images);
+        imageCount += (m.images as unknown[]).length;
+        if (imageCount > 2) throw new GatewayError(ErrorCode.INVALID_FRAME, 'A9_IMAGE_REQUEST_LIMIT');
+        return { role, content };
+      }
       if (role === 'assistant') {
         const toolCalls = m.toolCalls as ToolCall[] | undefined;
         return {
