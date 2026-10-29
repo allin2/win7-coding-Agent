@@ -27,6 +27,9 @@
   Win7包内Office/图片3项、Runtime夹具工作台6项通过；Office读取32次的34个Worker全部退出，结果只作DEV_CHANNEL，见任务书§5.1～§5.4。
   15:10 UTC收尾确认根内进程/临时任务为空、锁inactive，保留SGTool环境实例和全部文件；原包及副本4082文件哈希一致。
   包external_acceptance_eligible=false；真实模型、完整Office Agent GUI旅程、正式门A/B、长期预算、推送发布仍为 NOT_PERFORMED。
+  后续已切换GPT重置，两项员工Fast，主对话保持Sol/max/default。打包优化提交 `c9e29545…`，r3开发ZIP SHA-256 `1d2a1289…7320f42`。
+  原99工件/运行字节保持；完整新包标准cand路径最长201字符已直接通过，受影响合同及闭包124项、最终包Electron模块3项PASS。
+  实际Office界面链路员工仍运行，等完成通知整合；r3新包未连接Win7，原r2直接开发证据不重绑，见任务书§6。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。

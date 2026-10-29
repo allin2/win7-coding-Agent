@@ -540,3 +540,32 @@ DOCX源hash保护/原件保留/撤销、XLSX回读、nativeImage预览共3项PAS
 该结果没有产品main/SQLite GUI，也不是新包Win7证据。
 受影响a9-package/a9-batch2-package合同已启动，结果另行补记；不预先宣称通过。
 完整产品ZIP将由正常本地提交后的干净源码构建，再使用原zipManifest路径守卫检查。
+
+### 6.2 完整裁剪开发包与已完成检查
+
+打包优化产品提交 `c9e295459344ea45301a2da24272d847257ade89` 已在真实干净main源码上构建。
+新目录 `outputs/a9-42-tools/developer-package-r3`，ZIP为110534770字节，
+SHA-256 `1d2a1289313f6ea483c68451e765e251380f2dadd859f11c41d44cdaa7320f42`；
+manifest SHA-256 `6551cc4a92a00dd467a60467b51d8c2a74f85debbb6314b7dd20a845c0835582`。
+新ZIP完整校验PASS，3257个实际文件含3256项manifest文件，标准cand目录最长路径201字符，
+已直接使用原zipManifest/remotePath守卫检查完整产品ZIP，无需上一轮的短路径解包例外。
+此结论只消除本包引入的额外短根要求，不宣称Win7任意长度路径支持。
+
+与r2相比，仅移除826个明确非运行时docx文件，新增DELIVERY_MANIFEST；
+既有变化文件仅SBOM和开发身份记录，全部运行JS、资源及原生输入保持字节一致。
+完整源工件唯一文件集合与copied/omitted无重叠且覆盖一致，99项工件及许可证/SBOM身份已核对。
+直接检查见 `outputs/a9-42-tools/package-optimization/full-package-r3-verification.json`。
+
+父主会话完成受影响a9-package/a9-batch2-package合同121项PASS、0跳过，加闭包3项共124项。
+命令 `node --test scripts/release/test/a9-package.test.mjs scripts/release/test/a9-batch2-package.test.mjs`，
+耗时443052.99毫秒，原始日志 `/tmp/a9-42-trim-package-contracts.log` 并保存到上述输出目录。
+没有复跑或改判完整release组中11项历史FAIL与5项未执行。
+
+中间复制目录Workspace dist带source-map注释及声明，正式产品编译关闭这些输出；
+两次身份核对分别发现声明缺失和JS字节不一致，故未按中间目录继承运行结果，也未归一化后冒充同字节。
+改为直接对r3最终包执行实际Electron22/Node16模块探针，DOCX/源保护/撤销、XLSX、图片共3项PASS。
+报告及包/脚本/运行时哈希在 `package-optimization/final-package-electron-r1/`；
+身份差异诊断保留为runtime-inheritance-attempt.json。新包Win7及完整产品GUI均NOT_PERFORMED。
+
+Sol/xhigh/priority的实际Office界面工作包仍运行。10分钟工具等待结束，返回running而非failed，
+按next等待自动完成通知，不轮询、不重复派单。父已准备完整打包交付，收到员工结果后继续整合其真实链路。
