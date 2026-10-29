@@ -10,13 +10,21 @@ const { pathToFileURL } = require('url');
 const { createRequire } = require('module');
 const driver = require('./a9-42-office-journey.cjs');
 const need = (v, code) => { if (!v) throw new Error(code); };
+function verifySourceIdentity(s) {
+  const git = args => cp.execFileSync('git', ['-C', s.source_root, ...args], { maxBuffer: 8 * 1024 * 1024 });
+  const packageTree = git(['rev-parse', s.source_commit + ':src']).toString().trim();
+  const currentTree = git(['rev-parse', 'HEAD:src']).toString().trim();
+  need(packageTree === currentTree, 'PREPARE_CURRENT_SOURCE');
+  need(git(['diff','--name-only','HEAD','--','src']).length === 0
+    && git(['ls-files','--others','--exclude-standard','--','src']).length === 0, 'PREPARE_SOURCE_DIRTY');
+  return { source_tree: packageTree, binding_tool_commit: git(['rev-parse','HEAD']).toString().trim() };
+}
 async function prepare(s) {
   need(s && Object.keys(s).sort().join(',') === ['source_root','zip_path','output_root','source_commit','run_id','session_id','target_input_package_root','target_zip_path'].sort().join(','), 'PREPARE_FIELDS');
   for (const k of ['source_root','zip_path','output_root']) need(path.isAbsolute(s[k]), 'PREPARE_LOCAL_PATH');
   need(!fs.existsSync(s.output_root), 'PREPARE_OUTPUT_EXISTS');
   const git = args => cp.execFileSync('git', ['-C', s.source_root, ...args], { maxBuffer: 8 * 1024 * 1024 });
-  need(git(['rev-parse','HEAD']).toString().trim() === s.source_commit, 'PREPARE_CURRENT_SOURCE');
-  need(git(['diff','--name-only',s.source_commit,'--','src']).length === 0, 'PREPARE_SOURCE_DIRTY');
+  const sourceIdentity = verifySourceIdentity(s);
   const zip = await import(pathToFileURL(path.join(__dirname, '../release/zip-utils.mjs')).href);
   const entries = zip.readZipEntries(s.zip_path).filter(e => !e.directory);
   const manifests = entries.filter(e => e.name.endsWith('/release-manifest.json'));
@@ -56,10 +64,11 @@ async function prepare(s) {
       need(driver.hash(blob) === e.sha256 && driver.hash(fs.readFileSync(path.join(s.source_root, source))) === e.sha256, 'PREPARE_SOURCE_PRODUCT_MISMATCH');
       products.push({ path: e.path, source, sha256: e.sha256 });
     }
-    const match = /^resources\/app\/([^/]+)\/dist\/(.+)$/.exec(e.path);
+    const match = /^resources\/app\/(?:([^/]+)\/)?dist\/(.+)$/.exec(e.path);
     if (match) {
-      const source = `src/${match[1]}/dist/${match[2]}`;
-      const file = path.join(compile(match[1]), match[2]);
+      const moduleName = match[1] || 'shell';
+      const source = `src/${moduleName}/dist/${match[2]}`;
+      const file = path.join(compile(moduleName), match[2]);
       need(driver.hash(fs.readFileSync(file)) === e.sha256, 'PREPARE_COMMITTED_BUILD_MISMATCH');
       compiled.push({ path: e.path, source, sha256: e.sha256 });
     }
@@ -76,7 +85,7 @@ async function prepare(s) {
     run_root: trial + '\\run', package_root: trial + '\\pkg', workspace_root: trial + '\\中文 workspace',
     data_root: trial + '\\pkg\\portable-data', cmd_path: trial + '\\run\\cmd.exe', source_binding_path: trial + '\\run\\source-binding.json' };
   const binding = { schema_version: 1, source_commit: c.source_commit,
-    source_tree: git(['rev-parse', s.source_commit + ':src']).toString().trim(),
+    ...sourceIdentity,
     zip_sha256: c.zip_sha256, manifest_sha256: c.manifest_sha256, driver_sha256: c.driver_sha256,
     product_files: products, compiled_files: compiled,
     compilers: [...compilers.values()],
@@ -91,7 +100,7 @@ async function prepare(s) {
   return { status: 'LOCAL_PREPARATION_ONLY', output_root: s.output_root, source_commit: c.source_commit,
     driver_sha256: c.driver_sha256, zip_sha256: c.zip_sha256, deadline_utc: null, target_execution: 'NOT_PERFORMED' };
 }
-module.exports = { prepare };
+module.exports = { prepare, verifySourceIdentity };
 if (require.main === module) prepare(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')))
   .then(r => process.stdout.write(JSON.stringify(r) + '\n'))
   .catch(e => { process.stderr.write(driver.safeError(e) + '\n'); process.exitCode = 1; });

@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const d = require('../a9-42-office-journey.cjs');
+const { verifySourceIdentity } = require('../a9-42-office-prepare.cjs');
 const now = Date.parse('2026-10-29T17:00:00.000Z');
 function config() {
   const root = 'C:\\A9-DEV\\work\\a942o-1234abcd';
@@ -37,6 +42,26 @@ test('journey task identity matches the existing channel launcher prefix', async
   const name = config().run_id;
   assert.equal(parseArgs(['agent-run', name, '"C:\\A9-DEV\\cmd.exe" /c local.cmd']).args[0], name);
   assert.equal(config().task_name, 'A9-DEV-' + name);
+});
+test('source binding accepts later evidence-only commits but rejects changed, dirty or new source files', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942-binding-source-'));
+  const git = args => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const commit = () => { git(['add', '--', 'src', 'record.md']); git(['-c', 'user.name=A9 Fixture',
+    '-c', 'user.email=a9-fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '--quiet', '-m', 'local fixture']); };
+  git(['init', '--quiet']); fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src/main.ts'), 'export const current = 1;\n');
+  fs.writeFileSync(path.join(root, 'record.md'), 'first\n'); commit();
+  const source_commit = git(['rev-parse', 'HEAD']).trim(); const spec = { source_root: root, source_commit };
+  const original = verifySourceIdentity(spec);
+  fs.writeFileSync(path.join(root, 'record.md'), 'later evidence\n'); commit();
+  assert.equal(verifySourceIdentity(spec).source_tree, original.source_tree);
+  assert.notEqual(verifySourceIdentity(spec).binding_tool_commit, source_commit);
+  fs.writeFileSync(path.join(root, 'src/main.ts'), 'export const current = 2;\n');
+  assert.throws(() => verifySourceIdentity(spec), /PREPARE_SOURCE_DIRTY/);
+  fs.writeFileSync(path.join(root, 'src/main.ts'), 'export const current = 1;\n');
+  fs.writeFileSync(path.join(root, 'src/new.ts'), 'untracked\n');
+  assert.throws(() => verifySourceIdentity(spec), /PREPARE_SOURCE_DIRTY/);
+  commit(); assert.throws(() => verifySourceIdentity(spec), /PREPARE_CURRENT_SOURCE/);
 });
 test('fixture stops at ask, emits a forbidden later write, and refuses unsolicited/unknown results', () => {
   const s = d.makeFixtureState(); const ask = d.fixtureStep(s, request('a942:office:new'));
