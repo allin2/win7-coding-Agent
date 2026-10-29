@@ -15,7 +15,7 @@ type FixtureStep =
   | { kind: 'write'; name: string; args: any }
   | { kind: 'text'; content: string };
 
-async function setup(options: { steps: FixtureStep[]; mode?: string } = { steps: [] }) {
+async function setup(options: { steps: FixtureStep[]; mode?: string; journey?: boolean } = { steps: [] }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-42-question-'));
   const workspaceRoot = path.join(root, '中文 workspace');
   const dataRoot = path.join(root, 'data');
@@ -24,11 +24,22 @@ async function setup(options: { steps: FixtureStep[]; mode?: string } = { steps:
   const requests: any[] = [];
   const responses: http.ServerResponse[] = [];
   let stepIndex = 0;
+  const journey = require('../../../../scripts/win7-dev/a9-42-office-journey.cjs');
+  const journeyState = options.journey ? journey.makeFixtureState() : null;
   const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk.toString('utf8'); });
     req.on('end', () => {
       requests.push(JSON.parse(body));
+      if (journeyState) {
+        try {
+          journeyState.requests += 1;
+          const delta = journey.fixtureStep(journeyState, requests[requests.length - 1]);
+          res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+          res.end(`data: ${JSON.stringify({ choices: [{ delta, finish_reason: delta.tool_calls ? 'tool_calls' : 'stop' }] })}\n\ndata: [DONE]\n\n`);
+        } catch (error: any) { res.writeHead(400); res.end(journey.safeError(error)); }
+        return;
+      }
       const step = options.steps[stepIndex++];
       if (step && step.kind === 'fail') { res.writeHead(400); res.end('fixture continuation failure'); return; }
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -62,7 +73,7 @@ async function setup(options: { steps: FixtureStep[]; mode?: string } = { steps:
   const db = new Database(path.join(dataRoot, 'a9-state.db'));
   const ipc = () => createA9ProductRequestHandler({ isValidRendererSender: () => true, getA9Runtime: () => runtime });
   return {
-    root, workspaceRoot, dataRoot, requests, db,
+    root, workspaceRoot, dataRoot, requests, db, journeyState,
     get runtime() { return runtime; },
     ipc,
     reply(payload: any) {
@@ -100,6 +111,50 @@ describe('Office Lite actual Runtime/Core/Gateway/Worker/Workspace chain', () =>
       const service = new workspace.A9WorkspaceService(f.workspaceRoot);
       expect(service.getCheckpointManager().undoTurn(result.result.turnId).errors).toEqual([]);
       expect(fs.existsSync(path.join(f.workspaceRoot, output))).toBe(false);
+    } finally { await f.close(); }
+  });
+
+  it('restores an unanswered Office question without dispatch, then generates, reads, hash-binds a copy and undoes through product IPC', async () => {
+    const journey = require('../../../../scripts/win7-dev/a9-42-office-journey.cjs');
+    const f = await setup({ steps: [], journey: true });
+    try {
+      const first = await f.runtime.submitTurn('a942:office:new');
+      expect(first.result.outcome).toBe('needs_input');
+      const q = first.result.pendingQuestion;
+      expect(f.requests).toHaveLength(1);
+      await f.restart();
+      expect(f.runtime.getSnapshot().pendingQuestion).toMatchObject({ questionId: q.questionId, recovered: true });
+      expect(f.requests).toHaveLength(1);
+      expect(fs.existsSync(path.join(f.workspaceRoot, journey.FILES.poison))).toBe(false);
+      f.journeyState.phase = 'answer_allowed';
+      const answer = { conversationId: q.conversationId, questionId: q.questionId, revision: q.revision, decision: 'answered', answer: '小样本' };
+      const resumed = await f.reply(answer);
+      expect(resumed.ok).toBe(true);
+      expect(f.journeyState.phase).toBe('new_done');
+      const original = fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.doc));
+      const book = fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.book));
+      const beforeDuplicate = f.requests.length;
+      const duplicate = await f.reply(answer);
+      expect(duplicate.ok).toBe(true); expect(duplicate.duplicate).toBe(true);
+      expect(f.requests).toHaveLength(beforeDuplicate);
+      const copied = await f.runtime.submitTurn('a942:office:copy');
+      expect(copied.ok).toBe(true); expect(f.journeyState.phase).toBe('copy_done');
+      expect(fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.doc))).toEqual(original);
+      const copiedBytes = fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.copy));
+      expect(copiedBytes.equals(original)).toBe(false);
+      const undone = await f.ipc()({}, { schemaVersion: 7, action: 'a9.checkpoint.undoTurn', payload: { turnId: copied.result.turnId } });
+      expect(undone.ok).toBe(true); expect(undone.outcome.errors).toEqual([]);
+      expect(undone.outcome.restored).toEqual([journey.FILES.copy + ' (已移除新建文件)']);
+      expect(fs.existsSync(path.join(f.workspaceRoot, journey.FILES.copy))).toBe(false);
+      expect(fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.doc))).toEqual(original);
+      expect(fs.readFileSync(path.join(f.workspaceRoot, journey.FILES.book))).toEqual(book);
+      expect(fs.existsSync(path.join(f.workspaceRoot, journey.FILES.poison))).toBe(false);
+      expect(f.db.prepare("SELECT count(*) n FROM a9_events WHERE event_type='question_resolved'").get()).toEqual({ n: 1 });
+      const facts = f.db.prepare("SELECT payload_json FROM a9_events WHERE event_type='tool_end'").all()
+        .map((r: any) => JSON.parse(r.payload_json).data);
+      for (const tool of ['document_write_copy', 'document_read', 'document_inspect']) {
+        expect(facts.some((e: any) => e.toolName === tool && e.result && !JSON.parse(e.result).error)).toBe(true);
+      }
     } finally { await f.close(); }
   });
 

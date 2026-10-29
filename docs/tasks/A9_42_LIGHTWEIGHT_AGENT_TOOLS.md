@@ -569,3 +569,27 @@ manifest SHA-256 `6551cc4a92a00dd467a60467b51d8c2a74f85debbb6314b7dd20a845c08355
 
 Sol/xhigh/priority的实际Office界面工作包仍运行。10分钟工具等待结束，返回running而非failed，
 按next等待自动完成通知，不轮询、不重复派单。父已准备完整打包交付，收到员工结果后继续整合其真实链路。
+
+### 6.3 实际Office界面驱动整合与本地证据
+
+Sol/xhigh/priority员工已完成，没有活跃员工。交付office-journey候选外驱动、本地prepare绑定器、
+函数/HTTP反例及新增真实Runtime+SQLite组合测试；未改产品实现或依赖。
+主会话整合4个明确文件，排除员工本机office-lite/node_modules符号链接。
+员工交接及原始首失败日志保留在 `outputs/a9-42-tools/office-journey/inherited-worker/`。
+
+父复核修复3个取证问题：任务名改为既有通道的A9-DEV前缀；SQLite工作区断言按产品Windows
+canonical全小写路径比较；prepare改为使用产品相同编译参数在新的候选外目录重编当前提交，
+逐字节匹配包内JS，不再把带source-map的开发dist误当产品dist。不改变产品Runtime或State行为。
+源工件/源码/编译产物及包身份继续绑定，拒绝旧包冒充当前源、未知配置、路径逃逸、注入额外文件和凭据日志。
+本地完整驱动函数/HTTP检查9项PASS；真实Runtime/Core/Gateway/SQLite/Workspace/Worker组合套件5项PASS，
+其中覆盖未答重启不重发、回答落盘与重复幂等、DOCX/XLSX生成/inspect/read、源hash副本、经产品IPC撤销。
+实际Electron22/Node16对两个CJS语法检查PASS；Mac缺少对应SQLite ABI110，完整产品GUI仍NOT_PERFORMED。
+
+驱动先观察真实问题卡、回答后生成，再验证新副本、原件不变和产品5秒撤销流程，最后取消问询/拒绝迟到回答。
+计划使用127.0.0.1随机端口的严格状态机夹具，最多16次夹具请求、真实模型请求0次，不执行Shell工具。
+产品正常退出必须观察will-quit；控制器不把自己所在临时任务未结束报成零任务。
+既有通道移除准确启动任务后，以第二个普通用户入口执行只读postflight，另写POSTFLIGHT，不改原RESULT。
+取证超时、身份、完整性、审计或进程生命周期未知均HALTED，不以app.exit冒充正常关闭。
+
+驱动/测试属于候选外取证与开发测试，产品JS及原生工件不变。保存本地提交后绑定新包，
+再完成本地prepare正向检查；不再重复已有124项打包测试。新包、驱动正向绑定和Win7执行结果另记，不能提前宣称通过。

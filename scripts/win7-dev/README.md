@@ -64,6 +64,14 @@ ZIP 不支持 ZIP64、多卷、加密、符号链接、非 UTF-8 非 ASCII 文�
 
 ## 环境变量
 
+A9-42完整办公界面旅程的候选外驱动为 `a9-42-office-journey.cjs`，
+本地绑定入口为 `a9-42-office-prepare.cjs <spec.json>`。具体协议与授权见
+[A9-42 §6](../../docs/tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#6-gpt重置模式后续本地迭代approved_for_implementation)。
+prepare只读当前提交和准确ZIP，按产品编译参数在全新候选外目录重编、匹配源码/产物，生成deadline为空的模板，
+不会连接Win7。实际目标窗口必须另行获准；入口要求普通agent、会话身份、准确包/驱动/manifest哈希和剩余窗口。
+任务名沿用 `A9-DEV-<run_id>`，正常产品退出与临时任务清理分别取证；postflight在原任务结束后执行。
+本地检查 `node --test scripts/win7-dev/test/a9-42-office-journey.test.mjs`；开发机检查不代表真实GUI或Win7通过。
+
 | 变量 | 默认 |
 | --- | --- |
 | `WIN7_DEV_HOST` | `192.168.1.5` |
