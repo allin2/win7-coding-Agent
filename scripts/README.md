@@ -59,6 +59,13 @@ node scripts/verify_integration.mjs --module shell --test-file tests/product/a9-
 打包入口为 `npm run package:win7 -- --electron-zip <已锁定输入> --runner-zip <已锁定输入> --storage-zip <已锁定输入> --output <新目录>`；按当前 Runtime Profile 和输入锁装配，不能借旧候选号签结论。
 A9-34/A9-40 开发构建可按 ADR-0296 使用 `--runner-product-zip <固定 WIN7-55 产品 ZIP>` 替代 `--runner-zip`，同时显式指定 `--formal-input-lock release/win7-product-v3/a9-32-input-lock.json`。入口核对产品 ZIP、来源清单和 helper 的固定哈希，开发包清单与 SBOM 记录恢复来源；仅接受 A9-32 开发锁，正式构建拒绝此参数。
 两项功能的候选外定向驱动为 `scripts/win7-dev/a9-3440-trial.cjs`，仅适用于 [A9-40 §5](../docs/tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#5-两项改进联合试用已批准) 的准确开发包和零真实模型请求范围；配置、时限、锁和准备记录按该任务执行。开发机入口为 `node --test scripts/win7-dev/test/a9-3440-trial.test.mjs`，不连接目标机；通过不等于包内运行时或 Win7 产品链路通过。
+A9-42 Office真实界面驱动为 `scripts/win7-dev/a9-42-office-journey.cjs`，范围、准确包和窗口以
+[A9-42 §7](../docs/tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#7-r4实际办公界面win7试用提案proposed未授权)为准。
+开发机数据/HTTP/身份反例入口为 `node --test scripts/win7-dev/test/a9-42-office-journey.test.mjs`。
+Mac原生点击夹具使用已锁定Electron22/Node16执行：
+`env -u ELECTRON_RUN_AS_NODE <Electron.app/Contents/MacOS/Electron> scripts/win7-dev/test/a9-42-office-ui.cjs --output=<绝对新目录>`。
+夹具直接检查原生details点击、滚动、禁用和遮挡，使用产品CSS；不运行产品main/Office/SQLite或连接Win7。
+它保留独立user-data及RESULT，不自动删除输出。实际Win7断点仍须在批准窗口复验。
 开发运行只作 DEV_CHANNEL 诊断；正式冻结、双构建、独立审核、门 A/B 只在正式节点执行。
 产品推送/发布、正式签发、新系统权限/配置或超预算仍由负责人决定。
 

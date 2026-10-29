@@ -43,6 +43,20 @@ test('journey task identity matches the existing channel launcher prefix', async
   assert.equal(parseArgs(['agent-run', name, '"C:\\A9-DEV\\cmd.exe" /c local.cmd']).args[0], name);
   assert.equal(config().task_name, 'A9-DEV-' + name);
 });
+test('launcher ownership follows only the exact one or two approved cmd ancestors', () => {
+  const c = config();
+  const row = (pid, parent, second, image = c.cmd_path) => ({ pid, parent, created: `202610300028${second}.000000+480`, image, session: c.session_id });
+  const current = row(30, 20, '20', c.input_package_root + '\\electron.exe');
+  const inner = row(20, 10, '19'); const outer = row(10, 1, '18');
+  const unrelated = row(99, 1, '17');
+  assert.deepEqual(d.launcherInstances([current, inner, outer, unrelated], current, c).map(r => r.pid), [30, 20, 10]);
+  assert.deepEqual(d.launcherInstances([current, { ...inner, parent: 1 }, unrelated], current, c).map(r => r.pid), [30, 20]);
+  for (const mutation of [{ session: 9 }, { created: 'unknown' }, { created: '20261030002900.000000+480' }, { image: 'C:\\other\\cmd.exe' }]) {
+    assert.throws(() => d.launcherInstances([current, { ...inner, ...mutation }, outer], current, c), /LAUNCHER_ANCESTOR_IDENTITY/);
+  }
+  assert.throws(() => d.launcherInstances([current, { ...inner, parent: 30 }], current, c), /LAUNCHER_CHAIN_DEPTH/);
+  assert.throws(() => d.launcherInstances([current, inner, { ...outer, parent: 2 }, row(2, 1, '16')], current, c), /LAUNCHER_CHAIN_DEPTH/);
+});
 test('source binding accepts later evidence-only commits but rejects changed, dirty or new source files', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942-binding-source-'));
   const git = args => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -123,6 +137,24 @@ test('HTTP malformed JSON, route, deadline and request cap fail closed', async (
 test('task CSV preserves exact names and rejects unparseable observations', () => {
   assert.deepEqual(d.parseTaskNames('"\\A9DEV_a942o-1234abcd","N/A","Ready"\r\n"\\其他,任务","N/A","Ready"\r\n'), ['\\A9DEV_a942o-1234abcd','\\其他,任务']);
   assert.throws(() => d.parseTaskNames('not a task query'), /TASK_QUERY_PARSE/);
+});
+test('exact task observation requires the bound name and SID and explicit absence', () => {
+  const c = config(); const task = { exists: true, path: '\\' + c.task_name, sid: 'S-1-5-21-1708701742-428676696-1831205153-1001' };
+  assert.deepEqual(d.taskNamesFromObservation(task, c), [task.path]);
+  assert.deepEqual(d.taskNamesFromObservation({ exists: false }, c), []);
+  for (const changed of [{ ...task, sid: 'other' }, { ...task, path: '\\other' }, { exists: 'false' },
+    { exists: false, error: 'ACCESS_DENIED' }, { exists: true }]) {
+    assert.throws(() => d.taskNamesFromObservation(changed, c), /TASK_QUERY_(PARSE|IDENTITY)/);
+  }
+});
+test('native click errors retain a bounded diagnostic code without raw renderer text', async () => {
+  for (const [raw, expected] of [['Error invoking renderer: Error: UI_ACTION_OCCLUDED SECRET_SENTINEL', 'UI_ACTION_OCCLUDED'],
+    ['Error: UI_ACTION_UNAVAILABLE', 'UI_ACTION_UNAVAILABLE'], ['private renderer detail SECRET_SENTINEL', 'UI_ACTION_FAILED']]) {
+    let inputs = 0;
+    const port = { evaluate: async () => { throw new Error(raw); }, focus() {}, sendInputEvent() { inputs += 1; } };
+    await assert.rejects(d.clickUi(port, '#fixture'), error => error.message === expected);
+    assert.equal(inputs, 0);
+  }
 });
 test('manifest verification rejects injected files, hash drift and symlink paths', () => {
   const c = config(); c.manifest_file_count = 101;

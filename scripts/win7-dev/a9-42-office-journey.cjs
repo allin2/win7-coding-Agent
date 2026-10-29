@@ -74,6 +74,26 @@ function observedTree(rows, pid) {
   return selected;
 }
 
+function launcherInstances(rows, identity, config) {
+  const known = [identity];
+  let child = identity;
+  for (let i = 0; i < 2; i += 1) {
+    const parent = rows.find(row => row.pid === child.parent);
+    const matches = parent && typeof parent.image === 'string'
+      && parent.image.toLowerCase() === config.cmd_path.toLowerCase();
+    if (i > 0 && !matches) break;
+    need(matches && parent.session === config.session_id
+      && /^\d{14}\.\d{6}[+-]\d{3}$/.test(parent.created)
+      && parent.created <= child.created
+      && !known.some(row => row.pid === parent.pid), 'LAUNCHER_ANCESTOR_IDENTITY');
+    known.push(parent); child = parent;
+  }
+  const older = rows.find(row => row.pid === child.parent);
+  need(!older || !known.some(row => row.pid === older.pid), 'LAUNCHER_CHAIN_DEPTH');
+  need(!older || typeof older.image !== 'string' || older.image.toLowerCase() !== config.cmd_path.toLowerCase(), 'LAUNCHER_CHAIN_DEPTH');
+  return known;
+}
+
 function remainingInstances(observed, current) {
   need(Array.isArray(observed) && observed.length > 0 && Array.isArray(current) && current.length > 0, 'PROCESS_EVIDENCE_MISSING');
   return observed.filter((old) => {
@@ -163,6 +183,26 @@ async function waitFor(read, milliseconds, label) {
     await delay(250);
   }
   throw new Error(`TIMEOUT_${label}`);
+}
+
+async function clickUi(port, selector) {
+  try {
+    const point = await port.evaluate(`(async () => {const e=document.querySelector(${JSON.stringify(selector)});
+      if(!e||e.disabled||e.hidden)throw new Error('UI_ACTION_UNAVAILABLE');
+      e.scrollIntoView({block:'center',inline:'nearest'});
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      const r=e.getBoundingClientRect(),x=Math.floor(r.left+r.width/2),y=Math.floor(r.top+r.height/2),hit=document.elementFromPoint(x,y);
+      if(r.width<=0||r.height<=0||x<0||y<0||x>=innerWidth||y>=innerHeight||!hit||!(hit===e||e.contains(hit)))throw new Error('UI_ACTION_OCCLUDED');return {x,y};})()`);
+    port.focus();
+    for (const type of ['mouseMove','mouseDown','mouseUp']) port.sendInputEvent({ type, ...point,
+      ...(type === 'mouseMove' ? {} : { button: 'left', clickCount: 1 }) });
+    // Native default actions (including details toggles) must settle before
+    // choosing the next matching element or measuring another click target.
+    await port.evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+  } catch (error) {
+    const code = /\bUI_ACTION_(?:UNAVAILABLE|OCCLUDED)\b/.exec(String(error && error.message || ''));
+    throw new Error(code ? code[0] : 'UI_ACTION_FAILED');
+  }
 }
 
 function currentIdentity(config) {
@@ -444,10 +484,28 @@ function parseTaskNames(csv) {
   });
 }
 function currentTasks(config) {
-  const result = cp.spawnSync(path.join(process.env.SystemRoot, 'System32/schtasks.exe'), ['/query','/fo','csv','/nh'],
-    { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 2 * 1024 * 1024 });
+  // Query the exact task through Win7's local scheduler. The target schtasks
+  // rejects CSV /NH; never classify its format or permission errors as absence.
+  const name = config.task_name.replace(/'/g, "''");
+  const script = `$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false);` +
+    `$s=New-Object -ComObject 'Schedule.Service';$s.Connect();$f=$s.GetFolder('\\');` +
+    `try{$t=$f.GetTask('${name}');[xml]$x=$t.Xml;[Console]::WriteLine((@{exists=$true;path=[string]$t.Path;sid=[string]$x.Task.Principals.Principal.UserId}|ConvertTo-Json -Compress))}` +
+    `catch{$e=$_.Exception;$missing=$false;while($null -ne $e){if($e.HResult -eq -2147024894){$missing=$true};$e=$e.InnerException};` +
+    `if(-not $missing){throw};[Console]::WriteLine('{"exists":false}')}`;
+  const result = cp.spawnSync(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+    ['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(script, 'utf16le').toString('base64')],
+    { encoding: 'utf8', windowsHide: true, timeout: 10000, maxBuffer: 32768 });
   need(!result.error && result.status === 0 && result.stdout.trim(), 'TASK_QUERY_FAILED');
-  return parseTaskNames(result.stdout).filter(name => name.toLowerCase() === ('\\' + config.task_name).toLowerCase());
+  let task; try { task = JSON.parse(result.stdout.replace(/^\uFEFF/, '').trim()); } catch (_) { throw new Error('TASK_QUERY_PARSE'); }
+  return taskNamesFromObservation(task, config);
+}
+function taskNamesFromObservation(task, config) {
+  need(task && typeof task.exists === 'boolean', 'TASK_QUERY_PARSE');
+  if (!task.exists) { need(Object.keys(task).length === 1, 'TASK_QUERY_PARSE'); return []; }
+  need(Object.keys(task).length === 3 && typeof task.path === 'string'
+    && task.path.toLowerCase() === ('\\' + config.task_name).toLowerCase()
+    && task.sid === 'S-1-5-21-1708701742-428676696-1831205153-1001', 'TASK_QUERY_IDENTITY');
+  return [task.path];
 }
 async function postflight(config) {
   currentIdentity(config);
@@ -461,12 +519,12 @@ async function postflight(config) {
       && prior.zip_sha256 === config.zip_sha256, 'POSTFLIGHT_PRIOR_RESULT');
     const rows = processRows();
     const own = observedTree(rows, process.pid)[0];
-    const launcher = rows.find(row => row.pid === own.parent);
-    need(launcher && launcher.image.toLowerCase() === config.cmd_path.toLowerCase(), 'POSTFLIGHT_PARENT');
+    const launchers = launcherInstances(rows, own, config);
+    r.launcher_process_chain = launchers.slice(1);
     r.tasks = currentTasks(config); need(r.tasks.length === 0, 'POSTFLIGHT_TASK_REMAINS');
     r.processes = processObservation(prior.observed_process_tree, rows, config.session_id);
     r.unexpected_root_instances = rows.filter(row => row.image && [config.run_root,config.package_root,config.input_package_root].some(root => inside(root,row.image))
-      && ![own,launcher].some(known => known.pid === row.pid && known.created === row.created));
+      && !launchers.some(known => known.pid === row.pid && known.created === row.created));
     need(r.processes.blocking_instances.length === 0 && r.unexpected_root_instances.length === 0, 'POSTFLIGHT_PROCESS_REMAINS');
     r.status = 'DEV_CHANNEL_COMPLETE';
   } catch (error) { r.first_failure = safeError(error); process.exitCode = 1; }
@@ -487,13 +545,13 @@ async function controller(config) {
   let observed = []; let observer; let observationError;
   try {
     result.identity = currentIdentity(config);
-    const rows = processRows(); const launcher = rows.find(r => r.pid === result.identity.parent);
-    need(launcher && launcher.image.toLowerCase() === config.cmd_path.toLowerCase() && launcher.created, 'CONTROLLER_PARENT_IDENTITY');
-    const own = [result.identity, launcher];
+    const rows = processRows(); const own = launcherInstances(rows, result.identity, config);
+    result.launcher_process_chain = own.slice(1);
     const unexpected = rows => rows.filter(row => row.image && [config.run_root, config.package_root, config.input_package_root].some(root => inside(root, row.image))
       && !own.some(known => known.pid === row.pid && known.created === row.created)
       && !observed.some(known => known.pid === row.pid && known.created === row.created));
-    need(unexpected(rows).length === 0, 'PREEXISTING_TRIAL_PROCESS');
+    result.preexisting_trial_processes = unexpected(rows);
+    need(result.preexisting_trial_processes.length === 0, 'PREEXISTING_TRIAL_PROCESS');
     need(currentTasks(config).length === 1, 'LAUNCHER_TASK_IDENTITY');
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'DRIVER_HASH');
     need(hash(fs.readFileSync(config.zip_path)) === config.zip_sha256, 'ZIP_HASH');
@@ -591,12 +649,8 @@ async function ui(config) {
     const r = await evaluate('window.win7Agent.a9.snapshot()'); need(r && r.ok && r.snapshot, 'SNAPSHOT_FAILED'); return r.snapshot;
   };
   const click = async selector => {
-    const point = await evaluate(`(() => {const e=document.querySelector(${JSON.stringify(selector)});
-      if(!e||e.disabled||e.hidden)throw new Error('UI_ACTION_UNAVAILABLE');e.scrollIntoView({block:'center'});
-      const r=e.getBoundingClientRect(),x=Math.floor(r.left+r.width/2),y=Math.floor(r.top+r.height/2),hit=document.elementFromPoint(x,y);
-      if(r.width<=0||r.height<=0||x<0||y<0||x>=innerWidth||y>=innerHeight||!hit||!(hit===e||e.contains(hit)))throw new Error('UI_ACTION_OCCLUDED');return {x,y};})()`);
-    win.focus();
-    for (const type of ['mouseMove','mouseDown','mouseUp']) win.webContents.sendInputEvent({ type, ...point, ...(type === 'mouseMove' ? {} : { button: 'left', clickCount: 1 }) });
+    result.last_action = { kind: 'click', selector }; persist();
+    await clickUi({ evaluate, focus: () => win.focus(), sendInputEvent: event => win.webContents.sendInputEvent(event) }, selector);
   };
   const fill = async (selector, value) => {
     await click(selector);
@@ -690,12 +744,17 @@ async function ui(config) {
     check('COPY_SOURCE_BOUND_ORIGINAL_UNCHANGED', fixture.state.phase === 'copy_done' && fixture.state.sourceHash === result.original_sha256
       && hash(fs.readFileSync(path.join(config.workspace_root, FILES.doc))) === result.original_sha256
       && hash(fs.readFileSync(path.join(config.workspace_root, FILES.copy))) !== result.original_sha256);
+    result.phase = 'office_tool_records'; persist();
     for (let i = 0; i < 12 && await evaluate('Boolean(document.querySelector("#a9-task-stream .activity-group:not([open]) > summary"))'); i += 1) {
       await click('#a9-task-stream .activity-group:not([open]) > summary');
     }
     result.dom_tools = await evaluate('document.getElementById("a9-task-stream").innerText');
     check('UI_OFFICE_TOOL_RECORDS', await evaluate('["document_write_copy","document_read","document_inspect"].every(name=>Array.from(document.querySelectorAll("#a9-task-stream .activity-tool")).some(e=>e.title===name))'));
     check('UI_REAL_TOOL_FACTS', [FILES.doc,FILES.copy].every(f => result.dom_tools.includes(f)));
+    if (!await evaluate('document.getElementById("open-inspector").getAttribute("aria-expanded")==="true"')) {
+      await click('#open-inspector');
+    }
+    await wait(() => evaluate('document.getElementById("open-inspector").getAttribute("aria-expanded")==="true"&&document.getElementById("inspector-tab-changes").getBoundingClientRect().width>0'), 10000, 'INSPECTOR_OPEN');
     await click('#inspector-tab-changes');
     await screenshot('office-copy');
     await click(`button[aria-label="撤销 ${result.copy_turn}"]`);
@@ -726,13 +785,17 @@ async function ui(config) {
     result.status = 'CHECKS_COMPLETE'; persist(); win.close();
   } catch (error) {
     result.status = 'HALTED'; result.first_failure = safeError(error);
+    if (win && !win.isDestroyed()) {
+      try { await screenshot('failure'); result.failure_screenshot = 'failure.png'; }
+      catch (_) { result.failure_screenshot = 'CAPTURE_FAILED'; }
+    }
     try { result.process_tree = observedTree(processRows(), process.pid); } catch (_) { result.process_query = 'UNKNOWN'; }
     persist(); if (fixture) { await fixture.close(); fixture = null; }
     if (win) win.close(); else app.quit();
   }
 }
 module.exports = { validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
-  makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames };
+  makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi };
 if (require.main === module) {
   try {
     const args = process.argv.slice(2); const configFile = args[args.indexOf('--config') + 1];

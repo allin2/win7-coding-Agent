@@ -654,3 +654,119 @@ launch-template使用真实CRLF，实际任务名为A9-DEV-a942o-9d503e71，与�
 只停止本轮根内进程，SGTool继续按ADR-0297准确实例保留，不扩大根外权限。
 不安装依赖、不改系统/服务/账户、不发真实模型请求、不执行close删根、不签正式门A/B、不推送发布。
 当前r4目标动作和完整产品Office GUI均NOT_PERFORMED，待负责人批准准确材料后执行。
+
+### 7.1 负责人批准与本轮准入
+
+负责人针对§7准确包、最终驱动及60分钟/0真实模型/最多16次loopback夹具提案回复“批准”。
+本轮允许从main执行该准确开发试用，不扩大至其他版本、真实模型、系统修改、正式门A/B或发布。
+起点main `613c58ff08e2f6c34b7fd6751b4b0e3060351ede`，工作区干净，产品src树与包源保持一致。
+ZIP、driver和source-binding实际SHA-256均与§6.4相符，不重建包或替换组件。
+本机当前192.168.1.16，目标历史地址192.168.1.9直连en0；随后使用既有严格主机键执行只读status，
+首次目标动作时间/原始60分钟deadline另记候选外window.json，不从本地开始准备时间推断目标准入通过。
+当前无员工任务，目标步骤由主会话串行完成。所有运行证据放在
+`outputs/a9-42-tools/office-journey/win7-r4-trial-r1/`及既有 `outputs/win7-dev/`。
+
+启动前复核发现驱动直接点击检查器内页签，未保证检查器已展开。按本轮普通取证修复授权，
+改为先检查工具栏的展开状态，必要时用真实鼠标打开检查器，再等待展开并点击“变更”；保留原有命中测试。
+产品包和src树未变。原批准材料完整保留，本轮实际材料另存 `driver-revision-1/`，
+driver SHA-256 `880aef17e29b0f92dddbc0e0c8cddc12df86a6e81212c17b8d3ef40948fa3e55`，
+source-binding SHA-256 `d93dacd515e0d8d86b174a410fb8c59e65559dbb65f857560cc5fa6af34ac268`。
+开发机驱动10项检查及Electron22/Node16语法检查PASS；此结果不证明Win7界面旅程。
+窗口从UTC `16:04:58.813`开始，`16:54:58.813`后不开新场景，`17:04:58.813`截止；不因修复重置预算。
+
+### 7.2 传输首失败与同窗口恢复
+
+首次标准cand上传在600秒后返回 `TRANSPORT_FAILED / exit_code=124`，保留
+`win7-r4-trial-r1/candidate-transfer.json`及通道原始字节日志。此时产品尚未启动，Win7夹具请求0次。
+UTC `16:18`只读status直接确认原holder inactive、零根内进程/任务、无未知解包标记。
+暂存文件已关闭且为85262336字节；其SHA-256与本地ZIP同长度前缀一致。
+随后使用同一严格SSH通道续传剩余25272436字节，完整110534772字节的远端SHA-256与批准ZIP完全一致，
+再走既有immutable commit-put与标准cand解包，不改包字节、不延长传输等待或窗口。
+恢复结果及前缀/完整hash见 `win7-r4-trial-r1/transfer-resume.json`；首次失败不改判。
+本地恢复脚本首个导入路径多写一级父目录，发生 `ERR_MODULE_NOT_FOUND`且未执行目标动作；
+修正后继续，原错误另存 `resume-bootstrap-first-failure.json`。
+
+### 7.3 首轮启动拦截与新run绑定
+
+普通agent首轮 `a942o-9d503e71` 在产品加载前返回 `PREEXISTING_TRIAL_PROCESS`，
+原RESULT绑定SID、会话2、Medium和Electron22/Node16。产品/HTTP夹具未启动，请求0次。
+启动脚本含两层同字节根内cmd，而原取证检查只排除直接父cmd；不以忽略全部cmd作为修复。
+新驱动最多收录两层真实祖先，逐层核对父PID、创建时间先后、会话和准确cmd路径，
+拒绝循环、额外同路径进程、错误会话/路径和未知创建时间，并保留实际祖先及异常根内实例。
+新增反例首轮抓住循环识别遗漏，补齐后开发机11项PASS，Electron22/Node16语法PASS；原测试失败保留。
+首轮收尾status直接确认零根内进程/任务、holder inactive、无解包标记。
+
+按§7已批准的有界新run重试，保留首轮目录，使用新的独立根
+`C:\A9-DEV\work\a942o-4e6c9a21\`，通道run名同前缀，不覆盖任何旧输出。
+产品源和ZIP不变；新driver SHA-256 `8afccedfd3ff944459dd912ef8df3d8b87d5a79d7bdbcdda7b267a838ab37e8b`，
+source-binding SHA-256 `a374bbc7e44f3506f36d81eeb41685aa765a2cefdc0e478382bd1a289e0259f6`。
+新材料/结果在 `outputs/a9-42-tools/office-journey/win7-r4-trial-r2/`，
+沿用原 `17:04:58.813Z`截止、最后10分钟不开新场景及全窗口最多16次Win7夹具请求，不重置预算。
+
+### 7.4 第二轮任务查询诊断与第三轮材料
+
+第二轮RESULT直接记录两层准确cmd祖先、零异常根内实例，前一启动问题已闭环；
+随后 `TASK_QUERY_FAILED`停止，仍在产品/夹具加载之前，请求0次。
+同一普通agent的最小探针确认目标 `schtasks /query /fo csv /nh`拒绝格式组合，
+精确任务名及大写CSV探针均返回同一格式错误；停止该路线，保留原始stdout/stderr。
+随后本机Schedule.Service只读探针直接读取自己的准确任务，原已删除任务明确返回HRESULT
+`-2147024894`（文件不存在）。不提升权限、不改任务ACL或系统配置。
+
+驱动改为通过既有PowerShell只读本机调度器的准确任务名；仅该明确错误码可记不存在，
+其他错误fail-closed，存在时必须绑定准确任务路径和agent SID。开发机12项检查及Electron22/Node16语法PASS。
+按同窗口有界重试使用 `C:\A9-DEV\work\a942o-6c83d1f7\`，源/包不变，
+driver SHA-256 `524fc6d88e9cf4d05d62d70d105e39e874eceac779d3ef912bbc7cfe278f9910`，
+source-binding SHA-256 `ce4e9f4cf34b011d229e221df9896d0b4fa5955ebb55f8f5d81005ec9b697796`。
+候选外材料在 `outputs/a9-42-tools/office-journey/win7-r4-trial-r3/`。
+通过既有ps通道一次部署5个新文件，各文件使用CreateNew且逐个核对SHA-256；
+创建前检查全开发根零进程/任务、无未知解包标记和容量，不覆盖前两轮结果。
+截至第三轮准备，真实模型及Win7夹具请求均为0，继续沿用原窗口和16次总上限。
+
+### 7.5 任务身份表示差异与第四轮材料
+
+第三轮在 `TASK_QUERY_IDENTITY`停止，仍未加载产品/夹具。普通agent最小探针直接记录：
+同一任务的COM Principal.UserId返回账户名 `agent`，任务XML的UserId返回已批准SID，准确路径一致。
+驱动改读该任务XML中的SID，继续要求准确路径和完整SID匹配，不放宽到账户名称比较。
+开发机12项及Electron22/Node16语法PASS；此前三轮RESULT与探针原始日志全部保留。
+
+本窗口第四轮独立根 `C:\A9-DEV\work\a942o-7f36b2a9\`，源与r4包仍不变；
+driver SHA-256 `5c6fb6207605dab9a7de3c45d45defe9c236f0d91c14b5807d1c581d099703d8`，
+source-binding SHA-256 `2a075b893957eff291da25be2597596ee6ffb57853cc85c0ee65f3ecc36c90f5`。
+材料与执行结果位于 `outputs/a9-42-tools/office-journey/win7-r4-trial-r4/`。
+部署仍使用CreateNew/逐文件hash核对，并先核对全开发根无活动进程/任务。
+前三轮均在产品加载前停止，Win7夹具累计0次；第四轮继续沿用原截止和16次总上限。
+
+### 7.6 本窗口实机结果与收尾
+
+本轮准确包源 `5143b9cf…`、ZIP `84585361…1dc063`未改变。第四轮普通agent/Medium/会话2直接完成
+真实main/preload/IPC/Runtime/State/Core/Office Worker/Renderer链路：
+未回答时不重发或写文件、问题卡回答、DOCX/XLSX新稿与inspect/read、按原稿SHA生成副本、原件和工作簿保持。
+上述七项UI驱动检查均为true，真实外部模型0次，Win7 loopback夹具累计13次。
+在展开工具记录阶段发生 `DRIVER_OPERATION_FAILED`，controller保留 `UI_INCOMPLETE / HALTED`。
+细化点击错误在旧驱动中被通用诊断掩盖，具体Win7原因UNKNOWN；不将其断言为已修复。
+工具记录完整显示断言、界面撤销、第二问题取消及迟到回答、完整GUI完成后postflight均NOT_PERFORMED。
+原首失败及前三轮启动失败保留，不改判，不重置剩余3次请求预算。
+
+`outputs/win7-dev/office-journey/a942o-7f36b2a9/`保留原RESULT、ui-result、问询截图和三份实际Office文件。
+独立普通agent只读诊断通过11项：原启动任务不存在、真实runtime/身份、正常UI关闭、workspace锁为空、
+两轮已完成、原件/工作簿hash不变、副本存在且改变、所观察产品树已结束。
+两轮实际状态均为 `completed_with_warnings`，按产品已有完成分类记录，不改为无警告完成。
+输入包和运行副本各3256个manifest文件重新逐字节校验一致；完整GUI仍HALTED。
+诊断报告见 `win7-r4-trial-r4/diagnostic-postflight-result.json`，正常收尾不代替未执行的界面步骤。
+
+收尾诊断首个内联入口超出CMD命令行上限，改为新文件入口；第二版误将已合法声明的
+`completed_with_warnings`排除在完成状态外，按既有产品判据修正后另建版本执行。
+原字节日志和失败不覆盖；没有放宽完整GUI、权限、审计或生命周期判据。
+最终只读status于UTC `17:02:10.662`结束：开发根零进程、零临时任务、holder inactive、无解包标记，
+root_bytes=10720016374、free_bytes=882851516416。原窗口提前收尾，之后仅做Mac本地工作。
+窗口与预算记录见 `win7-r4-trial-r4/window-closeout.json`。正式门A/B、真实模型、长期资源预算和发布NOT_PERFORMED。
+
+### 7.7 本地取证改进与证据边界
+
+候选外驱动改为在原生点击前后等待布局/默认动作，继续保留命中测试；记录最后selector和阶段，
+保留脱敏的 `UI_ACTION_OCCLUDED / UI_ACTION_UNAVAILABLE / UI_ACTION_FAILED`，失败时另存截图。
+此改动不改产品或包。开发机Node20驱动13项PASS，Electron22/Node16语法PASS。
+Mac实际Electron22/Node16的原生点击夹具3项PASS，包含8次details连续展开（24个原生输入事件）、
+禁用及被遮挡目标在输入前拒绝。夹具使用产品CSS，产品main/Office/SQLite及Win7均NOT_PERFORMED。
+日志见 `outputs/a9-42-tools/office-journey/native-input-local-r1/RESULT.json`。
+这些检查证明新的交互契约，尚未复现或证明消除本次Win7具体中断；后继实机须验证。
