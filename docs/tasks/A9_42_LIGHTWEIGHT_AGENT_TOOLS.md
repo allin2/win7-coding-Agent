@@ -410,3 +410,93 @@ SQLite事实持久化、正常关闭及锁/进程收尾。通过后按剩余窗�
 只停止本轮根内进程，保留全部文件和证据，不执行close删根或根外终止。
 不读取既有凭据、不改系统或服务、不安装软件、不发真实模型请求、不签正式门A/B、不推送发布。
 身份、完整性、审计或生命周期未知立即停止依赖动作。当前目标执行仍NOT_PERFORMED。
+
+### 5.1 负责人批准与开始前核对（2026-10-29）
+
+负责人针对§5及准确准备材料回复“批准”，随后要求继续执行。
+允许从当前main进行本次60分钟Win7开发试用，真实模型请求上限0次；
+该批准新增本版本的main工作区例外，其他r2身份、锁、预算与停止边界不变。
+批准包仍为§4.10的 `751c76f2…d72085d`，产品源码 `94135364…`，不重建或覆盖。
+本地执行起点HEAD为 `fa1a14ad5cb667df3bfde407f12f3d2ca2c5693c`，起始工作区干净。
+ZIP、驱动、配置模板、启动脚本及3个补充探针的实际SHA-256与批准材料一致。
+本机当前IPv4为10.45.40.145，历史目标192.168.1.9的路由经过utun5；
+这只说明本地网络事实，不证明目标可达或身份。先用既有严格主机键执行一次只读status。
+首次目标动作时间和60分钟deadline记录在候选外窗口文件；目标身份不明前不上传或执行。
+
+### 5.2 网络恢复、非活动锁转交与短路径准入
+
+首次status于2026-10-29T14:22:04.542Z开始，窗口截止15:22:04.542Z；
+最后10分钟不开始新场景的界线为15:12:04.542Z，不因重连重新计时。
+初次SSH返回连接关闭，未建立目标身份；随后负责人确认Mac已换网段并要求检查继续。
+Mac当前192.168.1.16，原192.168.1.9路由已回到en0；不扫描其他设备、不改路由或SSH信任。
+严格主机键下status确认DCCS-CHAIZL-PC/build7601、agent会话2，
+开发根8919186941字节、C盘空闲884995092480字节，根内进程和任务为空，无未知解包状态。
+
+通道留有holder `a93440-8508b507bb` 的非活动锁。
+负责人明确批准把该非活动锁转交本轮 `a942-751c-7f41ca1c`；
+转交前再次核对holder、active=false、零进程/任务及无未知解包标记，随后通过既有--steal入口完成。
+未冒用旧holder；批准和窗口文件见 `outputs/a9-42-tools/win7-trial-r1/`。
+
+标准cand入口在任何传输或锁操作前因路径上限拒绝：该深层staging目录使12个文件达到240字符，
+其中5个达到Win32 MAX_PATH；原始拒绝保留为candidate-transfer.json。
+没有放宽路径或完整性守卫。对同一已批准ZIP，在已授权work根内使用较短input目录解开ZIP顶层的内容，
+最长输入路径235字符、package副本237字符，逐项通过原remotePath守卫。
+实际配置、解包脚本、逐文件预期SHA-256和绑定见config-short-path.json、extract-short-root.ps1、
+expected-files.tsv及actual-input-binding.json；原包、产品源码和原始批准模板均保留。
+解包沿用Shell.Application、有界等待、独占读取、生命周期标记和完整文件计数，另逐文件核对SHA-256。
+当前写入、复制和解包仍仅位于本轮已批准work根，不改变系统或其他候选。
+
+### 5.3 解包中断恢复与实际输入验证
+
+111022225字节ZIP已上传，远端SHA-256与§4.10一致；驱动、实际配置、启动脚本和预期清单均通过上传哈希核对。
+交互中断使本地控制进程结束，原解包action未形成完整结束记录，不能把缺失退出码记0。
+恢复时先status：本轮锁active=true、解包标记仍在，产品进程和临时任务均为空。
+随后只读查询确认4082个文件已经存在，且只剩该次查询自身PowerShell，原解包PowerShell已结束。
+
+按同一holder及原action token恢复本轮事务，不重新--steal、不冒用其他锁。
+逐文件复核4082个文件的大小、SHA-256及独占读取，确认原解包写入已结束，
+再写本轮ready、清本轮解包标记并释放原token。结果为files_verified=4082，original_powershell_ended=true。
+首个中断action的原始空stdout/stderr和未完成状态继续保留；恢复检查有独立完整审计记录。
+本地窗口与远端配置deadline未延长。记录见interrupted-extraction-readonly.json、reconcile-own-extraction.json、
+reconcile-own-release.json及对应 `outputs/win7-dev/actions/` 原始字节。
+
+### 5.4 Win7普通用户直接开发试用完成（DEV_CHANNEL）
+
+准确身份为§4.10源码与ZIP；真实运行在DCCS-CHAIZL-PC、Win7 SP1 x64 build7601、
+普通agent SID `S-1-5-21-1708701742-428676696-1831205153-1001`、会话2、Medium完整性。
+实际Electron22.3.27/Node16.17.1。四次临时计划任务均正常退出0并移除任务。
+没有安装、重编原生、重建产品包或发真实模型请求。
+
+| 直接证据层 | 实际结果 | 限制 |
+|---|---|---|
+| 产品main/preload/strict IPC/State/Renderer | portable窗口实际可见；真实鼠标选择Read Only、新建对话；7项检查通过；正常will-quit已观察 | 未提交Turn、未配置Provider；非完整办公Agent旅程 |
+| SQLite与退出 | 两个对话持久化、权限read_only、Turn数0、工作区锁为空；原包及运行副本前后核验一致 | 不据此重签历史候选或正式Gate |
+| 包内Office/图片模块 | DOCX真实Worker读写、源hash拒绝、原件保留及checkpoint撤销；XLSX回读；nativeImage缩放/预览会话绑定，3项PASS | 模块探针，无产品窗口/模型联动 |
+| 真Electron工作台与preload/strict IPC | 问询失败保留/可重试、忙碌防重复、图片能力开关、CSP下图片解码/关闭/源变化、6视口焦点，6项PASS | Runtime为明确内存夹具，不冒充真实State端到端问询 |
+| Node16包内Office资源观察 | 32次读取，34个Worker创建且全部退出，活动0、峰值并发1；主线程加载办公库数0；close后拒绝新读取 | 100段DOCX/1000单元XLSX，非最重负载/长期观测 |
+
+资源观察RSS基线42917888字节、采样峰值80187392字节、close并GC后45015040字节。
+产品Main另有单次采样126349312字节。不同进程及场景不相加、不作为整个应用常驻峰值。
+PERFORMANCE_BUDGET #2/#3/#10的正式状态不变；没有10分钟空闲、多并发或最重负载直接证据。
+
+原始补充探针模板仍含macOS限制文字及win7=NOT_PERFORMED等静态说明，原报告不改写。
+本轮绑定层明确纠正其适用环境：四个wrapper身份、实际win32/x64/runtime及目标身份均有直接证据；
+只提升本次实际执行项为Win7 DEV_CHANNEL，不提升未执行的真实产品全链路或正式验收。
+报告/截图逐文件SHA-256、任务身份、脚本来源、包来源见 `outputs/win7-dev/a9-42-trial-r1/binding.json`。
+总结果与原始链路分别为该目录SUMMARY.json、portable/RESULT.json、modules-r1、office-resource-r1、workbench-r1。
+两张真实Win7截图已检查，文字与控件可见；字体表现只绑定本次实际截图，不继承macOS字体推断。
+
+产品退出后的SGTool PID12076、创建时间20261029230302.813000+480、会话2及准确映像路径
+符合ADR-0297环境实例；保留且未终止。其余blocking_instances及unexpected_root_instances为空。
+15:10:01.453Z已完成本轮最后写动作的释放；随后只读status确认根内进程/临时任务为空、
+锁holder为本轮且active=false、无未知解包标记，开发根9823224356字节，C盘空闲883782221824字节。
+全部目标动作于窗口截止前完成，窗口不再启动新动作；原包、副本、用户数据和全部证据保留，无文件删除或close删根。
+
+正式门A/B、完整Alpha/RC、真实模型、完整Office Agent GUI旅程、长期资源预算、负责人使用验收、推送发布均NOT_PERFORMED。
+完整release组剩余11项历史FAIL及5项未执行保持原记录，本次开发试用不改判。
+
+交付限制：当前包含深层Office依赖，最长包内相对路径189字符。按通道原239字符限制，
+产品根目录须不长于49字符；本轮使用的短根已直接通过。不要解到深层Downloads或旧cand嵌套目录，
+不启用长路径系统配置或放宽守卫。后续精简非运行时依赖文件须另绑新包和复核，当前包不改字节。
+本轮本地准备及下载证据的只读盘点见 `outputs/a9-42-tools/win7-trial-closeout-r1.json`，全部KEEP。
+窗口准确最终只读动作结束时间15:10:25.726Z，见closed-window.json及SUMMARY.json；此后没有目标动作。

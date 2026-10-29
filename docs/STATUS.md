@@ -23,11 +23,14 @@
   后续发现并修复问询失败返回导致卡片清空/无法重试：65项定向检查PASS，Electron22真实preload/IPC加Runtime夹具交互6项PASS。
   Node16包内Office反复读取128次，130个Worker均退出；RSS观察不构成Win7轻量预算结论。
   修复版产品提交 `94135364…`，新开发ZIP SHA-256 `751c76f2…d72085d` 已构建并校验；旧包保留，见任务书§4.9～§4.10。
-  已准备绑定新包的Win7试用驱动/配置及60分钟、0真实模型请求提案；目标动作尚未授权，见任务书§5。
-  包仅为开发交付，external_acceptance_eligible=false；真实模型、Win32产品GUI、Win7、正式门A/B、推送发布为 NOT_PERFORMED。
+  负责人已批准准确包的Win7开发试用及非活动锁转交；Win7普通agent真实portable窗口、Read Only、新建对话、SQLite持久化及正常退出均完成。
+  Win7包内Office/图片3项、Runtime夹具工作台6项通过；Office读取32次的34个Worker全部退出，结果只作DEV_CHANNEL，见任务书§5.1～§5.4。
+  15:10 UTC收尾确认根内进程/临时任务为空、锁inactive，保留SGTool环境实例和全部文件；原包及副本4082文件哈希一致。
+  包external_acceptance_eligible=false；真实模型、完整Office Agent GUI旅程、正式门A/B、长期预算、推送发布仍为 NOT_PERFORMED。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
-  开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；产品GUI在Electron 22和Win7上的验证及发布为 NOT_PERFORMED。
+  开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。
+  未采用字体候选；正式验收、完整用户使用与发布仍为 NOT_PERFORMED。
 - 本轮 [ENGINEERING_05](tasks/ENGINEERING_05_ALPHA_DELIVERY.md)：规则和日常入口已落地，真实 Win7 锁 bug 已修复；第二轮（ADR-0291）把日常集合降到 107.74 秒并加 Node ABI 前置。
   第一批 20 项清理完成；第二、三批归档核验后经负责人批准删除 1,143,164 个原件，df 可用空间增加 10.94 GB。ADR-0290 授权在 main 连续执行；未授权产品推送、发布或正式签发。
   本轮本地工作树整合已保存 21 个未提交文件并核销旧治理差异；139 个材料根已在工作树外核验保留。

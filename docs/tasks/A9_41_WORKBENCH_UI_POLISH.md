@@ -160,3 +160,15 @@ Codex / gpt-6-astra / xhigh / priority（三方案推演），Codex / gpt-6.1-so
 实际开发包及准确SHA-256见 [A9-42 §4.8](A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#48-已提交源码与实际开发包交付2026-10-29)。
 包内工作台HTML、图片/问询组件及入口闭包已核对；没有重跑或提升本任务已有UI交互证据。
 打包完成不证明产品GUI在Electron22或Win7上的布局、焦点或字体表现，相关运行验证仍NOT_PERFORMED。
+
+### 4.6 随A9-42直接Win7开发试用补证
+
+2026-10-29，负责人批准A9-42准确开发包的60分钟、零真实模型请求试用。
+源 `94135364fa922261d1f0b281ddb29c34b900c7b7`、ZIP `751c76f2…d72085d`，
+Win7 SP1 x64普通agent会话2实际加载产品main/preload/IPC/State及工作台，完成portable启动、
+Read Only、新建对话、SQLite持久化和正常关闭；另用同包Renderer、真实Electron22窗口/preload/strict IPC
+加明确Runtime夹具完成6视口与设置关闭焦点、问询/图片交互检查。
+这补充§4.5中未执行项的DEV_CHANNEL直接证据；不把夹具问询当真实State端到端行为。
+两张Win7截图已直接检查，普通控件及中文可见；没有重新采用§4.4被否决的字体方案。
+准确原始报告、截图哈希、普通用户身份和零残留收尾见 [A9-42 §5.4](A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#54-win7普通用户直接开发试用完成dev_channel)。
+正式门A/B、长期性能预算、完整产品使用验收及发布仍NOT_PERFORMED。
