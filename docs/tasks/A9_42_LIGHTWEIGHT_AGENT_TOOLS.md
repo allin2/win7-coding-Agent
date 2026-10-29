@@ -741,7 +741,7 @@ source-binding SHA-256 `2a075b893957eff291da25be2597596ee6ffb57853cc85c0ee65f3ec
 本轮准确包源 `5143b9cf…`、ZIP `84585361…1dc063`未改变。第四轮普通agent/Medium/会话2直接完成
 真实main/preload/IPC/Runtime/State/Core/Office Worker/Renderer链路：
 未回答时不重发或写文件、问题卡回答、DOCX/XLSX新稿与inspect/read、按原稿SHA生成副本、原件和工作簿保持。
-上述七项UI驱动检查均为true，真实外部模型0次，Win7 loopback夹具累计13次。
+原ui-result中已执行的检查均为true，真实外部模型0次，Win7 loopback夹具累计13次。
 在展开工具记录阶段发生 `DRIVER_OPERATION_FAILED`，controller保留 `UI_INCOMPLETE / HALTED`。
 细化点击错误在旧驱动中被通用诊断掩盖，具体Win7原因UNKNOWN；不将其断言为已修复。
 工具记录完整显示断言、界面撤销、第二问题取消及迟到回答、完整GUI完成后postflight均NOT_PERFORMED。
@@ -770,3 +770,28 @@ Mac实际Electron22/Node16的原生点击夹具3项PASS，包含8次details连�
 禁用及被遮挡目标在输入前拒绝。夹具使用产品CSS，产品main/Office/SQLite及Win7均NOT_PERFORMED。
 日志见 `outputs/a9-42-tools/office-journey/native-input-local-r1/RESULT.json`。
 这些检查证明新的交互契约，尚未复现或证明消除本次Win7具体中断；后继实机须验证。
+
+### 7.8 新20分钟复验提案（PROPOSED，未授权）
+
+本轮取证代码与记录已保存为本地提交 `3c43199acd616ec5e261a3656e8f62bb067d12c5`，未推送。
+新材料位于 `outputs/a9-42-tools/office-journey/prepared-r4-native-retry/`，产品源、r4 ZIP及manifest不变。
+39产品/117编译文件已重新逐字节对照，src树不变；编译/原生来源按准确hash引用INHERITED_EVIDENCE，
+不重复构建。driver SHA-256 `6fd76b5e5412d04207354041cf64b5fa79642f27a87eb0901a1eadc4477e7615`，
+source-binding SHA-256 `3574a73d6333c48445ff1e6bbb5a4cce1b92c09d129a38fcf4230bf4e07b8603`，
+材料manifest SHA-256 `902172003831419adef1f394b9e4e1f04197a70950af25cbd519440bcf5b4834`。
+模板deadline=null，实际执行已验证拒绝；目标执行NOT_PERFORMED。
+
+建议新20分钟DEV_CHANNEL窗口，含准入/部署/执行/取证/收尾，最后10分钟不开新场景。
+真实模型0次，Win7本机随机端口夹具累计最多16次，最多2个新run；预算不足不重跑完整链。
+继续同一目标、严格主机键、普通agent Medium及会话2；目标写入前重新确认身份、空间、
+自有holder inactive及零未知生命周期，其他holder不接管。输入包根仍 `cand\845853613765327c`，
+首个新独立工作根 `C:\A9-DEV\work\a942o-b12c6d8e\`，实际任务名 `A9-DEV-a942o-b12c6d8e`。
+只加载该准确包的真实产品全链；只替代目录选择器，不替代Runtime/Worker/State或产品操作。
+重跑问询回答、Office新稿/读取/副本、工具记录、检查器撤销、第二问询取消/迟到拒绝及独立postflight。
+允许本轮新副本经产品撤销移除、临时任务正常移除和同范围有界取证修复；不覆盖旧包/run，
+不删除其他文件、不安装/改系统、不根外终止、不签正式Gate或推送发布。
+原窗口已结束，新材料和本地改进不构成新的目标执行授权；待负责人对该准确提案决定。
+
+本阶段已只读盘点四轮材料、原生点击夹具、复验材料、通道动作日志及Git worktree入口，
+记录见 `outputs/a9-42-tools/office-journey/r4-window-artifact-inventory.json`。
+原始失败、准确输入和恢复材料全部保留；本地/目标文件删除、推送均NOT_PERFORMED。
