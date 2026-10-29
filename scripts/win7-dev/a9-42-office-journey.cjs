@@ -604,7 +604,14 @@ async function ui(config) {
     await win.webContents.insertText(value);
     await wait(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).value===${JSON.stringify(value)}`), 5000, 'INPUT_VALUE');
   };
-  const submit = async prompt => { need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO'); await fill('#task-prompt', prompt); await click('#run-task'); };
+  const submit = async prompt => {
+    need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO');
+    await wait(() => evaluate('!document.getElementById("task-prompt").disabled'), 10000, 'COMPOSER_READY');
+    await fill('#task-prompt', prompt);
+    await wait(() => evaluate('!document.getElementById("run-task").disabled'), 10000, 'SUBMIT_READY');
+    need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO');
+    await click('#run-task');
+  };
   const completed = phase => wait(async () => {
     const s = await snapshot(); return fixture.state.phase === phase && !s.pendingQuestion && ['completed','completed_with_warnings'].includes(s.agentStatus) ? s : null;
   }, 45000, 'TURN_COMPLETED');
