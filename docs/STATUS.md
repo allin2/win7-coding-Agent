@@ -18,8 +18,9 @@
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 的 DOCX/XLSX 有界读、新稿与修改副本已在主工作区实现；相关开发机定向验证通过。
   六项均完成本地开发交付；开发机Electron22/Node16模块探针5项PASS，包含真实图片解码与Office Worker。
   Office打包夹具依赖缺口已修复；相关打包回归123项PASS，0跳过。完整release组仍有11项历史FAIL及5项未执行，独立记录。
-  负责人已批准审阅清单82项改动保存为本地提交并构建开发包，正在执行；准确授权见任务书§4.7。
-  真实模型、Win32产品GUI、Win7、完整产品打包与发布仍为 NOT_PERFORMED，构建结果另行补记。
+  批准范围82项已保存为本地产品提交 `100f8db4…`，真实干净源码开发包已构建，ZIP SHA-256 `31482faf…76bd4c3`。
+  包完整性与99项Office依赖闭包校验PASS；开发机Electron22/Node16包内模块探针3项PASS，准确绑定见任务书§4.8。
+  包仅为开发交付，external_acceptance_eligible=false；真实模型、Win32产品GUI、Win7、正式门A/B、推送发布为 NOT_PERFORMED。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   main `6ea0b9af…` 加未提交差异已完成长标题开关、窄窗焦点、导航及状态可读性优化。
   开发机定向测试 73 PASS、当前 Renderer 桩交互 14 PASS；打包、Electron 22 与 Win7 为 NOT_PERFORMED，未提交或发布。

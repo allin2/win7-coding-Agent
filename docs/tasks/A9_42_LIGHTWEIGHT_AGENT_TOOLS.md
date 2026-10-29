@@ -293,3 +293,43 @@ nativeImage真PNG缩放/预览身份，真实1280×720 JPEG解码并转换PNG。
 随后使用A9-32开发输入锁及已核对的Electron、Runner、Storage原始ZIP构建新开发输出，
 校验新包自身来源、闭包、SBOM和哈希。构建结果另行追加，不提前宣称PASS。
 本次批准不包含推送、发布、正式门A/B、目标机连接、删除或系统修改。
+
+### 4.8 已提交源码与实际开发包交付（2026-10-29）
+
+批准范围已保存为main本地提交 `100f8db454f67225a03d33cfd628ade0b20fc4bd`，共82项文件。
+暂存检查补获9个新增文件的末尾空行，已仅移除多余空行；无产品语义变更。
+最终暂存准确路径及SHA-256保存在 `outputs/a9-42-tools/delivery-review/approved-source.json`。
+正常提交后工作区干净，未跳过hooks、改写历史或推送。
+
+使用 `npm run package:win7`、原始A9-32开发输入锁及§4.6核对的三个原始ZIP，
+在新目录 `outputs/a9-42-tools/developer-package-r1` 构建成功。
+源码、原生来源、输入哈希、manifest及ZIP闭包检查均通过；没有重编原生组件或替换Profile。
+开发包为 `Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip`，111022149字节。
+ZIP SHA-256：`31482faf030ce58c1bb23236e422a5288db7f9dd96583bbdd6135e3df76bd4c3`。
+manifest SHA-256：`7663cf21ef707c79cd6cecf09c74e6233d25073df9d04cbdbfa092038befb4bd`。
+包绑定上述产品提交、source_dirty=false、external_acceptance_eligible=false；仅为开发包。
+交付记录的后续文档提交不改变该包的源码绑定。
+
+再次校验实际ZIP的4081个manifest文件及包内Office闭包：99项锁定工件、3647个依赖文件
+哈希一致，111个许可证/版权文件保留，SBOM版本和许可证声明完整。
+Office Worker、图片服务、问询/图片Renderer组件、preload及IPC均与提交源码一致。
+结果见 `outputs/a9-42-tools/package-verification-r1.json`。
+
+使用官方darwin-arm64 Electron22.3.27/Node16.17.1，直接加载交付目录resources/app内模块，
+DOCX真实Worker读写/源hash拒绝/原件保留/checkpoint撤销、XLSX真实Worker回读、
+图片真实解码缩放及会话绑定预览共3项PASS，服务close为PASS。
+初次探针继承ELECTRON_RUN_AS_NODE=1，在建立输出前因无法加载electron失败；
+仅在探针子进程移除该环境变量后运行成功，首失败日志保留。
+报告、脚本/运行时/产品ZIP哈希绑定见 `outputs/a9-42-tools/packaged-module-r1/`；
+原始日志见 `outputs/a9-42-tools/package-validation-logs/`。
+这仍是macOS开发机包内模块证据，没有运行Win32产品入口、SQLite或产品窗口。
+
+本轮授权记录的docs:check为394文件/64任务PASS，暂存diff检查PASS。
+先前受影响打包合同123项PASS保持原证据，不因本次源码提交重复执行。
+完整release组原始FAIL及剩余11项历史失败、5项跳过保持§4.6记录，不改判。
+真实模型、Win32产品GUI、Win7实机、正式门A/B、推送和发布均NOT_PERFORMED。
+
+新开发包与探针输出只读盘点见 `outputs/a9-42-tools/package-closeout-r1.json`；
+工作树状态见 `outputs/a9-42-tools/package-worktrees-r1.json`。
+本轮输出、锁定输入和员工工作树均KEEP；忽略文件和进程占用未重新审计，不作可删结论。
+没有删除或清理系统内容。
