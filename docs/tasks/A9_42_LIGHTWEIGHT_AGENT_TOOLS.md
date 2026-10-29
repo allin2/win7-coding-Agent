@@ -369,3 +369,44 @@ Office在同版本Electron的Node16模式直接加载§4.8交付包内模块。
 旧开发包及其证据保留。当前Renderer修复须绑定新产品提交后另建开发输出，不覆盖§4.8的包。
 现有ENGINEERING_03 main例外只覆盖A9-34/A9-40，不自动授权本版本Win7试用；
 本地准备具体试用材料后再请求目标动作批准。正式门A/B、真实模型、推送发布及删除仍NOT_PERFORMED。
+
+### 4.10 修复版开发包与试用准备
+
+§4.9修复已保存为本地产品提交 `94135364fa922261d1f0b281ddb29c34b900c7b7`。
+从真实干净源码、相同开发锁和原始输入构建新目录 `outputs/a9-42-tools/developer-package-r2`，
+旧包及证据保留。新ZIP为111022225字节，SHA-256为
+`751c76f2bddc5a505adf4236bac4b29492c9bd9a4a7f88ba0bec03f64d72085d`；
+manifest SHA-256为 `c647b01bed4a236811ba6285d6c69f172ed6f96ab57a65b21fdfc01bc3bfef9c`。
+
+新ZIP直接完整性校验PASS，4081个manifest文件、99项Office工件及3647个依赖文件闭包均核对。
+与§4.8包相比只变化两个Renderer、SBOM和开发检查身份文件；无文件删除，原生输入未变化。
+开发机Electron工作台6项证据按7个源码文件精确哈希引用INHERITED_EVIDENCE；
+Office128次观察按26个服务/Worker/Workspace/锁文件字节一致引用INHERITED_EVIDENCE，
+其余3647个Office依赖文件也已按锁定清单校验。详情见 `outputs/a9-42-tools/package-verification-r2.json`。
+这些继承只对应开发机同字节模块，不替代Win7、完整main或SQLite直接运行。
+
+候选外Win7准备材料位于 `outputs/a9-42-tools/win7-trial-r1/`。
+portable-only驱动从已有最短链路副本锁定本包来源、ZIP、manifest、4081文件及驱动哈希，
+保留原进程身份、退出、SQLite和锁判据；原历史驱动不改。
+本地有效配置与8种无效配置拒绝、Node16语法检查通过。
+模板deadline为空，未填入批准窗口，当前配置不能执行；没有连接或上传目标机。
+本轮新包、准备材料、工作台和Office观察目录已只读盘点，见
+`outputs/a9-42-tools/followup-closeout-r1.json`；全部KEEP，无删除。
+
+## 5. Win7开发试用提案（PROPOSED，未授权）
+
+建议对§4.10准确开发包，从当前main新增一次ENGINEERING_03 r2的工作区例外。
+目标仍为DCCS-CHAIZL-PC/Win7 SP1 x64/普通agent交互桌面，沿用原主机键、SID、
+严格SSH校验、锁、空间和日额规则，不继承别人的活动锁。
+窗口从首次目标动作起最多60分钟，含传输和收尾；最后10分钟不启动新场景，真实模型请求0次。
+
+先执行真实产品portable最短链路：独立副本和工作区、Read Only选择、新建对话、
+SQLite事实持久化、正常关闭及锁/进程收尾。通过后按剩余窗口运行包内Office/图片模块、
+32次Office读取资源观察和带明确Runtime夹具的工作台交互探针，各层单独记DEV_CHANNEL。
+现有main例外仅覆盖A9-34/A9-40，§4.7亦未授权目标机，因此本节须负责人明确批准后执行。
+
+准确路径、脚本/配置哈希、执行顺序和停止条件见上述准备目录README及binding.json。
+允许写入仅限本轮C:\A9-DEV包、run/package副本及通道控制记录；正常移除本轮临时任务，
+只停止本轮根内进程，保留全部文件和证据，不执行close删根或根外终止。
+不读取既有凭据、不改系统或服务、不安装软件、不发真实模型请求、不签正式门A/B、不推送发布。
+身份、完整性、审计或生命周期未知立即停止依赖动作。当前目标执行仍NOT_PERFORMED。
