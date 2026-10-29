@@ -164,4 +164,31 @@ describe('A9-42 real question card', () => {
     expect(textarea.disabled).toBe(false);
     expect(h.root.children.find((child) => child.className === 'a9-question-actions')!.children[0].disabled).toBe(false);
   });
+
+  it.each(['answered', 'cancelled'])('keeps the question and permits retry after a resolved %s rejection', async (decision) => {
+    const h = harness();
+    const pending = { conversationId: 'conversation-1', questionId: 'question-1', revision: 1,
+      prompt: '仍需回答', options: [], recovered: false };
+    h.card.update(pending);
+    const textarea = h.find(h.root, (node) => node.tagName === 'textarea')!;
+    textarea.value = '保留这份回答';
+    textarea.fire('input');
+    const actions = h.root.children.find((child) => child.className === 'a9-question-actions')!;
+    h.holdReply(Promise.resolve({ ok: false, error: { code: 'A9_QUESTION_REJECTED', message: '回答未保存，请重试。' } }));
+    actions.children[decision === 'answered' ? 0 : 1].fire('click');
+    await h.flush();
+    expect(h.root.hidden).toBe(false);
+    expect(h.root.textContent).toContain('仍需回答');
+    expect(h.root.textContent).toContain('回答未保存，请重试。');
+    expect(textarea.value).toBe('保留这份回答');
+    expect(textarea.disabled).toBe(false);
+    expect(actions.children.every((button) => !button.disabled)).toBe(true);
+    expect(h.root.getAttribute('aria-busy')).toBe('false');
+    h.releaseReply();
+    actions.children[0].fire('click');
+    await h.flush();
+    expect(h.calls).toHaveLength(2);
+    expect(h.calls[1]).toMatchObject({ questionId: pending.questionId, answer: '保留这份回答' });
+    expect(h.root.hidden).toBe(true);
+  });
 });

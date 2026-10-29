@@ -20,6 +20,8 @@
   Office打包夹具依赖缺口已修复；相关打包回归123项PASS，0跳过。完整release组仍有11项历史FAIL及5项未执行，独立记录。
   批准范围82项已保存为本地产品提交 `100f8db4…`，真实干净源码开发包已构建，ZIP SHA-256 `31482faf…76bd4c3`。
   包完整性与99项Office依赖闭包校验PASS；开发机Electron22/Node16包内模块探针3项PASS，准确绑定见任务书§4.8。
+  后续发现并修复问询失败返回导致卡片清空/无法重试：65项定向检查PASS，Electron22真实preload/IPC加Runtime夹具交互6项PASS。
+  Node16包内Office反复读取128次，130个Worker均退出；RSS观察不构成Win7轻量预算结论。修复版开发包待本地更新，见任务书§4.9。
   包仅为开发交付，external_acceptance_eligible=false；真实模型、Win32产品GUI、Win7、正式门A/B、推送发布为 NOT_PERFORMED。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。

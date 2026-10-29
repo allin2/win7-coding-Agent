@@ -333,3 +333,39 @@ DOCX真实Worker读写/源hash拒绝/原件保留/checkpoint撤销、XLSX真实W
 工作树状态见 `outputs/a9-42-tools/package-worktrees-r1.json`。
 本轮输出、锁定输入和员工工作树均KEEP；忽略文件和进程占用未重新审计，不作可删结论。
 没有删除或清理系统内容。
+
+### 4.9 继续推进：问询失败重试与同版本运行时检查（2026-10-29）
+
+负责人继续要求推进，主会话从干净main `c8158d1acdfac8e22954adc959c7a0c3c4f58cab` 开始。
+在既有本地连续交付、普通修复、提交和开发打包范围内执行，不启动员工，不连接目标机。
+
+实际发现：问询回调返回 `{ok:false}` 时，卡片只检查Promise是否抛错，误把失败对象当成功清空；
+工作台在刷新时仍保留questionReply，导致卡片沿用busy状态，失败后无法重试。
+修复仅涉及两个Renderer文件：卡片显式核对ok；工作台在回复结束后按最新快照重推卡片忙碌状态。
+没有改变问题持久化、批准语义、IPC、State或依赖。
+
+新增回答/取消两种失败返回回归。原实现2 FAIL/4 PASS，保留
+`outputs/a9-42-tools/followup-logs/a9-42-question-retry-baseline.log`。
+修复后卡片、真实问询Runtime、工作台合同共65 PASS，依赖闭包先编译，Shell静态门PASS。
+日志为同目录 `a9-42-question-retry-fixed.log`。
+
+使用官方macOS arm64 Electron22.3.27/Node16.17.1/Chromium108，
+创建真实BrowserWindow，加载当前工作台、产品preload、窗口安全策略和strict IPC；Runtime为显式内存夹具。
+6项PASS：纯文本问题、失败后保留回答/重试、忙碌防重复、图片能力开关、
+真实CSP下图片解码/关闭/源变化提示、6种视口与设置关闭焦点。
+原Renderer在该入口直接复现问题卡片清空；修复报告和源码哈希绑定见
+`outputs/a9-42-tools/electron-workbench-fixed-r3/`，截图已检查。
+早期取证夹具的问题方法名、缺失会话事实及程序点击前未聚焦均已按真实契约修复，首失败输出保留；
+未删减断言。此结果不证明产品main、SQLite或Win7 GUI全链路。
+
+Office在同版本Electron的Node16模式直接加载§4.8交付包内模块。
+首次32次读取后RSS未回到基线，因此增加至128次读取观察；实际130个Worker创建后全部退出，
+活动Worker为0、峰值并发1，主线程加载办公库模块数为0，关闭后拒绝新读取。
+最终采样RSS基线46055424字节、峰值97239040字节、关闭并GC后84983808字节；
+最后4批在约85MB，不能据此断言全部原生内存归还、无长期泄漏或Win7预算达标。
+报告见 `outputs/a9-42-tools/office-resource-electron-r2/report.json`。
+样本为100段DOCX及1000单元XLSX，非最大负载；性能预算#2/#3/#10的Win7状态不变。
+
+旧开发包及其证据保留。当前Renderer修复须绑定新产品提交后另建开发输出，不覆盖§4.8的包。
+现有ENGINEERING_03 main例外只覆盖A9-34/A9-40，不自动授权本版本Win7试用；
+本地准备具体试用材料后再请求目标动作批准。正式门A/B、真实模型、推送发布及删除仍NOT_PERFORMED。

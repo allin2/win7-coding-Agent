@@ -46,9 +46,13 @@
       root.setAttribute('aria-busy', 'true');
       controls();
       try {
-        await reply({ conversationId: pending.conversationId, questionId: pending.questionId,
+        const response = await reply({ conversationId: pending.conversationId, questionId: pending.questionId,
           revision: pending.revision, decision,
           ...(decision === 'answered' ? { answer } : {}) });
+        if (!response || response.ok !== true) {
+          throw new Error(response && response.error && response.error.message
+            ? response.error.message : '提交失败，请重试。');
+        }
         if (current === pending) update(null);
       } catch (failure) {
         if (current === pending) showNotice(failure && failure.message ? failure.message : '提交失败，请重试。', true);

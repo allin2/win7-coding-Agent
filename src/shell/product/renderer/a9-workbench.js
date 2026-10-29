@@ -2791,6 +2791,7 @@
         await loadConversationEvents();
         syncComposer();
         state.questionReply = null;
+        if (state.snapshot) renderQuestion(state.snapshot);
       }
     })();
     return state.questionReply;
