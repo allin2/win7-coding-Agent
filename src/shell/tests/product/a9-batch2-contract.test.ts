@@ -2134,7 +2134,7 @@ describe('A9-33 batch-2 request and ledger', () => {
   test('the report verifier rejects a completion that no consumed request produced', () => {
     const root = temp('orphan');
     const authorityFile = path.join(root, 'authority.json');
-    const body = JSON.stringify({ kind: 'WIN7_45_RELEASE_AUTHORITY', status: 'APPROVED_FOR_WIN7_45_VALIDATION', run_id: RUN_ID,
+    const body = JSON.stringify({ kind: 'WIN7_56_EXECUTION_BINDING', evidence_class: 'DEV_CHANNEL', run_id: RUN_ID,
       candidate: { source_commit: 'a'.repeat(40), package_sha256: 'b'.repeat(64), manifest_sha256: 'c'.repeat(64), kit_sha256: 'd'.repeat(64) } });
     fs.writeFileSync(authorityFile, body);
     fs.writeFileSync(path.join(root, requests.LEDGER_FILE), `${JSON.stringify(completed(1, 'p01-env'))}\n`);

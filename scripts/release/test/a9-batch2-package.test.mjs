@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { tempRoot } from './temp-root.mjs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { buildA9ProductCandidate } from '../build-a9-product-v3.mjs';
@@ -124,7 +125,7 @@ const buildOptions = (inputs, outputRoot, extra = {}) => ({ repositoryRoot: inpu
 let shared;
 function sharedCandidate() {
   if (!shared) {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-batch2-TEST_ONLY-'));
+    const root = tempRoot('a9-batch2-TEST_ONLY-');
     const repositoryRoot = cleanSourceFixture(root);
     const inputs = inputsFor(root, repositoryRoot, 'batch2');
     const built = buildA9ProductCandidate(buildOptions(inputs, path.join(root, 'out')));
@@ -143,14 +144,14 @@ function externalFiles(state) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const lock = state.inputs.lock;
   const authority = {
-    schema_version: 1, kind: integrity.AUTHORITY_KIND, status: integrity.AUTHORITY_STATUS, run_id: RUN_ID,
+    schema_version: 1, kind: integrity.AUTHORITY_KIND, evidence_class: 'DEV_CHANNEL', run_id: RUN_ID,
     target: { machine_name: 'TEST-ONLY-HOST', account_name: 'TEST-ONLY\\runner', account_sid: 'S-1-5-21-1-2-3-1001' },
     formal_input_lock_sha256: sha256File(lockCopy),
     approval_registry: { commit: lock.inputs.runner_return_zip.approval_registry.commit, sha256: sha256File(registryCopy) },
     candidate: { source_commit: manifest.source_commit, package_sha256: sha256File(state.built.zipPath), manifest_sha256: sha256File(manifestPath),
       kit_sha256: sha256File(path.join(stage, integrity.KIT_FILE)), helper_sha256: lock.inputs.runner_return_zip.required_entry_sha256 },
   };
-  const authorityPath = path.join(external, 'release-authority.json');
+  const authorityPath = path.join(external, 'execution-binding.json');
   writeJson(authorityPath, authority);
   return { lockCopy, registryCopy, authorityPath, authority, authoritySha256: sha256File(authorityPath), manifestPath, manifest };
 }
@@ -163,7 +164,7 @@ function runIntegrity(state, files, evidenceRoot, extraArgs = [], overrides = {}
 }
 
 test('A9-32 developer lock builds a non-candidate managed package without a validation suite', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-32-developer-TEST_ONLY-'));
+  const root = tempRoot('a9-32-developer-TEST_ONLY-');
   const repositoryRoot = cleanSourceFixture(root);
   const inputs = inputsFor(root, repositoryRoot, 'a9-32');
   const built = buildA9ProductCandidate(buildOptions(inputs, path.join(root, 'out')));
@@ -286,28 +287,60 @@ test('batch-2 integrity accepts the exact candidate and refuses every identity b
   assert.equal(runIntegrity(state, files, path.join(state.root, 'evidence-back')).status, 'PASS');
 });
 
-test('WIN7-56 integrity refuses WIN7-45, WIN7-47, WIN7-48, WIN7-49, WIN7-50, WIN7-51, WIN7-52 and WIN7-53 release authority even with an exact independent pin', () => {
+test('WIN7-56 integrity refuses retired release authorities and unknown or missing evidence classes even with an exact pin', () => {
   const state = sharedCandidate();
   const files = externalFiles(state);
-  assert.equal(integrity.AUTHORITY_KIND, 'WIN7_56_RELEASE_AUTHORITY');
-  assert.equal(integrity.AUTHORITY_STATUS, 'APPROVED_FOR_WIN7_56_VALIDATION');
-  // Reject each stale identity separately, then the complete old authority identity.
-  for (const [index, oldIdentity] of ['WIN7-45', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'WIN7-51', 'WIN7-52', 'WIN7-53', 'WIN7-54', 'WIN7-55'].flatMap((candidate) => {
+  assert.equal(integrity.AUTHORITY_KIND, 'WIN7_56_EXECUTION_BINDING');
+  assert.deepEqual([...integrity.EVIDENCE_CLASSES], ['DEV_CHANNEL', 'FORMAL_GATE_A_EXECUTION']);
+  // Reject each stale release identity separately, then the complete old authority identity.
+  for (const [index, oldIdentity] of ['WIN7-45', 'WIN7-46', 'WIN7-47', 'WIN7-48', 'WIN7-49', 'WIN7-50', 'WIN7-51', 'WIN7-52', 'WIN7-53', 'WIN7-54', 'WIN7-55'].flatMap((candidate) => {
     const prefix = candidate.replace('-', '_');
     return [
-      { kind: `${prefix}_RELEASE_AUTHORITY` },
-      { status: `APPROVED_FOR_${prefix}_VALIDATION` },
-      { kind: `${prefix}_RELEASE_AUTHORITY`, status: `APPROVED_FOR_${prefix}_VALIDATION` },
+      { kind: `${prefix}_RELEASE_AUTHORITY`, evidence_class: undefined },
+      { kind: `${prefix}_RELEASE_AUTHORITY`, evidence_class: 'DEV_CHANNEL' },
+      { kind: `${prefix}_RELEASE_AUTHORITY`, evidence_class: 'FORMAL_GATE_A_EXECUTION' },
     ];
   }).entries()) {
     const authorityPath = path.join(state.root, 'external', `retired-authority-${index}.json`);
-    writeJson(authorityPath, { ...files.authority, ...oldIdentity });
+    const authority = { ...files.authority, ...oldIdentity };
+    if (oldIdentity.evidence_class === undefined) delete authority.evidence_class;
+    writeJson(authorityPath, authority);
     const rejected = runIntegrity(state, { ...files, authorityPath, authoritySha256: sha256File(authorityPath) },
       path.join(state.root, `evidence-retired-authority-${index}`));
     assert.equal(rejected.status, 'FAIL');
     assert.ok(rejected.cases.some((item) => item.status === 'FAIL'
-      && /A9_BATCH2_RELEASE_AUTHORITY_BINDING_INVALID/.test(item.detail)), JSON.stringify(rejected.cases));
+      && /A9_BATCH2_EXECUTION_BINDING_INVALID/.test(item.detail)), JSON.stringify(rejected.cases));
   }
+  for (const evidenceClass of [undefined, null, '', 'FORMAL', 'formal_gate_a_execution', 'DEV_CHANNEL_APPROVED']) {
+    const authorityPath = path.join(state.root, 'external', `evidence-class-${String(evidenceClass)}.json`);
+    const authority = { ...files.authority, evidence_class: evidenceClass };
+    if (evidenceClass === undefined) delete authority.evidence_class;
+    writeJson(authorityPath, authority);
+    const rejected = runIntegrity(state, { ...files, authorityPath, authoritySha256: sha256File(authorityPath) },
+      path.join(state.root, `evidence-class-${String(evidenceClass)}`));
+    assert.equal(rejected.status, 'FAIL', JSON.stringify(rejected.cases));
+    assert.ok(rejected.cases.some((item) => item.status === 'FAIL'
+      && /A9_BATCH2_EXECUTION_BINDING_INVALID/.test(item.detail)), JSON.stringify(rejected.cases));
+  }
+});
+
+test('both execution evidence classes pass the same checks and the report records their class', () => {
+  const state = sharedCandidate();
+  const files = externalFiles(state);
+  const reports = [];
+  for (const evidenceClass of integrity.EVIDENCE_CLASSES) {
+    const authorityPath = path.join(state.root, 'external', `binding-${evidenceClass}.json`);
+    writeJson(authorityPath, { ...files.authority, evidence_class: evidenceClass });
+    const evidence = path.join(state.root, `evidence-${evidenceClass}`);
+    const report = runIntegrity(state, { ...files, authorityPath, authoritySha256: sha256File(authorityPath) }, evidence);
+    assert.equal(report.status, 'PASS', JSON.stringify(report.cases));
+    assert.equal(report.execution_binding.evidence_class, evidenceClass);
+    const moduleLoad = JSON.parse(fs.readFileSync(path.join(evidence, 'g1-module-load.json'), 'utf8'));
+    assert.equal(moduleLoad.evidence_class, evidenceClass);
+    reports.push(report);
+  }
+  // The only report difference is the independently pinned binding bytes/class.
+  assert.deepEqual(reports.map((report) => report.cases.map((item) => item.id)), [reports[0].cases.map((item) => item.id), reports[0].cases.map((item) => item.id)]);
 });
 
 test('batch-2 integrity in phase mode writes a bound phase result that names the failing assertion', () => {
@@ -347,7 +380,7 @@ test('batch-2 integrity in phase mode writes a bound phase result that names the
 const flipHex = (value) => `${value[0] === '0' ? '1' : '0'}${value.slice(1)}`;
 
 test('batch-2 producer refuses a drifted lock, a non-ASCII or LF CMD entry and a BOM in suite text', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-batch2-negative-TEST_ONLY-'));
+  const root = tempRoot('a9-batch2-negative-TEST_ONLY-');
   const repositoryRoot = cleanSourceFixture(root);
   const inputs = inputsFor(root, repositoryRoot, 'batch2');
   const original = inputs.lock;

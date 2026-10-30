@@ -16,8 +16,8 @@ const fixtures = require('./a9-batch2-fixtures.cjs');
 const requests = require('./a9-batch2-desktop-request.cjs');
 
 const CONTRACT = fixtures.CONTRACT;
-const AUTHORITY_KIND = `${CONTRACT.candidate.replace('-', '_')}_RELEASE_AUTHORITY`;
-const AUTHORITY_STATUS = `APPROVED_FOR_${CONTRACT.candidate.replace('-', '_')}_VALIDATION`;
+const AUTHORITY_KIND = `${CONTRACT.candidate.replace('-', '_')}_EXECUTION_BINDING`;
+const EVIDENCE_CLASSES = Object.freeze(['DEV_CHANNEL', 'FORMAL_GATE_A_EXECUTION']);
 const HEX64 = /^[a-f0-9]{64}$/;
 
 function sha256(bytes) { return crypto.createHash('sha256').update(bytes).digest('hex'); }
@@ -54,7 +54,7 @@ function verifyRun(io, options) {
   if (options.through && !through) { problem(problems, 'THROUGH_PHASE_UNKNOWN'); return { ok: false, problems, phases: [], totals: null }; }
   if ((options.candidateLabel || CONTRACT.candidate) !== CONTRACT.candidate) problem(problems, 'CANDIDATE_LABEL_MISMATCH');
 
-  // 1. Independently pinned release authority.
+  // 1. Independently pinned execution binding. It records evidence_class; it is not an approval.
   let authority = null;
   if (!io.exists(options.authorityPath)) problem(problems, 'AUTHORITY_MISSING');
   else {
@@ -63,7 +63,7 @@ function verifyRun(io, options) {
     try { authority = JSON.parse(bytes.toString('utf8')); } catch (_error) { problem(problems, 'AUTHORITY_JSON_INVALID'); }
   }
   if (authority) {
-    if (authority.kind !== AUTHORITY_KIND || authority.status !== AUTHORITY_STATUS) problem(problems, 'AUTHORITY_KIND_OR_STATUS');
+    if (authority.kind !== AUTHORITY_KIND || !EVIDENCE_CLASSES.includes(authority.evidence_class)) problem(problems, 'AUTHORITY_KIND_OR_EVIDENCE_CLASS');
     if (authority.candidate_label !== undefined && authority.candidate_label !== CONTRACT.candidate) problem(problems, 'CANDIDATE_LABEL_MISMATCH');
   }
   const bindings = authority && authority.candidate ? {
@@ -290,7 +290,7 @@ function main(argv = process.argv.slice(2), io = diskIo()) {
   return report;
 }
 
-module.exports = { verifyRun, runNegativeControls, diskIo, overlayIo, main, AUTHORITY_KIND, AUTHORITY_STATUS, REQUIRED_NEGATIVES };
+module.exports = { verifyRun, runNegativeControls, diskIo, overlayIo, main, AUTHORITY_KIND, EVIDENCE_CLASSES, REQUIRED_NEGATIVES };
 if (require.main === module) {
   try { main(); } catch (error) {
     process.stderr.write(`${error && error.message ? error.message : String(error)}\n`);

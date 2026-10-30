@@ -1,7 +1,9 @@
-// A9-33 batch2 package integrity (WIN7-45 tentative, ADR-0155 Proposed).
+// A9-43 batch2 package integrity (WIN7-56 tentative, ADR-0289/0290/0304; ADR-0155 Proposed).
 //
 // Verifies the exact frozen candidate against candidate-external inputs: the original ZIP, the formal input lock,
-// the approval registry and the release authority pinned by an independent SHA-256. Every manifest file is hashed
+// the approval registry and the execution binding pinned by an independent SHA-256. The binding is not an owner
+// approval: DEV_CHANNEL and FORMAL_GATE_A_EXECUTION use the same package checks and differ only in evidence_class.
+// Every manifest file is hashed
 // on disk, every ZIP entry is inflated and hashed, the kit contract must equal the fixtures contract byte for byte,
 // and the packaged modules are actually loaded. The JSON report counts files and mismatches so a reviewer can audit
 // the verdict beyond the case-level PASS. Runs under the packaged electron.exe in ELECTRON_RUN_AS_NODE=1 mode.
@@ -21,8 +23,8 @@ const KIT_FILE = 'A9_BATCH2_VALIDATION_KIT.json';
 const PACKAGE_NAME = `Win7CodingAgent-${CONTRACT.version}-win7-x64.zip`;
 const REGISTRY_FILE = 'a9-v26-approved-build-kits.json';
 const REGISTRY_PATH = 'release/win7-product-v3/a9-v26-approved-build-kits.json';
-const AUTHORITY_KIND = `${CONTRACT.candidate.replace('-', '_')}_RELEASE_AUTHORITY`;
-const AUTHORITY_STATUS = `APPROVED_FOR_${CONTRACT.candidate.replace('-', '_')}_VALIDATION`;
+const AUTHORITY_KIND = `${CONTRACT.candidate.replace('-', '_')}_EXECUTION_BINDING`;
+const EVIDENCE_CLASSES = Object.freeze(['DEV_CHANNEL', 'FORMAL_GATE_A_EXECUTION']);
 const MODULE_ENTRIES = Object.freeze([
   'resources/app/product/a9-package-runtime.js',
   'resources/app/git-adapter/dist/index.js',
@@ -166,9 +168,9 @@ function verifyLock(lock, manifest, registryBytes) {
 function verifyAuthority(candidateRoot, manifest, zipPath, kitSha256, authority, fileSystem) {
   const lockPath = externalFile(authority.formalInputLockPath, candidateRoot, 'FORMAL_INPUT_LOCK', fileSystem);
   const registryPath = externalFile(authority.approvalRegistryPath, candidateRoot, 'APPROVAL_REGISTRY', fileSystem);
-  const authorityPath = externalFile(authority.releaseAuthorityPath, candidateRoot, 'RELEASE_AUTHORITY', fileSystem);
+  const authorityPath = externalFile(authority.releaseAuthorityPath, candidateRoot, 'EXECUTION_BINDING', fileSystem);
   if (path.basename(lockPath).toLowerCase() !== LOCK_FILE || path.basename(registryPath).toLowerCase() !== REGISTRY_FILE) {
-    throw new Error('A9_BATCH2_EXTERNAL_AUTHORITY_FILENAME_INVALID');
+    throw new Error('A9_BATCH2_EXTERNAL_BINDING_FILENAME_INVALID');
   }
   const lockBytes = fileSystem.readFileSync(lockPath);
   const registryBytes = fileSystem.readFileSync(registryPath);
@@ -180,9 +182,10 @@ function verifyAuthority(candidateRoot, manifest, zipPath, kitSha256, authority,
   }
   const lock = readJson(lockPath, fileSystem, 'A9_BATCH2_FORMAL_INPUT_LOCK_JSON_INVALID');
   const registry = readJson(registryPath, fileSystem, 'A9_BATCH2_APPROVAL_REGISTRY_JSON_INVALID');
-  const approved = readJson(authorityPath, fileSystem, 'A9_BATCH2_RELEASE_AUTHORITY_JSON_INVALID');
+  const approved = readJson(authorityPath, fileSystem, 'A9_BATCH2_EXECUTION_BINDING_JSON_INVALID');
   const { runner, storage, electron, approval } = verifyLock(lock, manifest, registryBytes);
-  if (approved.schema_version !== 1 || approved.kind !== AUTHORITY_KIND || approved.status !== AUTHORITY_STATUS
+  if (approved.schema_version !== 1 || approved.kind !== AUTHORITY_KIND
+    || !EVIDENCE_CLASSES.includes(approved.evidence_class)
     || approved.formal_input_lock_sha256 !== sha256(lockBytes)
     || approved.approval_registry?.commit !== approval.commit
     || approved.approval_registry?.sha256 !== approval.sha256
@@ -194,7 +197,7 @@ function verifyAuthority(candidateRoot, manifest, zipPath, kitSha256, authority,
     || typeof approved.run_id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(approved.run_id)
     || typeof approved.target?.machine_name !== 'string' || !approved.target.machine_name
     || typeof approved.target?.account_sid !== 'string' || !approved.target.account_sid) {
-    throw new Error('A9_BATCH2_RELEASE_AUTHORITY_BINDING_INVALID');
+    throw new Error('A9_BATCH2_EXECUTION_BINDING_INVALID');
   }
   const buildKit = runner.build_kit;
   const found = registry.schema_version === 1 && Array.isArray(registry.kits)
@@ -207,6 +210,7 @@ function verifyAuthority(candidateRoot, manifest, zipPath, kitSha256, authority,
   return {
     lock, runner, storage, electron, runId: approved.run_id, target: approved.target,
     authorityIdentity: {
+      evidence_class: approved.evidence_class,
       release_authority_sha256: sha256(authorityBytes),
       formal_input_lock_sha256: sha256(lockBytes),
       approval_registry_commit: approval.commit,
@@ -511,7 +515,8 @@ function main(argv = process.argv.slice(2), environment = {}) {
   });
   const syntaxResults = compilePackagedEntries(candidateRoot, candidateFs);
   writeRaw(path.join(evidenceRoot, 'g1-module-load.json'), {
-    schema_version: 1, candidate_label: CONTRACT.candidate, run_id: argument(argv, 'run-id') || null, modules: moduleResults, syntax_compiled: syntaxResults,
+    schema_version: 1, candidate_label: CONTRACT.candidate, evidence_class: verified ? verified.authorityIdentity.evidence_class : null,
+    run_id: argument(argv, 'run-id') || null, modules: moduleResults, syntax_compiled: syntaxResults,
   });
   const report = {
     schema_version: 1,
@@ -526,7 +531,7 @@ function main(argv = process.argv.slice(2), environment = {}) {
     package_sha256: verified?.packageSha256 || fileHash(zipPath, candidateFs),
     candidate_manifest_sha256: fileHash(manifestPath, candidateFs),
     kit_sha256: verified?.kitSha256 || null,
-    release_authority: verified?.authorityIdentity || null,
+    execution_binding: verified?.authorityIdentity || null,
     manifest_files_checked: verified?.fileChecks.manifest_files_checked || 0,
     zip_entries_checked: verified?.fileChecks.zip_entries_checked || 0,
     mismatches: verified?.fileChecks.mismatches || [],
@@ -551,7 +556,7 @@ function main(argv = process.argv.slice(2), environment = {}) {
 
 module.exports = {
   main, compilePackagedEntries, integrityAssertions, writePhaseResult, selectPhysicalFileSystem, verifyFullTree, verifyAcceptanceCandidate, verifyLock, verifyKit, verifyZip, loadPackagedModules,
-  REQUIRED_FILES, SUITE_FILES, MODULE_ENTRIES, SYNTAX_ENTRIES, LOCK_FILE, KIT_FILE, PACKAGE_NAME, AUTHORITY_KIND, AUTHORITY_STATUS,
+  REQUIRED_FILES, SUITE_FILES, MODULE_ENTRIES, SYNTAX_ENTRIES, LOCK_FILE, KIT_FILE, PACKAGE_NAME, AUTHORITY_KIND, EVIDENCE_CLASSES,
 };
 if (require.main === module) {
   try { main(); } catch (error) {
