@@ -270,3 +270,56 @@ test('one resource query per tick feeds tree observation and samples only the ob
   assert.deepEqual(m.sampler.samples()[1].processes.map(p => p.pid), [10, 99]); assert.equal(calls, 3);
   await m.sampler.stop();
 });
+test('key-less network preflight: GET /models without Authorization, 401 only, body discarded, bounded failures', async () => {
+  const seen = [];
+  const server = http.createServer((req, res) => {
+    seen.push({ method: req.method, url: req.url, auth: req.headers.authorization });
+    if (req.url !== '/models') { res.writeHead(404); res.end(); return; }
+    const status = server.nextStatus === undefined ? 401 : Number(server.nextStatus);
+    if (status === 0) return; // never answer
+    res.writeHead(status, { 'content-type': 'application/json' }); res.end('{"error":{"message":"SECRET_BODY_TEXT"}}');
+  });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  try {
+    const ok = await d.upstreamPreflight({}, url);
+    assert.equal(ok.status, 'PASS'); assert.equal(ok.status_code, 401); assert.equal(ok.authorization_sent, false); assert.ok(ok.response_bytes > 0);
+    assert.deepEqual(seen[0], { method: 'GET', url: '/models', auth: undefined });
+    assert.ok(!JSON.stringify(ok).includes('SECRET_BODY_TEXT'));
+    server.nextStatus = 200; const wrong = await d.upstreamPreflight({}, url);
+    assert.equal(wrong.status, 'FAIL'); assert.equal(wrong.error_code, 'PREFLIGHT_UNEXPECTED_STATUS');
+    server.nextStatus = 0; const slow = await d.upstreamPreflight({ timeouts: { connect: 1000, total: 150 } }, url);
+    assert.equal(slow.error_code, 'UPSTREAM_TOTAL_TIMEOUT');
+  } finally { await new Promise(r => { server.closeAllConnections?.(); server.close(r); }); }
+  const refused = await d.upstreamPreflight({ timeouts: { connect: 1000, total: 2000 } }, url);
+  assert.equal(refused.status, 'FAIL'); assert.equal(refused.error_code, 'UPSTREAM_ECONNREFUSED');
+  assert.throws(() => d.upstreamPreflight({}, 'http://10.0.0.1/'), /TEST_UPSTREAM/);
+  assert.throws(() => d.upstreamPreflight({ timeouts: { total: 30001 } }), /PREFLIGHT_TIMEOUT/);
+  assert.deepEqual(d.certProjection({ subject: { CN: 'api.deepseek.com', O: 'x' }, issuer: { CN: 'TrustAsia' }, valid_to: 'Jan 1 2027', fingerprint256: 'AA', raw: Buffer.from('x') }),
+    { subject_cn: 'api.deepseek.com', issuer_cn: 'TrustAsia', valid_to: 'Jan 1 2027', fingerprint256: 'AA' });
+  assert.equal(d.certProjection({}), null);
+});
+test('preflight runs before key upload; controller gate needs this run PASS record', async () => {
+  const driverFile = require.resolve('../a9-42-real-model-trial.cjs');
+  const c = { ...config(), driver_sha256: b.hash(fs.readFileSync(driverFile)) };
+  const files = new Map();
+  const io = { existsSync: p => files.has(p), readFileSync: (p, e) => files.has(p) ? files.get(p) : fs.readFileSync(p, e),
+    writeFileSync: (p, v, o) => { if (o && o.flag === 'wx' && files.has(p)) throw new Error('EEXIST'); files.set(p, String(v)); } };
+  const pass = async () => ({ schema_version: 1, upstream: d.UPSTREAM, status: 'PASS', error_code: null, tls: { authorized: true, protocol: 'TLSv1.3' } });
+  const fail = async () => ({ schema_version: 1, upstream: d.UPSTREAM, status: 'FAIL', error_code: 'UPSTREAM_ENOTFOUND', tls: null });
+  const identity = () => ({});
+  const write = process.stdout.write; process.stdout.write = () => true;
+  try {
+    assert.throws(() => d.requirePreflight(c, io), /NETWORK_PREFLIGHT_REQUIRED/);
+    files.set(c.api_key_file, 'k'); await assert.rejects(d.networkPreflight(c, { io, check: pass, identity }), /PREFLIGHT_SECRET_PRESENT/); files.delete(c.api_key_file);
+    await assert.rejects(d.networkPreflight({ ...c, driver_sha256: '0'.repeat(64) }, { io, check: pass, identity }), /DRIVER_HASH/);
+    const failed = await d.networkPreflight(c, { io, check: fail, identity });
+    assert.equal(failed.status, 'FAIL'); assert.equal(process.exitCode, 1); process.exitCode = 0;
+    assert.throws(() => d.requirePreflight(c, io), /NETWORK_PREFLIGHT_REQUIRED/);
+    await assert.rejects(d.networkPreflight(c, { io, check: pass, identity }), /PREFLIGHT_REUSE/);
+    files.clear(); await d.networkPreflight(c, { io, check: pass, identity });
+    assert.equal(d.requirePreflight(c, io).status, 'PASS');
+    assert.throws(() => d.requirePreflight({ ...c, run_id: 'a942r-ffffffff' }, io), /NETWORK_PREFLIGHT_REQUIRED/);
+    assert.throws(() => d.requirePreflight({ ...c, driver_sha256: '0'.repeat(64) }, io), /NETWORK_PREFLIGHT_REQUIRED/);
+  } finally { process.stdout.write = write; process.exitCode = 0; }
+});

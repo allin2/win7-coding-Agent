@@ -110,4 +110,52 @@ function startRelay(options, fakeUpstream) {
     stop: () => { state.stopped = true; for (const abort of [...active]) abort('RELAY_STOPPED'); },
     close: () => new Promise(resolve => { state.stopped = true; for (const abort of [...active]) abort('RELAY_STOPPED'); for (const socket of sockets) socket.destroy(); server.close(resolve); }) };
 }
-module.exports = { UPSTREAM, startRelay, usageReader, scanSecrets, consumeKey };
+function certProjection(cert) {
+  if (!cert || typeof cert !== 'object' || !cert.subject) return null;
+  const cn = v => v && typeof v.CN === 'string' ? v.CN.slice(0, 200) : null;
+  return { subject_cn: cn(cert.subject), issuer_cn: cn(cert.issuer),
+    valid_to: typeof cert.valid_to === 'string' ? cert.valid_to : null,
+    fingerprint256: typeof cert.fingerprint256 === 'string' ? cert.fingerprint256 : null };
+}
+// Key-less reachability check over the same Node HTTPS transport as the relay
+// (agent:false, no proxy). No Authorization header is sent; body bytes are counted, never stored.
+// PASS only for an authorized TLS session answering GET /models with 401.
+function upstreamPreflight(options = {}, fakeUpstream) {
+  let upstream = new URL(UPSTREAM);
+  if (fakeUpstream !== undefined) { upstream = new URL(fakeUpstream); need(upstream.protocol === 'http:' && upstream.hostname === '127.0.0.1' && upstream.pathname === '/' && !upstream.search && !upstream.username && !upstream.password, 'TEST_UPSTREAM'); }
+  const timeouts = Object.assign({ connect: 15000, total: 30000 }, options.timeouts);
+  for (const [key, max] of [['connect',15000],['total',30000]]) need(Number.isInteger(timeouts[key]) && timeouts[key] > 0 && timeouts[key] <= max, 'PREFLIGHT_TIMEOUT');
+  return new Promise(resolve => {
+    const start = Date.now();
+    const r = { schema_version: 1, upstream: upstream.origin, method: 'GET', path: '/models', authorization_sent: false,
+      status: 'FAIL', status_code: null, connect_ms: null, total_ms: null, response_bytes: 0, tls: null, error_code: null };
+    let done = false, req, connectTimer, totalTimer;
+    const finish = code => {
+      if (done) return; done = true; clearTimeout(connectTimer); clearTimeout(totalTimer);
+      r.total_ms = Date.now() - start;
+      const tlsOk = upstream.protocol === 'http:' || Boolean(r.tls && r.tls.authorized);
+      r.error_code = code || (r.status_code === 401 && tlsOk ? null : 'PREFLIGHT_UNEXPECTED_STATUS');
+      r.status = r.error_code ? 'FAIL' : 'PASS';
+      if (req) req.destroy(); resolve(r);
+    };
+    req = (upstream.protocol === 'https:' ? https : http).request({ protocol: upstream.protocol, hostname: upstream.hostname,
+      port: upstream.port || undefined, method: 'GET', path: '/models',
+      headers: { accept: 'application/json', 'user-agent': 'a942-network-preflight' }, agent: false }, res => {
+      r.status_code = res.statusCode;
+      res.on('data', b => { r.response_bytes += b.length; if (r.response_bytes > 65536) finish('PREFLIGHT_BODY_LIMIT'); });
+      res.once('end', () => finish());
+      res.once('aborted', () => finish('UPSTREAM_TRUNCATED'));
+      res.once('error', () => finish('UPSTREAM_STREAM_ERROR'));
+    });
+    req.once('socket', socket => socket.once(upstream.protocol === 'https:' ? 'secureConnect' : 'connect', () => {
+      clearTimeout(connectTimer); r.connect_ms = Date.now() - start;
+      if (upstream.protocol === 'https:') r.tls = { authorized: socket.authorized === true, protocol: socket.getProtocol(), cert: certProjection(socket.getPeerCertificate()) };
+    }));
+    // Node codes (ENOTFOUND, ECONNREFUSED, CERT_HAS_EXPIRED...) are diagnostic, never secret.
+    req.once('error', error => finish(error && /^[A-Z][A-Z0-9_]{2,60}$/.test(error.code || '') ? 'UPSTREAM_' + error.code : 'UPSTREAM_CONNECTION_ERROR'));
+    connectTimer = setTimeout(() => finish('UPSTREAM_CONNECT_TIMEOUT'), timeouts.connect);
+    totalTimer = setTimeout(() => finish('UPSTREAM_TOTAL_TIMEOUT'), timeouts.total);
+    req.end();
+  });
+}
+module.exports = { UPSTREAM, startRelay, usageReader, scanSecrets, consumeKey, upstreamPreflight, certProjection };

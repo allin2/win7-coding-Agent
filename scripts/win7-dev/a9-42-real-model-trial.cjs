@@ -113,6 +113,27 @@ function resourceObserver(getObserved, queryRows = () => resources.queryResource
     sample: () => sampler.sampleOnce() };
 }
 
+// Window order: materials -> key-less network preflight PASS -> key upload -> controller.
+// The controller refuses to start (and never reads a key) without this run's PASS record.
+const PREFLIGHT = 'NETWORK_PREFLIGHT.json';
+function requirePreflight(c, io = fs) {
+  const file = path.join(c.run_root, PREFLIGHT); need(io.existsSync(file), 'NETWORK_PREFLIGHT_REQUIRED');
+  const p = JSON.parse(io.readFileSync(file, 'utf8'));
+  need(p.status === 'PASS' && p.run_id === c.run_id && p.driver_sha256 === c.driver_sha256 && p.upstream === relayTools.UPSTREAM, 'NETWORK_PREFLIGHT_REQUIRED');
+  return p;
+}
+async function networkPreflight(config, { io = fs, check = () => relayTools.upstreamPreflight(), identity = currentIdentity } = {}) {
+  identity(config);
+  need(hash(io.readFileSync(__filename)) === config.driver_sha256, 'DRIVER_HASH');
+  need(!io.existsSync(config.api_key_file), 'PREFLIGHT_SECRET_PRESENT');
+  const file = path.join(config.run_root, PREFLIGHT); need(!io.existsSync(file), 'PREFLIGHT_REUSE');
+  const r = { ...(await check()), run_id: config.run_id, driver_sha256: config.driver_sha256, evidence_class: 'DEV_CHANNEL', at: new Date().toISOString() };
+  io.writeFileSync(file, JSON.stringify(r, null, 2) + '\n', { flag: 'wx' });
+  process.stdout.write(JSON.stringify({ status: r.status, error_code: r.error_code }) + '\n');
+  if (r.status !== 'PASS') process.exitCode = 1;
+  return r;
+}
+
 async function postflight(config) {
   currentIdentity(config);
   const file = path.join(config.run_root, 'POSTFLIGHT.json'); need(!fs.existsSync(file), 'POSTFLIGHT_REUSE');
@@ -147,12 +168,13 @@ async function controller(config, injectedQuery) {
   need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO');
   for (const target of [config.run_root, config.input_package_root, config.zip_path]) noLinks(ROOT, target);
   for (const target of [config.package_root, config.workspace_root, path.join(config.run_root, 'RESULT.json')]) need(!fs.existsSync(target), 'OUTPUT_REUSE');
+  const preflight = requirePreflight(config);
   const report = path.join(config.run_root, 'RESULT.json');
   fs.writeFileSync(report, '{}\n', { flag: 'wx' });
   const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'IN_PROGRESS',
     source_commit: config.source_commit, zip_sha256: config.zip_sha256, manifest_sha256: config.manifest_sha256,
     driver_sha256: config.driver_sha256, source_binding_sha256: config.source_binding_sha256,
-    timeline: [], started_at: new Date().toISOString(), task_cleanup: 'NOT_PERFORMED_EXTERNAL_POSTFLIGHT_REQUIRED' };
+    network_preflight: { status: preflight.status, at: preflight.at, tls: preflight.tls }, timeline: [], started_at: new Date().toISOString(), task_cleanup: 'NOT_PERFORMED_EXTERNAL_POSTFLIGHT_REQUIRED' };
   let observed = []; let observer; let observationError; let key;
   const logLeaks = [];
   const logChunk = (fd, b) => { if (!relayTools.scanSecrets(b, key)) { logLeaks.push('SECRET_IN_PROCESS_LOG'); fs.writeSync(fd, '[REDACTED]\n'); } else fs.writeSync(fd, b); };
@@ -425,7 +447,7 @@ async function ui(config) {
     persist(); key = undefined; close();
   }
 }
-module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, readKeyPipe, lateReplyRejected, SUPPORT,
+module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, requirePreflight, networkPreflight, readKeyPipe, lateReplyRejected, SUPPORT,
   controller, ui, postflight, ...relayTools, ...office };
 if (require.main === module) {
   try {
@@ -433,7 +455,8 @@ if (require.main === module) {
     const configFile = path.resolve(args[at + 1]);
     const config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
     need(inside(config.run_root, configFile), 'CONFIG_LOCATION'); noLinks(config.run_root, configFile);
-    Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config) : controller(config))
+    Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config)
+      : args.includes('--network-preflight') ? networkPreflight(config) : controller(config))
       .catch(error => { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; });
   } catch (error) { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; }
 }
