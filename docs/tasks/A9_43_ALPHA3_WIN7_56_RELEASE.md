@@ -256,3 +256,40 @@ P4 审核指出两项 P1：A9-3440 未在真实入口核对依赖闭包；两份
 审核流程偏差：审核员报告曾误触发带委派的技能，违反本单“不再委派”。
 主会话已停止该已完成审核任务的后续及嵌套工作，保留其两项经原代码核对的发现，不增加审核次数。
 本次收尾仅完成原 P4 派单的驱动与通道适配。P5/P6 的阶段计划、版本内容覆盖矩阵和全阶段取证仍未完成。
+
+
+### 8.9 版本阶段与四任务覆盖接线（2026-10-30）
+
+主会话继续完成本地版本材料组装。基线为 `main@a9044ca4…`；保留三个既有 release 测试修改。
+产品与原生源码未改，当前修改影响候选外驱动、准备器和版本计划。原 P2 的 10 阶段不改写。
+
+版本计划入口为 `scripts/release/validation/win7-alpha3/version-plan.cjs`。
+它使用同一个 source/ZIP/manifest 身份，按以下顺序准备独立新 run；核心目录模板和证据类别规则相同。
+分 run 是为隔离数据目录，不新增目标机窗口或单独重置预算。M1～M6 保持留待 RC。
+
+| 版本阶段 | 入口 | 当前必须直接证明的覆盖 |
+|---|---|---|
+| batch2 | 现有 FULL 总控 | 原 10 阶段、37 用例、67 断言；不改历史判据 |
+| background-recovery | A9-3440 普通驱动 | 后台迟到输出、停止与恢复处置、重启保持 |
+| portable | A9-3440 portable 驱动 | 正常产品启动、独立数据目录、持久化、正常关闭 |
+| office-tools | Office 真实界面驱动 | 六视口/中文长标题/焦点；编辑/环境/Skills/图片；同 run 完整 Office 撤销、取消和独立 postflight |
+| real-model | 产品直连真实模型驱动 | S1～S5、准确原件/副本、请求计数、TLS、DPAPI 与独立 postflight |
+
+`journeys/lightweight.cjs` 已接入 Office 驱动的本机 HTTP 序列夹具。它不替换 Runtime 或 State。
+Skills 样本正文只在 read 后返回；检查错误元数据跳过、真实环境事实、编辑定位和失败反馈、有界读取、图片默认关闭/显式开启/后续请求释放。
+工作台检查直接调用真实 preload 的对话重命名，并检查六个视口、长中文标题和设置关闭后的焦点。
+本机文本旅程已经过真实 Runtime/Gateway/Workspace/SQLite；这不是 Win7 或图片解码证据。
+
+准备器同时支持 background-recovery 和 portable，沿用同一包核对与 Git 闭包绑定。
+版本计划逐阶段绑定 run UUID、执行清单与包身份；遗漏、错顺序、重复前缀、错包或前阶段收尾 UNKNOWN 均不能推进。
+该材料生产器不签发权限、不连接目标机。期限为空的模板不可执行；batch2 的准确窗口与 FULL 上下文仍由原生产器绑定。
+
+当前新增接线及回归：开发机 163/163 PASS，0 skipped，原日志 `outputs/next-version-r1/p5-integration/local-logs/integration-r1.log`。
+首轮新测试的导出函数调用错误与返回对象层级错误已定位修正，原日志 version-r1.log 保留。
+本轮后续先锁定执行源码，再从独立干净检出准备正式 Profile 开发包；主树原有修改不纳入包。
+Win7/PowerShell 实际运行、图片与六视口当前包直接结果、全阶段结果、门 A/B 均为 NOT_PERFORMED。
+
+Node16 直接部署与入口八项、版本计划的五阶段/37 用例解析检查已通过。日志同目录 `node16-binding-r1.log` 与 `node16-plan-r1.log`。
+本次普通后台驱动与 portable 使用同一源包复制策略，避免新统一根内产品运行副本尚未建立时直接启动。
+原生三个外部 ZIP 已按当前正式输入锁逐个复算：Electron、Runner v26、SQLite 均匹配；见 `input-audit.json`。
+这只解除打包输入身份缺口，不提升为新包或 Win7 PASS。

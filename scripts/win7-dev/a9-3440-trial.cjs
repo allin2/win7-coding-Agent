@@ -50,7 +50,8 @@ function validateConfig(config, options = {}) {
   need(inside(ROOT, config.run_root) && inside(ROOT, config.package_root), 'CONFIG_ROOT');
   need(inside(config.run_root, config.package_root) && !inside(config.package_root, config.run_root), 'CONFIG_ROOTS_OVERLAP');
   need(inside(config.run_root, config.cmd_path), 'CONFIG_CMD_ROOT');
-  need(config.real_model_request_limit === 0 && Number.isFinite(Date.parse(config.deadline_utc)), 'CONFIG_BUDGET');
+  need(config.real_model_request_limit === 0 && (Number.isFinite(Date.parse(config.deadline_utc))
+    || options.allowTemplate === true && config.deadline_utc === null), 'CONFIG_BUDGET');
   if (portable) {
     need(inside(ROOT, config.input_package_root), 'CONFIG_INPUT_ROOT');
     need(config.input_package_root !== config.run_root && config.input_package_root !== config.package_root
@@ -400,6 +401,8 @@ async function controller(config) {
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'DRIVER_HASH');
     verifyExecution(config);
     new vm.Script(fs.readFileSync(__filename, 'utf8'), { filename: __filename });
+    result.original_package = verifyPackage({ ...config, package_root: config.input_package_root });
+    result.copy = copyPortablePackage(config);
     result.package = verifyPackage(config);
     config.driver_runtime = prepareDriverRuntime(config);
     result.driver_runtime = config.driver_runtime;

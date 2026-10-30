@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const http = require('http');
 const cp = require('child_process');
 const os = require('os');
+const lightweight = require('./journeys/lightweight.cjs');
 const authority = require('../release/validation/win7-alpha3/authority.cjs');
 const ROOT = 'C:\\A9-DEV';
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
@@ -107,6 +108,7 @@ function driverClosure(entry) {
   if (entry === 'a9-42-real-model-trial.cjs') names.push('a9-42-real-model-relay.cjs',
     'a9-42-real-model-direct.cjs', 'a9-42-real-model-samples.cjs', 'a9-42-resource-sampler.cjs');
   return [...new Set(names)].map(name => 'scripts/win7-dev/' + name).concat([
+    'scripts/win7-dev/journeys/lightweight.cjs',
     'scripts/release/validation/win7-alpha3/authority.cjs', 'scripts/release/validation/win7-alpha3/deny-set.cjs']);
 }
 function copyDriverClosure(destination, entry, io = fs) {
@@ -515,8 +517,10 @@ function fixtureStep(state, parsed) {
   need(!state.stopped, 'FIXTURE_STOPPED');
   need(parsed && Array.isArray(parsed.messages) && Array.isArray(parsed.tools), 'FIXTURE_REQUEST_SCHEMA');
   const tools = parsed.tools.map(t => t.function && t.function.name);
+  const extension = state.versionTools && lightweight.step(state, parsed);
+  if (extension) return extension;
   if (tools.includes('probe_test_echo')) {
-    need(state.phase === 'ready' && ++state.probes === 1 && tools.length === 1, 'FIXTURE_PROBE_REPLAY');
+    need(state.phase === 'ready' && ++state.probes <= (state.versionTools ? 3 : 1) && tools.length === 1, 'FIXTURE_PROBE_REPLAY');
     return { tool_calls: [{ index: 0, id: 'a942o-probe', type: 'function', function: { name: 'probe_test_echo', arguments: '{"message":"probe_ok"}' } }] };
   }
   for (const name of ['ask_user','document_write_copy','document_read','document_inspect']) need(tools.includes(name), 'FIXTURE_TOOLS_MISSING');
@@ -580,7 +584,7 @@ function fixtureStep(state, parsed) {
   throw new Error('FIXTURE_UNKNOWN_PHASE');
 }
 function startFixture(log = () => {}, options = {}) {
-  const state = makeFixtureState(); const sockets = new Set();
+  const state = makeFixtureState(); state.versionTools = options.versionTools === true; const sockets = new Set();
   const server = http.createServer((req, res) => {
     req.setEncoding('utf8'); // Preserve Chinese across HTTP chunk boundaries.
     let body = ''; let refused = false;
@@ -596,7 +600,7 @@ function startFixture(log = () => {}, options = {}) {
       try {
         need(req.method === 'POST' && req.url === '/v1/chat/completions', 'FIXTURE_ROUTE');
         need(!options.deadline || Date.now() < options.deadline, 'FIXTURE_DEADLINE');
-        need(++state.requests <= 16, 'FIXTURE_REQUEST_LIMIT');
+        need(++state.requests <= (state.versionTools ? 32 : 16), 'FIXTURE_REQUEST_LIMIT');
         const delta = fixtureStep(state, JSON.parse(body));
         log({ kind: delta.tool_calls ? delta.tool_calls[0].function.name : 'final', request: state.requests, phase: state.phase });
         res.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -833,8 +837,9 @@ async function ui(config) {
     check('PORTABLE_FLAG', process.argv.includes('--portable'));
     need(!fs.existsSync(config.workspace_root) && !fs.existsSync(config.data_root), 'UI_OUTPUT_REUSE');
     fs.mkdirSync(config.workspace_root);
+    lightweight.seed(config.workspace_root, require('electron').nativeImage);
     app.setPath('crashDumps', path.join(config.run_root, 'environment/temp'));
-    fixture = startFixture(entry => { result.fixture.push(entry); persist(); }, { deadline: Date.parse(config.deadline_utc) });
+    fixture = startFixture(entry => { result.fixture.push(entry); persist(); }, { deadline: Date.parse(config.deadline_utc), versionTools: true });
     const url = await fixture.listen();
     const sentinel = 'a942-local-' + crypto.randomBytes(16).toString('hex');
     // Only a hash is persisted. No request bodies, credentials, or raw errors are logged.
@@ -857,6 +862,25 @@ async function ui(config) {
     await click('#a9-provider-apply');
     await wait(() => evaluate('!document.getElementById("a9-provider-apply").disabled&&document.getElementById("a9-provider-probe-state").textContent==="tool_calling"'), 20000, 'PROBE');
     await click('#settings-drawer header [data-close]');
+    result.workbench = await lightweight.workbench({ win, evaluate, click, wait, snapshot }); persist();
+    const toolTurn = async kind => {
+      await submit('a943:tools:' + kind);
+      await wait(async () => { const s = await snapshot(); return fixture.state.lightweight && fixture.state.lightweight.done
+        && fixture.state.lightweight.kind === kind && ['completed','completed_with_warnings'].includes(s.agentStatus); }, 45000, 'VERSION_TOOLS_COMPLETED');
+    };
+    const images = async enabled => {
+      await click('#a9-provider-open');
+      await evaluate(`document.getElementById('a9-provider-images').checked=${enabled}`);
+      await click('#a9-provider-apply');
+      await wait(() => evaluate('!document.getElementById("a9-provider-apply").disabled'), 20000, 'PROVIDER_UPDATED');
+      await click('#settings-drawer header [data-close]');
+    };
+    await toolTurn('off');
+    check('VERSION_EDIT_ON_DISK', fs.readFileSync(path.join(config.workspace_root, lightweight.NOTE), 'utf8') === '第一行\n新锚点\n第三行\n');
+    await images(true); await toolTurn('on');
+    check('IMAGE_METADATA_IN_STATE', (await snapshot()).timeline.some(e => e.data && e.data.toolName === 'read_image'));
+    await images(false); await toolTurn('released');
+    result.version_tools = fixture.state.lightweight.results; persist();
     await submit('a942:office:new');
     const waiting = await wait(async () => { const s = await snapshot(); return s.agentStatus === 'needs_input' && s.pendingQuestion ? s : null; }, 20000, 'QUESTION');
     const requests = fixture.state.requests;

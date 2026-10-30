@@ -37,7 +37,11 @@ function verifyExecutionSource(s, entry) {
     return { path: relative, sha256: expected };
   });
 }
-async function prepare(s) {
+async function prepare(s, options = {}) {
+  const entry = options.entry || 'a9-42-office-journey.cjs';
+  need(['a9-42-office-journey.cjs','a9-3440-trial.cjs'].includes(entry), 'PREPARE_DRIVER_ENTRY');
+  need(options.portable === undefined || typeof options.portable === 'boolean', 'PREPARE_DRIVER_PROFILE');
+  const background = entry === 'a9-3440-trial.cjs';
   need(s && Object.keys(s).sort().join(',') === ['source_root','zip_path','output_root','source_commit','run_id','session_id','execution_binding_path','target_tools_root'].sort().join(','), 'PREPARE_FIELDS');
   for (const k of ['source_root','zip_path','output_root']) need(path.isAbsolute(s[k]), 'PREPARE_LOCAL_PATH');
   need(path.isAbsolute(s.execution_binding_path), 'PREPARE_LOCAL_PATH');
@@ -47,7 +51,7 @@ async function prepare(s) {
   need(s.target_tools_root === execution.layout.tools_root, 'PREPARE_TARGET_LAYOUT');
   const git = args => cp.execFileSync('git', ['-C', s.source_root, ...args], { maxBuffer: 8 * 1024 * 1024 });
   const sourceIdentity = verifySourceIdentity(s);
-  const executionFiles = verifyExecutionSource(s, 'a9-42-office-journey.cjs');
+  const executionFiles = verifyExecutionSource(s, entry);
   const zip = await import(pathToFileURL(path.join(__dirname, '../release/zip-utils.mjs')).href);
   const entries = zip.readZipEntries(s.zip_path).filter(e => !e.directory);
   const manifests = entries.filter(e => e.name.endsWith('/release-manifest.json'));
@@ -99,13 +103,13 @@ async function prepare(s) {
     }
   }
   need(products.length > 10 && compiled.length > 10, 'PREPARE_PRODUCT_CLOSURE');
-  const driverBytes = fs.readFileSync(path.join(__dirname, 'a9-42-office-journey.cjs'));
+  const driverBytes = fs.readFileSync(path.join(__dirname, entry));
   const layout = execution.layout;
-  const c = { schema_version: 1, evidence_class: execution.evidence_class, profile: 'office-journey', run_id: execution.run_id,
+  const c = { schema_version: 1, evidence_class: execution.evidence_class, profile: background ? (options.portable ? 'portable-smoke' : undefined) : 'office-journey', run_id: execution.run_id,
     source_commit: execution.source_commit, zip_sha256: execution.package_sha256,
     manifest_sha256: execution.manifest_sha256, driver_sha256: driver.hash(driverBytes),
     source_binding_sha256: '0'.repeat(64), manifest_file_count: m.files.length, session_id: s.session_id,
-    task_name: driver.taskNameFor(execution, 'office-journey'), deadline_utc: null, real_model_request_limit: 0,
+    task_name: driver.taskNameFor(execution, background ? 'a93440' : 'office-journey'), deadline_utc: null, real_model_request_limit: 0,
     input_package_root: layout.input_package_root, zip_path: layout.zip_path,
     run_root: layout.run_root, package_root: layout.package_root, workspace_root: layout.workspace_root,
     data_root: layout.data_root, cmd_path: layout.cmd_path, source_binding_path: layout.source_binding_path,
@@ -120,15 +124,17 @@ async function prepare(s) {
     source_build_boundary: 'Current committed source recompiled with product declaration/map/sourceMap flags disabled; output bytes matched the package. Native inputs are not rebuilt.' };
   const bindingBytes = Buffer.from(JSON.stringify(binding, null, 2) + '\n', 'utf8');
   c.source_binding_sha256 = driver.hash(bindingBytes);
-  driver.validateConfig(c, Date.now(), true, { executionBindingPath: s.execution_binding_path });
+  if (background) require('./a9-3440-trial.cjs').validateConfig(c,
+    { executionBindingPath: s.execution_binding_path, allowTemplate: true });
+  else driver.validateConfig(c, Date.now(), true, { executionBindingPath: s.execution_binding_path });
   fs.mkdirSync(s.output_root, { recursive: true });
   const write = (name, bytes) => fs.writeFileSync(path.join(s.output_root, name), bytes, { flag: 'wx' });
   write('source-binding.json', bindingBytes);
-  driver.copyDriverClosure(s.output_root, 'a9-42-office-journey.cjs');
-  driver.verifyDriverClosure(executionFiles, 'a9-42-office-journey.cjs', fs, s.output_root);
+  driver.copyDriverClosure(s.output_root, entry);
+  driver.verifyDriverClosure(executionFiles, entry, fs, s.output_root);
   write('execution-binding.json', execution.bytes);
   write('config-template.json', JSON.stringify(c, null, 2) + '\n');
-  write('launch-template.cmd', '@echo off\r\nsetlocal\r\nset NODE_OPTIONS=\r\nset ELECTRON_RUN_AS_NODE=1\r\n"%~dp0package\\electron.exe" "%~dp0scripts\\win7-dev\\a9-42-office-journey.cjs" --config "%~dp0..\\e\\config.json"\r\nexit /b %errorlevel%\r\n');
+  write('launch-template.cmd', '@echo off\r\nsetlocal\r\nset NODE_OPTIONS=\r\nset ELECTRON_RUN_AS_NODE=1\r\n"%~dp0package\\electron.exe" "%~dp0scripts\\win7-dev\\' + entry + '" --config "%~dp0..\\e\\config.json"\r\nexit /b %errorlevel%\r\n');
   return { status: 'LOCAL_PREPARATION_ONLY', output_root: s.output_root, source_commit: c.source_commit,
     driver_sha256: c.driver_sha256, zip_sha256: c.zip_sha256, deadline_utc: null, target_execution: 'NOT_PERFORMED' };
 }
