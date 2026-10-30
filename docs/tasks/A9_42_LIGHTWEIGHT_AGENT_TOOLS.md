@@ -1078,3 +1078,46 @@ Win7实机、真DPAPI恢复、公网TLS、真实模型与费用均NOT_PERFORMED�
 只读收尾清单为 `outputs/a9-42-tools/real-model-trial/closeout-inventory-r3-direct.json`：
 本轮材料、编译输出、合成夹具与两份原员工工作树均KEEP，无删除；工作树仍有未提交交付文件，进程占用UNKNOWN。
 没有连接Win7、读取真实密钥、执行外部预检、发真实模型请求、安装依赖、修改系统、推送或发布。
+
+### 8.5 直连实机试用批准（2026-10-30 UTC）
+
+负责人针对§8.4具体材料回复“批准，可以适当延长窗口和使用次数”。
+本轮从main `6427ef3…`执行原r4包和prepared-r3-direct准确输入。
+以60分钟、30次发送请求起跑，必要时最多90分钟、40次累计发送请求；最后10分钟只收尾。
+不因新run重置总请求数或时间；失败场景不重跑，普通取证修复保留首失败。
+负责人已批准在这个有界请求范围内使用真实模型，未指定金额硬上限；不再以缺少金额阻止已批准动作，
+实际usage或结算不可得仍记UNKNOWN，不宣称30/40次等于金额封顶。
+普通agent产品进程获准读取默认userData的三份必要加密材料、向新portable写最小投影，原件只读且核对hash。
+控制器/管理员通道不解密、不下载加密原件，不扩大到整套用户数据或其他秘密；恢复失败停止依赖场景。
+沿用主机键、身份、锁、空间、安全停止与正常移除本轮临时计划任务；无根外终止、安装、系统修改、删除、正式Gate或发布。
+实际起止、host/session和request总账在本轮候选外window.json及结果补录。
+
+### 8.6 首次直连结果与Schema根因（原r4，2026-10-30 UTC）
+
+窗口从UTC `03:27:28.282`开始；常规截止 `04:27:28.282`，最后10分钟收尾，
+已批准的可用上界为 `04:57:28.282`及累计40次，当前输入仍60分钟/30次。
+初始status直接确认原主机7601、agent会话2、自有holder inactive、根内零进程/任务、无解包标记。
+原r4包/ZIP/39产品文件及driver绑定通过，run `a942r-8226e8de`真实产品恢复DPAPI，
+key source=dpapi、available/remembered=true；原userData三文件hash在产品退出后及独立postflight均相同。
+共6次真实HTTPS请求，TLS1.3及证书授权均为true；1次probe返回200/tool_calling，随后5场景均返回400。
+S1/S2/S3原判FAIL/TURN_NOT_COMPLETED、S4/S5原判FAIL/MODEL_DID_NOT_ASK保留，不因正常退出改判。
+SQLite只读诊断直接得到服务错误：ask_user的Schema items字符串不是合法schema；全部任务在执行工具前失败。
+
+共同根因为Core内部ToolInputProperty使用type='string[]'、items='string'，Gateway原来只补根type=object，
+没有把内部数组合同转换为标准JSON Schema；ask_user常驻工具表，所有场景都被同一缺陷阻断。
+这是产品序列化bug，不改Core工具入参、权限、问询事实或保真语义。
+最小修复在Gateway现有normalizeFunctionParameters：内部string[]转type=array、items={type:string}，
+每项maxLength移到items内，maxItems保留；显式供应商JSON Schema保持原样。
+依据为[JSON Schema数组规则](https://json-schema.org/understanding-json-schema/reference/array#items)。
+新增真实Core工具表→Gateway→严格本机HTTP服务反例：旧实现直接400；修复后通过，覆盖200字符/6项边界、
+源对象不变及显式vendor schema不改写。首轮反例测试自身ToolCall字段误写已修正，未把0项执行当作复现证据。
+产品复现日志为schema-repro-before-r2.log；修复定向及受影响回归为schema-fixed-affected.log；
+Electron22/Node16真实Gateway+实际ask_user工具表的4项检查见node16-direct-schema-fixed/RESULT.json。
+
+本次控制器状态TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED仅表示取证完成，
+独立postflight为TRIAL_DEV_CHANNEL_POSTFLIGHT_COMPLETE，仅证明原件hash和退出/任务链。
+准确SGTool PID312/creation20261030113030.613000+480按ADR-0297保留，不根外终止。
+资源取得50拍；空闲60秒观察树工作集均值279582105.6字节，CPU均值0.1384%（4逻辑核归一），
+包含驱动及环境进程，不能分离为正式Shell/Main预算，也不能代表成功办公任务峰值。
+原始证据在outputs/win7-dev/real-model/a942r-8226e8de；本轮准备/诊断在real-model-trial/win7-r3-direct-r1。
+不重跑旧包失败场景。普通产品修复先完成本地验证、新源码与不可变开发包，再判定后继目标输入。

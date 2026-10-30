@@ -8,6 +8,7 @@ const assert = require('assert');
 const d = require('../a9-42-real-model-direct.cjs');
 const { safeError } = require('../a9-42-office-journey.cjs');
 const { OpenAICompatibleProvider } = require('../../../src/gateway/dist');
+const { a9ToolSpecs } = require('../../../src/core/dist/a9-tools');
 const output = process.argv.find(a => a.startsWith('--output='))?.slice(9);
 assert(output && path.isAbsolute(output) && !fs.existsSync(output), 'NEW_OUTPUT_REQUIRED');
 fs.mkdirSync(output, { recursive: true });
@@ -21,7 +22,10 @@ const key = 'TEST_ONLY_NODE16_KEY';
 const sockets = new Set(); let guard, forwarded = 0;
 const server = http.createServer((req, res) => {
   forwarded++; assert.strictEqual(req.headers.authorization, 'Bearer ' + key);
-  req.resume(); req.once('end', () => {
+  let body = ''; req.on('data', b => body += b.toString('utf8')); req.once('end', () => {
+    const options = JSON.parse(body).tools.find(t => t.function.name === 'ask_user').function.parameters.properties.options;
+    assert.strictEqual(options.type, 'array'); assert.deepStrictEqual(options.items, { type: 'string', maxLength: 200 });
+    assert.strictEqual(options.maxItems, 6); assert.strictEqual(options.maxLength, undefined);
     res.writeHead(200, { 'content-type': 'text/event-stream' });
     res.write('data: {"choices":[{"delta":{"content":"actual-stream"},"finish_reason":null}]}\n\n');
     res.end('data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"total_tokens":9}}\n\ndata: [DONE]\n\n');
@@ -35,11 +39,13 @@ const timer = setTimeout(() => { if (guard) guard.stop(); for (const s of socket
     await new Promise(r => server.listen(0, '127.0.0.1', r)); const url = 'http://127.0.0.1:' + server.address().port;
     guard = d.installDirectGuard({ limit: 1, deadline: Date.now() + 5000 }, url);
     const provider = new OpenAICompatibleProvider({ baseUrl: url + '/v1', model: 'fixture', apiKey: key, retryConfig: { maxRetries: 0 } });
+    const tools = a9ToolSpecs('full_access').map(t => ({ name: t.name, description: t.description, parameters: t.inputSchema }));
     let chunks = 0;
-    await provider.sendStreamRequest({ id: 'node16', messages: [{ role: 'user', content: 'fixture' }] }, () => chunks++);
+    await provider.sendStreamRequest({ id: 'node16', messages: [{ role: 'user', content: 'fixture' }], tools }, () => chunks++);
     await new Promise(r => setImmediate(r)); guard.assertEvidence(); assert(chunks > 0);
     assert.deepStrictEqual(guard.state.records[0].usage, { total_tokens: 9 });
     report.checks.push({ name: 'current_gateway_incremental_stream_and_usage', status: 'PASS' });
+    report.checks.push({ name: 'actual_core_ask_user_standard_json_schema', status: 'PASS' });
     await assert.rejects(provider.sendStreamRequest({ id: 'blocked', messages: [{ role: 'user', content: 'fixture' }] }, () => {}));
     assert.strictEqual(forwarded, 1); assert.strictEqual(guard.state.requests, 1); assert.strictEqual(guard.state.blocked, 1);
     report.checks.push({ name: 'request_cap_before_original_transport', status: 'PASS' });

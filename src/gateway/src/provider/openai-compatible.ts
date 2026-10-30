@@ -147,11 +147,27 @@ const DEFAULT_NO_DATA_TIMEOUT_MS = 120_000;
  * OpenAI-compatible function parameters must be an object JSON Schema. Core's
  * ToolInputSchema historically models only the object body (properties,
  * required, additionalProperties), so normalize that internal shorthand at
- * the Provider wire boundary. Explicit vendor schemas keep their declared type.
+ * the Provider wire boundary, including string[] and its per-item maxLength.
+ * Explicit vendor schemas keep their declared type and nested schema unchanged.
  */
 function normalizeFunctionParameters(parameters: Record<string, unknown>): Record<string, unknown> {
   if (parameters.type !== undefined) return { ...parameters };
-  return { ...parameters, type: 'object' };
+  const properties = parameters.properties;
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
+    return { ...parameters, type: 'object' };
+  }
+  return {
+    ...parameters,
+    type: 'object',
+    properties: Object.fromEntries(Object.entries(properties).map(([name, property]) => {
+      if (!property || typeof property !== 'object' || Array.isArray(property)) return [name, property];
+      const input = property as Record<string, unknown>;
+      if (input.type !== 'string[]') return [name, property];
+      // ToolInputProperty.maxLength constrains every option, not the array itself.
+      const { maxLength, items: _items, ...rest } = input;
+      return [name, { ...rest, type: 'array', items: { type: 'string', ...(maxLength !== undefined ? { maxLength } : {}) } }];
+    })),
+  };
 }
 
 /** 不可重试的 HTTP 状态：认证、参数与工具格式错误。 */
