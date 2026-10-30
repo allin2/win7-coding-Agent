@@ -308,3 +308,4 @@
 | ADR-0302 | A9-42 本地可选 Office Lite | Accepted |
 | ADR-0303 | A9-42 Office Lite交付子集与原始工件双重绑定 | Accepted |
 | ADR-0304 | WIN7-56 起执行目录统一与拒绝集数据文件 | Accepted |
+| ADR-0305 | WIN7-56 上机前三项裁决：补充组留待 RC、根外夹具例外续期、门 A 前统一准入 | Accepted |
