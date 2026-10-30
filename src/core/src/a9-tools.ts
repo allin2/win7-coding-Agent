@@ -195,7 +195,7 @@ export function a9ToolSpecs(mode: PermissionMode = PermissionMode.FULL_ACCESS, o
     });
     if (mode === PermissionMode.FULL_ACCESS) readOnlyTools.push({
       schemaVersion: '2.0', name: 'document_write_copy', approvalLevel: writeLevel, capability: 'workspace.write',
-      description: '创建新的 DOCX/XLSX 副本，拒绝覆盖。content 是 schemaVersion:1 的 JSON。DOCX: {schemaVersion:1,format:"docx",blocks:[{type:"paragraph",text:"正文"},{type:"heading",level:1,text:"标题"},{type:"table",rows:[["单元格"]]}]}。XLSX: {schemaVersion:1,format:"xlsx",sheets:[{name:"Sheet1",rows:[["文本",12,true,null]]}]}。修改本模块文档时提供 sourcePath 与 document_read/inspect 返回的 sha256，再给完整替换内容；不承诺原稿版式保真。',
+      description: '创建新的 DOCX/XLSX 副本，拒绝覆盖。content 是 schemaVersion:1 的 JSON。DOCX: {schemaVersion:1,format:"docx",blocks:[{type:"paragraph",text:"正文"},{type:"heading",level:1,text:"标题"},{type:"table",rows:[["单元格"]]}]}；DOCX 表格单元格只接受字符串，数字也写成字符串，如 "17"。XLSX: {schemaVersion:1,format:"xlsx",sheets:[{name:"Sheet1",rows:[["文本",12,true,null]]}]}。修改本模块文档时提供 sourcePath 与 document_read/inspect 返回的 sha256，再给完整替换内容；不承诺原稿版式保真。',
       inputSchema: { properties: {
         path: { type: 'string', description: '工作区内尚不存在的输出路径，父目录须存在。', maxLength: 4096 },
         content: { type: 'string', description: 'schemaVersion:1 的结构化 JSON 内容，最多256 KiB。', maxLength: 262144 },
