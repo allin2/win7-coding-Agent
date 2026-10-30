@@ -149,7 +149,7 @@ test('RC0708 report validators bind cases, candidate and gates', () => {
 
 test('RC0708 candidate zip layout matches the scratch-rename extraction contract', (t) => {
   const zipPath = path.join(repositoryRoot, 'release', 'win7-rc', 'out', lock.candidate.filename);
-  if (!fs.existsSync(zipPath)) t.skip('candidate zip not built locally');
+  if (!fs.existsSync(zipPath)) return t.skip('candidate zip not built locally');
   const entries = zipModule.readZipEntries(zipPath);
   const root = lock.candidate.filename.replace(/\.zip$/i, '');
   assert.ok(entries.length > 700, `unexpected entry count ${entries.length}`);
@@ -245,7 +245,7 @@ test('RC0708 kit integrity rejects aliases and mutated manifest-bound files', ()
 
 test('RC0708 v2 builder binds matching module names and CRLF wrappers', (t) => {
   const candidate = path.join(repositoryRoot, 'release', 'win7-rc', 'out', lock.candidate.filename);
-  if (!fs.existsSync(candidate)) t.skip('candidate zip not built locally');
+  if (!fs.existsSync(candidate)) return t.skip('candidate zip not built locally');
   const output = fs.mkdtempSync(path.join(os.tmpdir(), 'rc0708-kit-build-'));
   const built = spawnSync(process.execPath, [kitBuilderPath, '--candidate-zip', candidate, '--output', output, '--allow-uncommitted'], {
     cwd: repositoryRoot, encoding: 'utf8',

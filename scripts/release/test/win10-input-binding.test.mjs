@@ -2,18 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { bindingFixture, isolatedTools, writeBinding, receiptFixture, historicalTest, archiveFile, temporary, archiveCollection } from './fixtures/win10-test-fixture.mjs';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const api = require('../validation/win10/input-binding.cjs');
-const tool = path.resolve('scripts/release/validation/win10/input-binding.cjs');
-const history = '/Users/qlyf/.codex/worktrees/a9-31-background-tools/win7-coding-Agent/.acceptance/a9-31-developer';
-const out = path.resolve('outputs/engineering-win10-entry-20261007-r1/fixtures');
-fs.mkdirSync(out, { recursive: true });
-const dir = fs.mkdtempSync(path.join(out, 'binding-'));
+const { tool, out: dir, tools } = isolatedTools();
 const target = 'C:\\Users\\a9builder.WIN-2JQ66JE4HTQ\\AppData\\Local\\A9-Engineering-Win10-Entry-20261007-R1';
 const head = 'a53c9b9d861486e5923bc82ea70b31b76af1a939';
-const b = api.createStatic(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), target, head);
+const b = bindingFixture('local');
+const prior = writeBinding(dir);
 const copy = () => structuredClone(b);
 const cli = args => spawnSync(process.execPath, [tool, ...args], { encoding: 'utf8' });
 
@@ -22,20 +20,24 @@ test('strict parsing rejects duplicate/escaped keys, prototypes, invalid JSON an
   assert.deepEqual(api.parseStrict('{"a":[true,null,"中文\\n"],"b":0}'), { a: [true, null, '中文\n'], b: 0 });
   const bad = copy(); bad.schema_version = 1; assert.throws(() => api.validateStatic(bad), /INTEGRITY_SCHEMA/);
 });
-test('actual CLI generates deterministic local static inputs and exclusively refuses overwrite', () => {
-  const args = ['static', path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), target, head];
+test('TEST_ONLY binding and real CLI deterministically generate revisions and refuse overwrite', () => {
   const a = path.join(dir, 'static-a.json'), c = path.join(dir, 'static-b.json');
-  assert.equal(cli([...args, a]).status, 0); assert.equal(cli([...args, c]).status, 0);
+  const digest = api.writeNew(a, b); api.writeNew(c, bindingFixture('local'));
   assert.deepEqual(fs.readFileSync(a), fs.readFileSync(c));
-  const saved = fs.readFileSync(a); const digest = api.sha(saved);
+  const saved = fs.readFileSync(a);
   assert.equal(cli(['verify-static', a, digest]).status, 0);
-  const denied = spawnSync(process.execPath, [path.join(path.dirname(tool), 'product-driver.cjs')], { encoding: 'utf8', env: { ...process.env, A9_ENGINEERING_BINDING: a, A9_ENGINEERING_BINDING_SHA256: digest } });
-  assert.notEqual(denied.status, 0); assert.match(denied.stderr, /SCOPE_WIN10_NOT_AUTHORIZED/); assert.doesNotMatch(denied.stderr, /Cannot find module 'electron'/);
-  const probe = spawnSync(process.execPath, [path.join(path.dirname(tool), 'product-driver.cjs'), '--sync-probe-preflight'], { encoding: 'utf8', env: { ...process.env, A9_ENGINEERING_BINDING: a, A9_ENGINEERING_BINDING_SHA256: digest, A9_SYNC_PREFLIGHT_INPUT: '' } });
-  assert.notEqual(probe.status, 0); assert.match(probe.stderr, /SCOPE_WIN10_NOT_AUTHORIZED/); assert.doesNotMatch(probe.stderr, /ENOENT|ERR_INVALID_ARG_TYPE/);
-  assert.notEqual(cli([...args, a]).status, 0); assert.deepEqual(fs.readFileSync(a), saved);
+  for (const args of [[], ['--sync-probe-preflight']]) {
+    const denied = spawnSync(process.execPath, [path.join(tools, 'product-driver.cjs'), ...args], { encoding: 'utf8', env: { ...process.env, A9_ENGINEERING_BINDING: a, A9_ENGINEERING_BINDING_SHA256: digest, A9_SYNC_PREFLIGHT_INPUT: '' } });
+    assert.notEqual(denied.status, 0); assert.match(denied.stderr, /SCOPE_WIN10_NOT_AUTHORIZED/); assert.doesNotMatch(denied.stderr, /Cannot find module 'electron'|ENOENT|ERR_INVALID_ARG_TYPE/);
+  }
+  const output = path.join(dir, 'revision-a.json'), second = path.join(dir, 'revision-b.json');
+  const args = ['revision', a, digest, 'normal-short'];
+  assert.equal(cli([...args, output]).status, 0); assert.equal(cli([...args, second]).status, 0);
+  const bytes = fs.readFileSync(output); assert.deepEqual(bytes, fs.readFileSync(second));
+  assert.notEqual(cli([...args, output]).status, 0); assert.deepEqual(fs.readFileSync(output), bytes);
+  assert.deepEqual(fs.readFileSync(a), saved);
   assert.notEqual(cli(['verify-static', a, '0'.repeat(64)]).status, 0);
-  assert.notEqual(cli(['static', ...args.slice(1), '/private/tmp/unauthorized-engineering.json']).status, 0);
+  assert.match(cli([...args, path.join(path.dirname(dir), 'unauthorized.json')]).stderr, /SCOPE_OUTPUT/);
   assert.notEqual(cli(['unknown']).status, 0);
 });
 test('component provenance is immutable; changing product identity does not rebind original component records', () => {
@@ -77,10 +79,9 @@ test('four explicit revisions preserve closure and distinguish actual driver mod
   assert.equal(new Set(rows.map(r => api.sha(Buffer.from(JSON.stringify(r))))).size, 4);
   assert.throws(() => api.createRevision(b, digest, '../normal-full'));
 });
-test('real sync receipt replay binds current parent and rejects old parents, reused runs and clock changes', () => {
-  const actual = api.readJson(path.join(history, 'product-r4-win10-r2/directed-validation-sync-actual.json'));
-  const receipt = actual.actual_receipt[0];
-  const context = { root: target, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent, identity: actual.kernel_parent.identity, identity_scope: 'ADMIN_TOOL_ADMISSION' };
+test('TEST_ONLY sync receipt binds current parent and rejects old parents, reused runs and clock changes', () => {
+  const { receipt, identity } = receiptFixture(b);
+  const context = { root: target, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent, identity, identity_scope: 'ADMIN_TOOL_ADMISSION' };
   const r = api.createRuntime(b, receipt, context, 'e'.repeat(32), []);
   assert.equal(api.verifyRuntime(r, b, context), r);
   assert.equal(typeof r.context.parent.creation_ticks, 'string');
@@ -112,10 +113,9 @@ test('symlink inputs and outputs are refused without modifying the target', () =
   assert.equal(fs.readFileSync(real, 'utf8'), '{}');
 });
 
-const currentComponent = path.resolve('.acceptance/engineering-win10-entry-r1/resume-2/component-return-r3');
 const currentRoot = target.replace('-R1', '-R2');
-const currentBinding = () => api.createWin10Static(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), currentComponent, currentRoot, head);
-test('schema3 actual build and scope remain distinct from old pin and local approval', () => {
+const currentBinding = () => bindingFixture('current');
+test('TEST_ONLY schema3 build and scope remain distinct from old pin and local approval', () => {
   const current = currentBinding();
   assert.equal(current.components.observer.artifact.sha256, '3ae30252c0eefdbd451432ee2e801656f0ffd530237cefde3194ffa7572651b6');
   const build = api.parseStrict(Buffer.from(current.components.observer.build_bytes, 'base64').toString('utf8'));
@@ -125,8 +125,7 @@ test('schema3 actual build and scope remain distinct from old pin and local appr
   assert.equal(api.legacyMaster(current).manifest_observer.build_scope.sha256, build.scope_sha256);
   assert.equal(Object.hasOwn(api.legacyMaster(current).manifest_observer, 'pin_sha256'), false);
   const file = path.join(dir, 'win10-static.json');
-  const result = cli(['win10-static', path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), currentComponent, currentRoot, head, file]);
-  assert.equal(result.status, 0, result.stderr); const digest = api.sha(fs.readFileSync(file));
+  const digest = api.writeNew(file, current);
   assert.equal(cli(['verify-static', file, digest]).status, 0);
   assert.equal(cli(['project-master', file, digest]).status, 0);
   assert.notEqual(cli(['authorize', file, digest, 'ORDINARY_PRODUCT']).status, 0);
@@ -145,13 +144,13 @@ test('ordinary current Session is pinned while administrator, Host Job, old scop
   const desktop = { schema_version: 3, status: 'ORDINARY_DESKTOP_OBSERVED', machine: 'WIN-2JQ66JE4HTQ', root: currentRoot, binding_sha256: digest, execution_scope_sha256: api.scopeDigest(current), observed_utc: new Date().toISOString(), parent, identity };
   assert.equal(api.validateDesktop(desktop, current, digest), desktop);
   for (const patch of [{ execution_scope_sha256: '0'.repeat(64) }, { binding_sha256: '0'.repeat(64) }, { observed_utc: '2026-10-01T00:00:00Z' }, { parent: { ...parent, creation_ticks: Number(parent.creation_ticks) } }]) assert.throws(() => api.validateDesktop({ ...desktop, ...patch }, current, digest));
-  const actual = api.readJson(path.join(history, 'product-r4-win10-r2/directed-validation-sync-actual.json')), receipt = actual.actual_receipt[0];
-  const context = { root: currentRoot, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent, identity: actual.kernel_parent.identity, identity_scope: 'ADMIN_TOOL_ADMISSION', tool_digest: current.tool_identity.files_digest, execution_scope_sha256: api.scopeDigest(current) };
+  const { receipt, identity: oldIdentity } = receiptFixture(b);
+  const context = { root: currentRoot, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent, identity: oldIdentity, identity_scope: 'ADMIN_TOOL_ADMISSION', tool_digest: current.tool_identity.files_digest, execution_scope_sha256: api.scopeDigest(current) };
   assert.throws(() => api.createRuntime(current, receipt, context, receipt.request_id, []), /LIFECYCLE_CURRENT_INPUT_BINDING/);
 });
 
 test('new forensic build preparation pins origins and exact dependencies, and remains unauthorized remotely', () => {
-  const previous = api.createWin10Static(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), '.acceptance/engineering-win10-entry-r1/resume-2/component-return-r3', target.replace(/R1$/, 'R2'), head);
+  const previous = bindingFixture('current');
   for (const component of ['capture', 'observer']) {
     const scope = api.createForensicScope(previous, component, 'e'.repeat(32));
     assert.equal(scope.status, 'LOCAL_PREPARATION_NOT_REMOTE_AUTHORIZATION'); assert.equal(scope.remote_approval, null);
@@ -171,7 +170,7 @@ test('new forensic build preparation pins origins and exact dependencies, and re
 });
 
 test('constructed forensic build fixtures bind both artifacts; old build/MVID/source cannot cross-bind and execution remains blocked', () => {
-  const previous = api.createWin10Static(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), '.acceptance/engineering-win10-entry-r1/resume-2/component-return-r3', target.replace(/R1$/, 'R2'), head);
+  const previous = bindingFixture('current');
   const fixture=path.join(dir,'forensic-SURROGATE');fs.mkdirSync(fixture);
   const directories={};
   for(const id of ['capture','observer']) {
@@ -210,28 +209,17 @@ test('file rows accept object member permutations and reject missing, extra, typ
   assert.throws(()=>api.parseStrict('{"file":"x","size":1,"sha256":"a","size":1}'));
 });
 
-test('actual immutable R3 returns bind inherited build validator separately from current tools through the real factory and CLI', () => {
-  const base=path.resolve('.acceptance/engineering-win10-entry-r1');
-  const returnRoot=path.join(base,'resume-6/component-return-r1');
-  const validator=path.join(base,'resume-5/build-preparation-r3/tool-sources/input-binding.cjs');
-  const previous=api.loadStatic(path.join(base,'resume-3/win10-static-v4.json'),'822856c4bc0c9dfa0bab623700e40150d54deba7caff9d2652863b7446af8da6',path.join(base,'resume-3/tool-sources-v4'));
-  const next=api.createForensicStatic(previous,path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),path.dirname(tool),validator);
-  assert.equal(next.tool_identity.version,'engineering-02-v4');assert.deepEqual(next.product_identity,previous.product_identity);
-  const currentValidator=next.tool_identity.files.find(r=>r.file==='input-binding.cjs');
-  for(const id of ['capture','observer']) {
-    const c=next.components[id],scope=api.parseStrict(Buffer.from(c.scope_bytes,'base64').toString('utf8'));
-    assert.equal(c.build_provenance.schema_version,1);assert.equal(c.build_provenance.status,'INHERITED_EVIDENCE');
-    assert.deepEqual(c.build_provenance.validator,scope.validator);assert.notEqual(scope.validator.sha256,currentValidator.sha256);
-    assert.deepEqual(Buffer.from(c.build_provenance.validator_bytes,'base64'),fs.readFileSync(validator));
-    assert.deepEqual(Buffer.from(c.build_bytes,'base64'),fs.readFileSync(path.join(returnRoot,id,id+'-build.json')));
-    assert.equal(c.artifact.sha256,id==='capture'?'9a205e4cbe80bf768d5bedf96e3a670baf593291698aab54c2b458ed8ae144b6':'94472c1818e206079a74c371b37795e105618887b73d7794bdbfed42545ae7d7');
+test('TEST_ONLY inherited binding preserves build-validator provenance and rejects cross-binding', () => {
+  const previous = bindingFixture('current'), next = bindingFixture('forensic');
+  const currentValidator = next.tool_identity.files.find(r => r.file === 'input-binding.cjs');
+  const file = path.join(dir, 'inherited-TEST_ONLY.json'), digest = api.writeNew(file, next);
+  assert.equal(cli(['verify-static', file, digest]).status, 0); assert.equal(cli(['project-master', file, digest]).status, 0);
+  for (const id of ['capture', 'observer']) {
+    const c = next.components[id], scope = api.parseStrict(Buffer.from(c.scope_bytes, 'base64').toString('utf8'));
+    assert.equal(c.build_provenance.schema_version, 1); assert.equal(c.build_provenance.status, 'INHERITED_EVIDENCE');
+    assert.deepEqual(c.build_provenance.validator, scope.validator); assert.notEqual(scope.validator.sha256, currentValidator.sha256);
+    assert.equal(api.sha(Buffer.from(c.build_provenance.validator_bytes, 'base64')), scope.validator.sha256);
   }
-  const file=path.join(dir,'actual-inherited-binding.json'),digest=api.writeNew(file,next);
-  assert.equal(cli(['verify-static',file,digest]).status,0);assert.equal(cli(['project-master',file,digest]).status,0);
-  const generated=path.join(dir,'actual-cli-inherited-binding.json');
-  const arguments_=['forensic-static-inherited',path.join(base,'resume-3/win10-static-v4.json'),'822856c4bc0c9dfa0bab623700e40150d54deba7caff9d2652863b7446af8da6',path.join(base,'resume-3/tool-sources-v4'),path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),validator,generated];
-  assert.equal(cli(arguments_).status,0);assert.deepEqual(fs.readFileSync(generated),fs.readFileSync(file));
-  const saved=fs.readFileSync(generated);assert.notEqual(cli(arguments_).status,0);assert.deepEqual(fs.readFileSync(generated),saved);
   assert.equal(next.execution_scope.roles.length,0);assert.throws(()=>api.requireWin10Execution(next,'ADMIN_TOOL_ADMISSION'),/SCOPE_R3_REMOTE_NOT_APPROVED/);
   for(const mutate of [
     b=>b.components.capture.build_provenance.validator=currentValidator,
@@ -246,13 +234,12 @@ test('actual immutable R3 returns bind inherited build validator separately from
     b=>b.tool_identity.version='engineering-02-v3',
     b=>{const c=b.components.capture,build=api.parseStrict(Buffer.from(c.build_bytes,'base64').toString('utf8'));build.compiler_exit_code=7;const bytes=Buffer.from(JSON.stringify(build));c.build_bytes=bytes.toString('base64');c.build_record.size=bytes.length;c.build_record.sha256=api.sha(bytes);}
   ]) {const wrong=structuredClone(next);mutate(wrong);assert.throws(()=>api.validateStatic(wrong));}
-  assert.throws(()=>api.createForensicStatic(previous,path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),path.dirname(tool),tool),/INTEGRITY_INHERITED_BUILD_VALIDATOR/);
+  assert.throws(() => api.createForensicStatic(previous, dir, dir, tools, tool), /INTEGRITY_INHERITED_BUILD_VALIDATOR/);
 });
 
 test('new admission preparation preserves original builds and denies every product or unapproved operation', () => {
   assert.equal(typeof api.createAdmissionStatic, 'function');
-  const priorRoot=path.resolve('.acceptance/engineering-win10-entry-r1/resume-7');
-  const previous=api.loadStatic(path.join(priorRoot,'current-forensic-static-v4.json'),'89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b',path.join(priorRoot,'tool-sources-v4'));
+  const previous = bindingFixture('forensic');
   const next=api.createAdmissionStatic(previous);
   assert.equal(next.tool_identity.version,'engineering-02-v5-admission');
   assert.equal(next.deployment.root,api.ADMISSION_ROOT);assert.deepEqual(next.components,previous.components);assert.deepEqual(next.product_identity,previous.product_identity);
@@ -265,8 +252,8 @@ test('new admission preparation preserves original builds and denies every produ
 });
 
 test('real admission preparation CLI freezes exact eleven-file closure and canonical observer wrapper without an executable role', () => {
-  const priorRoot=path.resolve('.acceptance/engineering-win10-entry-r1/resume-7'), file=path.join(dir,'admission-prepared.json');
-  const args=['admission-static',path.join(priorRoot,'current-forensic-static-v4.json'),'89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b',path.join(priorRoot,'tool-sources-v4'),file];
+  const file=path.join(dir,'admission-prepared.json');
+  const args=['admission-static',prior.file,prior.hash,tools,file];
   const generated=cli(args);assert.equal(generated.status,0,generated.stderr);
   const pin=api.sha(fs.readFileSync(file)), b=api.loadStatic(file,pin);
   assert.deepEqual(b.execution_scope.roles,[]);assert.equal(b.execution_scope.remote_approval,null);
@@ -282,8 +269,7 @@ test('real admission preparation CLI freezes exact eleven-file closure and canon
 
 // ADR-0210 / ENGINEERING_02 section 64-65: v6 product contract. Constructed fixtures only; not a Win10 measurement.
 function v6Prepared() {
-  const priorRoot = path.resolve('.acceptance/engineering-win10-entry-r1/resume-7');
-  const previous = api.loadStatic(path.join(priorRoot, 'current-forensic-static-v4.json'), '89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b', path.join(priorRoot, 'tool-sources-v4'));
+  const previous = bindingFixture('forensic');
   return { previous, next: api.createProductStatic(previous) };
 }
 function v6Approved(next, from = Date.now() - 60000, until = Date.now() + 7140000) {
@@ -340,8 +326,8 @@ test('per-binding product record names are used only by v6 and legacy names stay
   assert.deepEqual(api.productRecordFiles(legacy, 'C:\\r', pin), { desktop: path.join('C:\\r', 'evidence', 'desktop-session.json'), admission: path.join('C:\\r', 'inputs', 'admission.json') });
 });
 test('real v6 preparation CLI freezes the closure and refuses product roles until approved', () => {
-  const priorRoot = path.resolve('.acceptance/engineering-win10-entry-r1/resume-7'), file = path.join(dir, 'product-prepared.json');
-  const args = ['product-static', path.join(priorRoot, 'current-forensic-static-v4.json'), '89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b', path.join(priorRoot, 'tool-sources-v4'), file];
+  const file = path.join(dir, 'product-prepared.json');
+  const args = ['product-static', prior.file, prior.hash, tools, file];
   const generated = cli(args); assert.equal(generated.status, 0, generated.stderr);
   const pin = api.sha(fs.readFileSync(file)), b = api.loadStatic(file, pin);
   assert.equal(b.tool_identity.version, 'engineering-02-v6-product'); assert.equal(cli(['verify-static', file, pin]).status, 0);
@@ -349,4 +335,88 @@ test('real v6 preparation CLI freezes the closure and refuses product roles unti
   for (const role of ['ORDINARY_PRODUCT', 'ADMIN_TOOL_ADMISSION']) assert.match(cli(['authorize', file, pin, role]).stderr, /SCOPE_PRODUCT_REMOTE_NOT_APPROVED/);
   assert.match(cli(['assert-product-request', file, pin, 'Boot', 'normal-short']).stderr, /SCOPE_PRODUCT_REMOTE_NOT_APPROVED/);
   assert.match(cli(['authorize-admission-start', file, pin, 'ADMIN_FORENSIC_ADMISSION', 'observer-admit']).stderr, /SCOPE_ADMISSION_REMOTE_NOT_APPROVED/);
+});
+
+historicalTest('original local static factory and CLI generate deterministic bindings', () => {
+  const reference = archiveCollection('a9-31-developer/product-r4-win10-r2');
+  const product = archiveCollection('a9-31-developer/product-r4');
+  const args = ['static', reference, product, target, head];
+  const a = path.join(dir, 'historical-static-a.json'), c = path.join(dir, 'historical-static-b.json');
+  assert.equal(cli([...args, a]).status, 0); assert.equal(cli([...args, c]).status, 0);
+  assert.deepEqual(fs.readFileSync(a), fs.readFileSync(c));
+  const saved = fs.readFileSync(a); assert.notEqual(cli([...args, a]).status, 0); assert.deepEqual(fs.readFileSync(a), saved);
+});
+
+historicalTest('original sync receipt remains a historical local runtime replay', () => {
+  const actual = api.readJson(archiveFile('a9-31-developer/product-r4-win10-r2/directed-validation-sync-actual.json'));
+  const receipt = actual.actual_receipt[0];
+  const context = { root: target, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent, identity: actual.kernel_parent.identity, identity_scope: 'ADMIN_TOOL_ADMISSION' };
+  const r = api.createRuntime(b, receipt, context, 'e'.repeat(32), []);
+  assert.equal(api.verifyRuntime(r, b, context), r);
+});
+
+historicalTest('actual immutable R3 returns bind inherited build validator separately from current tools through the real factory and CLI', () => {
+  const base=path.dirname(path.dirname(archiveFile('engineering-win10-entry-r1/resume-3/win10-static-v4.json')));
+  archiveCollection('engineering-win10-entry-r1/resume-3/tool-sources-v4');
+  archiveCollection('engineering-win10-entry-r1/resume-6/component-return-r1');
+  archiveFile('engineering-win10-entry-r1/resume-5/build-preparation-r3/tool-sources/input-binding.cjs');
+  const returnRoot=path.join(base,'resume-6/component-return-r1');
+  const validator=path.join(base,'resume-5/build-preparation-r3/tool-sources/input-binding.cjs');
+  const previous=api.loadStatic(path.join(base,'resume-3/win10-static-v4.json'),'822856c4bc0c9dfa0bab623700e40150d54deba7caff9d2652863b7446af8da6',path.join(base,'resume-3/tool-sources-v4'));
+  const next=api.createForensicStatic(previous,path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),path.dirname(tool),validator);
+  assert.equal(next.tool_identity.version,'engineering-02-v4');assert.deepEqual(next.product_identity,previous.product_identity);
+  const currentValidator=next.tool_identity.files.find(r=>r.file==='input-binding.cjs');
+  for(const id of ['capture','observer']) {
+    const c=next.components[id],scope=api.parseStrict(Buffer.from(c.scope_bytes,'base64').toString('utf8'));
+    assert.equal(c.build_provenance.schema_version,1);assert.equal(c.build_provenance.status,'INHERITED_EVIDENCE');
+    assert.deepEqual(c.build_provenance.validator,scope.validator);assert.notEqual(scope.validator.sha256,currentValidator.sha256);
+    assert.deepEqual(Buffer.from(c.build_provenance.validator_bytes,'base64'),fs.readFileSync(validator));
+    assert.deepEqual(Buffer.from(c.build_bytes,'base64'),fs.readFileSync(path.join(returnRoot,id,id+'-build.json')));
+    assert.equal(c.artifact.sha256,id==='capture'?'9a205e4cbe80bf768d5bedf96e3a670baf593291698aab54c2b458ed8ae144b6':'94472c1818e206079a74c371b37795e105618887b73d7794bdbfed42545ae7d7');
+  }
+  const file=path.join(dir,'actual-inherited-binding.json'),digest=api.writeNew(file,next);
+  assert.equal(cli(['verify-static',file,digest]).status,0);assert.equal(cli(['project-master',file,digest]).status,0);
+  const generated=path.join(dir,'actual-cli-inherited-binding.json');
+  const arguments_=['forensic-static-inherited',path.join(base,'resume-3/win10-static-v4.json'),'822856c4bc0c9dfa0bab623700e40150d54deba7caff9d2652863b7446af8da6',path.join(base,'resume-3/tool-sources-v4'),path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),validator,generated];
+  assert.equal(cli(arguments_).status,0);assert.deepEqual(fs.readFileSync(generated),fs.readFileSync(file));
+  const saved=fs.readFileSync(generated);assert.notEqual(cli(arguments_).status,0);assert.deepEqual(fs.readFileSync(generated),saved);
+  assert.equal(next.execution_scope.roles.length,0);assert.throws(()=>api.requireWin10Execution(next,'ADMIN_TOOL_ADMISSION'),/SCOPE_R3_REMOTE_NOT_APPROVED/);
+  for(const mutate of [
+    b=>b.components.capture.build_provenance.validator=currentValidator,
+    b=>b.components.observer.build_provenance.validator_bytes=Buffer.from('changed').toString('base64'),
+    b=>b.components.capture.build_provenance.status='PASS',
+    b=>b.components.capture.build_provenance.extra=true,
+    b=>b.components.capture.build_record.sha256='0'.repeat(64),
+    b=>b.components.observer.build_scope.sha256='0'.repeat(64),
+    b=>b.components.capture.artifact.sha256=previous.components.capture.artifact.sha256,
+    b=>b.components.capture.source_snapshot.sha256=previous.components.capture.source_snapshot.sha256,
+    b=>b.execution_scope.roles=['ORDINARY_PRODUCT'],
+    b=>b.tool_identity.version='engineering-02-v3',
+    b=>{const c=b.components.capture,build=api.parseStrict(Buffer.from(c.build_bytes,'base64').toString('utf8'));build.compiler_exit_code=7;const bytes=Buffer.from(JSON.stringify(build));c.build_bytes=bytes.toString('base64');c.build_record.size=bytes.length;c.build_record.sha256=api.sha(bytes);}
+  ]) {const wrong=structuredClone(next);mutate(wrong);assert.throws(()=>api.validateStatic(wrong));}
+  assert.throws(()=>api.createForensicStatic(previous,path.join(returnRoot,'capture'),path.join(returnRoot,'observer'),path.dirname(tool),tool),/INTEGRITY_INHERITED_BUILD_VALIDATOR/);
+});
+
+
+test('archive replay verifies original bytes and rejects changed or unpinned inputs', () => {
+  const restore = temporary('archive-negative-');
+  const relative = 'a9-31-developer/product-r4-win10-r2/frozen-control/master-pin.json';
+  const file = path.join(restore, relative); fs.mkdirSync(path.dirname(file), { recursive: true });
+  // Recovered canonical contract is available in the TEST_ONLY schema fixture.
+  // Pretty-printing it must not impersonate the original pinned archive bytes.
+  fs.writeFileSync(file, JSON.stringify(b.compatibility.master));
+  assert.throws(() => archiveFile(relative, restore), /INTEGRITY_FILE_BYTES/);
+  assert.throws(() => archiveFile('../untrusted.json', restore), /missing original archive pin/);
+});
+
+historicalTest('schema3 factory and CLI consume original component returns without rebinding approval', () => {
+  const reference = archiveCollection('a9-31-developer/product-r4-win10-r2');
+  const product = archiveCollection('a9-31-developer/product-r4');
+  const component = archiveCollection('engineering-win10-entry-r1/resume-2/component-return-r3');
+  const file = path.join(dir, 'historical-win10-static.json');
+  const generated = api.createWin10Static(reference, product, component, currentRoot, head);
+  assert.equal(cli(['win10-static', reference, product, component, currentRoot, head, file]).status, 0);
+  assert.deepEqual(api.loadStatic(file, api.sha(fs.readFileSync(file))), generated);
+  assert.equal(generated.implementation_approval.scope, 'LOCAL_IMPLEMENTATION_ONLY');
+  assert.equal(generated.execution_scope.approval.decision, 'ADR-0195');
 });

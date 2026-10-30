@@ -1,0 +1,230 @@
+{
+  "purpose": "ORIGINAL_BYTE_PINS_FOR_OPTIONAL_READ_ONLY_REPLAY",
+  "original_replay_manifest_sha256": "0a2af8f86327f20500c2cfdc80771b9aa6a80b9b8b6fc06d1a04aa5e661933e2",
+  "files": {
+    "a9-31-developer/product-r4-win10-r2/frozen-control/master-pin.json": {
+      "size": 17189,
+      "sha256": "fb4adc2b0bd53b8b1dd4e124e2d9a97e37e9ec1d573c25b48504e54adc22366f"
+    },
+    "a9-31-developer/product-r4/package-identity.json": {
+      "size": 2237,
+      "sha256": "57f7bf10ca12a4f0ea9dce697e0c6ae5a3a24dd056451458591e63064d48d62e"
+    },
+    "a9-31-developer/product-r4/package/Win7CodingAgent-0.3.0-alpha.2-win7-x64.zip": {
+      "size": 101330419,
+      "sha256": "e96fdf9678ffede770704fa68cfd39ea7ac6bf42ba0c3dd5fd400aa7dd7cd1a0"
+    },
+    "a9-31-developer/product-r4-win10-r2/capture-built/capture-source.cs": {
+      "size": 19439,
+      "sha256": "dbc85763ce25287adcb4c853e37963755c56d9561f9d06e41f53bfdb78e952cd"
+    },
+    "a9-31-developer/product-r4-win10-r2/capture-built/capture-library.dll": {
+      "size": 19968,
+      "sha256": "3f45cc66e7f81c7321bdce4b71338614ceae618d9c0636620a0f47b72d880064"
+    },
+    "a9-31-developer/product-r4-win10-r2/capture-built/capture-build.json": {
+      "size": 4412,
+      "sha256": "c5afee88aea36920f7d6a56a35bd136548a993608d5303a034bd6b6ab0a84cca"
+    },
+    "a9-31-developer/product-r4-win10-r2/capture-built/capture-build-scope-approval.json": {
+      "size": 374,
+      "sha256": "d4947801b67738be45da98606fb2cf6672bacb80f228968b878bcd9d4a22ae2d"
+    },
+    "a9-31-developer/product-r4-win10-r2/event-sources/manifest-process-observer.cs": {
+      "size": 42102,
+      "sha256": "218a2ed353acb0338b0c831f58e3233b3a7802465bffca41535cc62ed9571f78"
+    },
+    "a9-31-developer/product-r4-win10-r2/observer-components/v1/pin.json": {
+      "size": 2942,
+      "sha256": "0f26ff6477cb516b46c93f744fc2e6b713b079d01b6ff96432ae47e26ca23298"
+    },
+    "a9-31-developer/product-r4-win10-r2/observer-v1-build.stdout": {
+      "size": 492,
+      "sha256": "735dfc827ada09d649c03ede4c96a936f5c7da86b2fe3be802a592dac9bfa6db"
+    },
+    "a9-31-developer/product-r4-win10-r2/directed-validation-sync-actual.json": {
+      "size": 11227,
+      "sha256": "6437a1aa256c3c622de25f7185e03a029ec0af3563a0d34534b6459d7ca60c2a"
+    },
+    "a9-31-developer/product-r4-win10-r2/win10-evidence-matrix-r4-r2.json": {
+      "size": 7197,
+      "sha256": "905c4f4b08a25f45e52fe2bfc93b851994c642d09a16d47ac81ca2563cb93141"
+    },
+    "a9-31-developer/product-r3-retry-r7/win10-evidence-matrix-r7.json": {
+      "size": 3690,
+      "sha256": "b5e16fa893f328be37c96503db8897271f41320c6e669ed781ae159090b474c7"
+    },
+    "a9-31-developer/product-r4-win10-r2/control-scripts/product-r3-driver.cjs": {
+      "size": 109520,
+      "sha256": "24ddd6f68e15c16c57eed40b51203449ab34dae79bd08287dda7658a2a956e37"
+    },
+    "a9-31-developer/product-r4-win10-r2/control-scripts/stage-product-r3.ps1": {
+      "size": 11188,
+      "sha256": "f41cf571e5706f89e47dbc855b90c608e8d13d3318cd0763b1b3063e8c26d268"
+    },
+    "a9-31-developer/product-r4-win10-r2/control-scripts/launch-product-r3-desktop.ps1": {
+      "size": 9208,
+      "sha256": "b859bd36a9104b22ab359ece783a1575a35aed74dfab1c18c11660598cd7256f"
+    },
+    "a9-31-developer/product-r4-win10-r2/control-scripts/serve-product-r3-desktop.ps1": {
+      "size": 67693,
+      "sha256": "80a29258ddae9ba134435fb1ddd171be5f9ba029b0b9a7a9b95f31a4416b2d0d"
+    },
+    "engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/runs/f49752aa72d4ddd733e483cd61bd5dab/evidence/query-failure-f19490c2fad94115a6de8b6a79be2899.json": {
+      "size": 1743,
+      "sha256": "513eb06bc261705da4aa08ddf9029b8832114b6e03e276a524ba4345079625e8"
+    },
+    "engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/observers/f49752aa72d4ddd733e483cd61bd5dab/observer-final.json": {
+      "size": 1477,
+      "sha256": "8cd3ff6a6f47adec77fe2263d379ae4e51d9f4d7a7d81949419fb0526705c9a0"
+    },
+    "engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/observers/f49752aa72d4ddd733e483cd61bd5dab/observer-events.jsonl": {
+      "size": 20579,
+      "sha256": "ff45f8b56064755ea87c16bddd0c8087146db07b9b40448dbc9c8dc0e960ede2"
+    },
+    "engineering-win10-entry-r1/resume-18/ordinary-direct/capture-before-assert.json": {
+      "size": 1958,
+      "sha256": "0dbde4913fdcb014a335ef216c347aa333bc6268f724b516630b5580b3278319"
+    },
+    "engineering-win10-entry-r1/resume-18/ordinary-direct/capability-result.json": {
+      "size": 1087,
+      "sha256": "a059b70d52ca3fb8f50dbc1e3041a5d710f72fa26b02b8ddbe87c3812bca23c2"
+    },
+    "engineering-win10-entry-r1/resume-17/tool-sources-v5-r6/forensic-admission.ps1": {
+      "size": 23308,
+      "sha256": "8edff3b1397967a1c882bf72e2ebe92878dbcbd089170181a5a38b61b0fa1f44"
+    },
+    "engineering-win10-entry-r1/resume-17/tool-sources-v5-r6/input-binding.cjs": {
+      "size": 98996,
+      "sha256": "66199ee6c1cc6bdb276e3d09a4444aa3881f1b32afdc588e1d55e948562252c8"
+    },
+    "engineering-win10-entry-r1/inputs/manifest-process-observer.cs": {
+      "size": 42102,
+      "sha256": "218a2ed353acb0338b0c831f58e3233b3a7802465bffca41535cc62ed9571f78"
+    },
+    "engineering-win10-entry-r1/resume-4/admission-return-r1/evidence/observer-components/v2/admit-current-small-r1/admission-result.json": {
+      "size": 6628,
+      "sha256": "5280a008a77c30dfd46357a55bb33cc929a8d3a5d622b370ae99b9a44f1452d8"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/input-binding.cjs": {
+      "size": 52559,
+      "sha256": "29f319b8cd5a75c6e81db81e4698be2e59d62e91c00542f99281146faedd1d29"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/product-driver.cjs": {
+      "size": 111447,
+      "sha256": "d21af344cb38173f7cdc909b5b93e71bf255afcef7db018f2f2ccddf807c720d"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/serve-product-desktop.ps1": {
+      "size": 69557,
+      "sha256": "0d05889b0cd4579d9830b4f65148b0ab8a41fee0b7cc9e18415fd735a9012fbb"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/stage-product.ps1": {
+      "size": 15834,
+      "sha256": "95d391954646908c166b15836d3cbbbc3a96218233b20837442726ccd3a6c396"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/exit-dialog-action.cjs": {
+      "size": 3493,
+      "sha256": "5ff76b3ec6224b5af7188040dcdc339981373d6e954f9f40bffa2d4085367f73"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/launch-manifest-observer.ps1": {
+      "size": 15269,
+      "sha256": "0ada716da63902769054a4178de23b45e40ca1bf658abf346fac440ddf91efc6"
+    },
+    "engineering-win10-entry-r1/resume-3/tool-sources-v4/launch-product-desktop.ps1": {
+      "size": 13647,
+      "sha256": "342092eb044cf6b005f3f331adc92ded3fe1cfe87e02c3e1134a0c2404955c3e"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/compiler-out.json": {
+      "size": 22,
+      "sha256": "8a770191a401e00d83e89ce534e71acb31641d8170ad7f1394b8fd37882ddcef"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/compiler-err.json": {
+      "size": 22,
+      "sha256": "8a770191a401e00d83e89ce534e71acb31641d8170ad7f1394b8fd37882ddcef"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/capture-build.json": {
+      "size": 6934,
+      "sha256": "4ec18b394df154def0ed035e8e619fbc6b6ff60a6b3e2a0e4c76ca2762f0c5be"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/capture-source.cs": {
+      "size": 23622,
+      "sha256": "68ae4cca7ca0936044f29156df9abb95e5a196b0fd55d3c949b2b51e72ab99c7"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/capture-library.dll": {
+      "size": 22016,
+      "sha256": "9a205e4cbe80bf768d5bedf96e3a670baf593291698aab54c2b458ed8ae144b6"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/build-forensic-components.ps1": {
+      "size": 10717,
+      "sha256": "71aba376e06d407403c3fecd14de229c71e27c20625b23f136fe2396ccb91411"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/capture/capture-build-scope.json": {
+      "size": 3991,
+      "sha256": "7b6e6225a2d1ba7d18e20551123c8d4fa0604af1359827ad5b62d821b0d0a5e8"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/compiler-out.json": {
+      "size": 22,
+      "sha256": "8a770191a401e00d83e89ce534e71acb31641d8170ad7f1394b8fd37882ddcef"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/compiler-err.json": {
+      "size": 22,
+      "sha256": "8a770191a401e00d83e89ce534e71acb31641d8170ad7f1394b8fd37882ddcef"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/observer-build-scope.json": {
+      "size": 4015,
+      "sha256": "a73c2d3731ae4cb8c2f2c56eba880f9f74278bbd08b627c36448dfb31f47135c"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/manifest-process-observer.cs": {
+      "size": 47824,
+      "sha256": "0f4ff8fcd9ecdc051d71728445a19e39e3b4f59454258986a48b1f8fcf504496"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/observer-build.json": {
+      "size": 6991,
+      "sha256": "dc8e24ddd00fa612c7d651ec49c62246184ae4684fa2a051ded015a40d660bfd"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/build-forensic-components.ps1": {
+      "size": 10717,
+      "sha256": "71aba376e06d407403c3fecd14de229c71e27c20625b23f136fe2396ccb91411"
+    },
+    "engineering-win10-entry-r1/resume-6/component-return-r1/observer/manifest-process-observer.exe": {
+      "size": 40960,
+      "sha256": "94472c1818e206079a74c371b37795e105618887b73d7794bdbfed42545ae7d7"
+    },
+    "engineering-win10-entry-r1/resume-3/win10-static-v4.json": {
+      "size": 49438,
+      "sha256": "822856c4bc0c9dfa0bab623700e40150d54deba7caff9d2652863b7446af8da6"
+    },
+    "engineering-win10-entry-r1/resume-5/build-preparation-r3/tool-sources/input-binding.cjs": {
+      "size": 74590,
+      "sha256": "990f13314ec3cf5a88c2572c6787919f734c406bcb333a8e4c888c75f14d71d3"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/compiler-out.txt": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/observer-build-input.ps1": {
+      "size": 6982,
+      "sha256": "26491fe527f3edd1ee338d38d8d0fb94a902502f847d860983ea82d2ba57b67d"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/observer-build-scope.json": {
+      "size": 4486,
+      "sha256": "5d265bacf5b4cfb89a555e81a23e5536149392ab909add593e1d96d0fb93c8a0"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/manifest-process-observer.cs": {
+      "size": 42102,
+      "sha256": "218a2ed353acb0338b0c831f58e3233b3a7802465bffca41535cc62ed9571f78"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/compiler-err.txt": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/observer-build.json": {
+      "size": 6131,
+      "sha256": "6340915ddf82d96a2ad47dbca759e16454bbad12999e0bcf9a2e67812bcd6e53"
+    },
+    "engineering-win10-entry-r1/resume-2/component-return-r3/manifest-process-observer.exe": {
+      "size": 34304,
+      "sha256": "3ae30252c0eefdbd451432ee2e801656f0ffd530237cefde3194ffa7572651b6"
+    }
+  }
+}

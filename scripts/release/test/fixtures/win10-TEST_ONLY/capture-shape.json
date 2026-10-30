@@ -1,0 +1,69 @@
+{
+  "purpose": "TEST_ONLY_SHAPE_NOT_HISTORICAL_REPLAY",
+  "value": {
+    "schema_version": 1,
+    "status": "OWN_CHILD_CAPTURE_DIAGNOSTIC_V1_NOT_ADMISSION",
+    "source": "8d207ab11d2c8134a81e4e62900f395aae99944e",
+    "binding_sha256": "317d1a04876e91bad07c486ffa4900b83a02dae3ec79a3615ae45b28fc4531ad",
+    "execution_scope_sha256": "9a2cfcb853e9d7b404eb86dc7a12667a0d4252e925ed84553e1591eae7411438",
+    "tool_digest": "3731ea93dda7cf938208e8319445682a23cbcd45b4aef1c3162ab8eb68408d05",
+    "component_digest": "f0a0fcae978c822f627a00cc873c664dcc112634ffd6c2eb4a7e382a202cb6fb",
+    "run_id": "a6ac0a9c61ed4fd7951494cd8085e0a7",
+    "role": "ORDINARY_FORENSIC_ADMISSION",
+    "operation": "ordinary-probe",
+    "parent": {
+      "pid": 11200,
+      "creation_ticks": "639270253729909644",
+      "session": 2
+    },
+    "owned": {
+      "pid": 7752,
+      "creation_ticks": "639270253802686336",
+      "session": 2,
+      "image": "\\Device\\HarddiskVolume3\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    },
+    "added_count": 2,
+    "gaps_count": 0,
+    "excluded_count": 0,
+    "added": [
+      {
+        "pid": 7752,
+        "parent_pid": 11200,
+        "creation_ticks": "639270253802686336",
+        "session": 2,
+        "binding": {
+          "snapshot_started_ticks": "639270253809585881",
+          "snapshot_captured_ticks": "639270253809617799",
+          "query_ticks": "639270253809678162",
+          "creation_ticks": "639270253802686336",
+          "parent_creation_ticks": "639270253729909644",
+          "session": "2",
+          "image": "\\Device\\HarddiskVolume3\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "clock_profile": "LOCKED_KERNEL32_PRECISE_UTC_FILETIME_V1_TEST_ONLY",
+          "second_observation": "NOT_REQUIRED",
+          "ownership": "PROVEN"
+        }
+      },
+      {
+        "pid": 26240,
+        "parent_pid": 7752,
+        "creation_ticks": "639270253807858478",
+        "session": 2,
+        "binding": {
+          "snapshot_started_ticks": "639270253809585881",
+          "snapshot_captured_ticks": "639270253809617799",
+          "query_ticks": "639270253809682344",
+          "creation_ticks": "639270253807858478",
+          "parent_creation_ticks": "639270253802686336",
+          "session": "2",
+          "image": "\\Device\\HarddiskVolume3\\Windows\\System32\\conhost.exe",
+          "clock_profile": "LOCKED_KERNEL32_PRECISE_UTC_FILETIME_V1_TEST_ONLY",
+          "second_observation": "NOT_REQUIRED",
+          "ownership": "PROVEN"
+        }
+      }
+    ],
+    "gaps": [],
+    "excluded": []
+  }
+}

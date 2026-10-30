@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { bindingFixture, shapeFixture, temporary, historicalTest, archiveFile } from './fixtures/win10-test-fixture.mjs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -10,16 +11,11 @@ const api = require('../validation/win10/input-binding.cjs');
 const driver = require('../validation/win10/product-driver.cjs');
 const file = path.resolve('scripts/release/validation/win10/product-driver.cjs');
 const source = fs.readFileSync(file, 'utf8');
-const history = '/Users/qlyf/.codex/worktrees/a9-31-background-tools/win7-coding-Agent/.acceptance/a9-31-developer';
-const oldSource = fs.readFileSync(path.join(history, 'product-r4-win10-r2/control-scripts/product-r3-driver.cjs'), 'utf8');
-const base = path.resolve('outputs/engineering-win10-entry-20261007-r1/fixtures'); fs.mkdirSync(base, { recursive: true });
-const dir = fs.mkdtempSync(path.join(base, 'entry-'));
+const base = temporary('entry-');
+const dir = temporary('entry-files-');
 
-test('R2 first failure stays UNKNOWN; complete constructed two-observation exclusion and counterexamples use the real consumer', () => {
-  const file = '.acceptance/engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/runs/f49752aa72d4ddd733e483cd61bd5dab/evidence/query-failure-f19490c2fad94115a6de8b6a79be2899.json';
-  const bytes = fs.readFileSync(file), saved = api.parseStrict(bytes.toString().replace(/:\s*([0-9]{18})/g, ':"$1"'));
-  assert.equal(saved.error, 'LIFECYCLE_PARENT_CREATION_MISMATCH'); assert.equal(saved.ownership, 'UNKNOWN'); assert.equal(saved.binding.SecondStartedTicks, 'UNKNOWN');
-  assert.equal(BigInt(saved.binding.ParentCreationTicks) - BigInt(saved.binding.CreationTicks), 1998146173n);
+test('TEST_ONLY exclusion with an UNKNOWN observation rejects; complete constructed two-observation exclusion and counterexamples use the real consumer', () => {
+  const saved = shapeFixture('exclusion');
   const context = { source: '8d207ab11d2c8134a81e4e62900f395aae99944e', master_sha256: 'a'.repeat(64), revision_sha256: 'b'.repeat(64), request_id: 'c'.repeat(32) };
   const parent = { pid: saved.parent_pid, creation_ticks: saved.binding.ParentCreationTicks, session: 2, image: '\\Device\\HarddiskVolume4\\Windows\\System32\\cmd.exe' };
   const child = { pid: saved.pid, creation_ticks: saved.binding.CreationTicks, session: 2, image: saved.binding.Image };
@@ -31,7 +27,6 @@ test('R2 first failure stays UNKNOWN; complete constructed two-observation exclu
   }
   const historicalOnly = JSON.parse(JSON.stringify(record)); historicalOnly.snapshots[1].started_ticks = saved.binding.SecondStartedTicks;
   assert.throws(() => api.validateCaptureExclusion(historicalOnly, context), /LIFECYCLE_CREATION_TICKS/);
-  assert.deepEqual(fs.readFileSync(file), bytes);
 });
 
 test('exact instance ledger allows closed PID reuse; duplicate, wrong End, unresolved reuse and clock edges fail closed', () => {
@@ -44,17 +39,19 @@ test('exact instance ledger allows closed PID reuse; duplicate, wrong End, unres
   assert.deepEqual(api.verifyObserverGenerations(records.slice(0,6),root).open_instances.map(x=>x.create_ft),['100000000000000006','100000000000000007']);
 });
 
-test('current ETW red log prefix is replayed without fabricating the missing rejected event', () => {
-  const root='.acceptance/engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/observers/f49752aa72d4ddd733e483cd61bd5dab';
-  const bytes=fs.readFileSync(path.join(root,'observer-final.json')), final=api.parseStrict(bytes.toString());
+historicalTest('ETW red log prefix is replayed without fabricating the missing rejected event', () => {
+  const rel='engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/observers/f49752aa72d4ddd733e483cd61bd5dab/';
+  const bytes=fs.readFileSync(archiveFile(rel+'observer-final.json')), final=api.parseStrict(bytes.toString());
   assert.equal(final.status,'NOT_PROVEN'); assert.equal(final.callback_error,'InvalidOperationException:DUPLICATE_START_PID');
-  const records=fs.readFileSync(path.join(root,'observer-events.jsonl'),'utf8').trimEnd().split('\n').map(api.parseStrict);
+  const records=fs.readFileSync(archiveFile(rel+'observer-events.jsonl'),'utf8').trimEnd().split('\n').map(api.parseStrict);
   const dispatcher={pid:final.dispatcher_pid,create_ft:final.dispatcher_creation_filetime};
   const audit=api.verifyObserverGenerations(records.slice(0,65),dispatcher);assert.ok(audit.open_instances.length>0);
   // Seq66 points at a closed old parent; the rejected new parent Start was never written.
   assert.equal(records[65].seq,66);assert.equal(records[65].parent,11196);
   assert.throws(()=>api.verifyObserverGenerations(records,dispatcher),/INSTANCE_PARENT_GENERATION_UNKNOWN_OR_AMBIGUOUS/);
-  assert.deepEqual(fs.readFileSync(path.join(root,'observer-final.json')),bytes);
+  assert.deepEqual(fs.readFileSync(archiveFile(rel+'observer-final.json')),bytes);
+});
+test('current ETW consumer retains generation identity and reuse proofs', () => {
   const native=fs.readFileSync('scripts/release/validation/win10/manifest-process-observer.cs','utf8');
   assert.ok(native.includes('ValidateInstanceEvent(recs, e, dispatcher, dispatcherCreateFt)'));
   assert.ok(native.includes('x.create_ft == s.create_ft')); assert.ok(!native.includes('HashSet<int> tracked'));
@@ -108,13 +105,17 @@ test('ordinary driver entry refuses before Electron import or product execution;
     const run = spawnSync(process.execPath, [file, flag], { encoding: 'utf8', env: { ...process.env, A9_ENGINEERING_BINDING: '' } });
     assert.equal(run.status, 0, flag + ': ' + run.stderr);
   }
+
+});
+historicalTest('driver sync safety source digest matches original', () => {
+  const oldSource = fs.readFileSync(archiveFile('a9-31-developer/product-r4-win10-r2/control-scripts/product-r3-driver.cjs'), 'utf8');
   assert.equal(driver.syncSafetyDigest(source), driver.syncSafetyDigest(oldSource));
 });
-test('actual historical sync snapshot and receipt are uniquely associated; nanosecond boundary violations reject', () => {
-  const raw = fs.readFileSync(path.join(history, 'product-r4-win10-r2/directed-validation-sync-actual.json'), 'utf8');
+historicalTest('actual sync snapshot and receipt are uniquely associated; nanosecond boundary violations reject', () => {
+  const raw = fs.readFileSync(archiveFile('a9-31-developer/product-r4-win10-r2/directed-validation-sync-actual.json'), 'utf8');
   const actual = api.parseStrict(raw.replace(/"(SnapshotStartedTicks|SnapshotCapturedTicks)"\s*:\s*([0-9]{18})/g, '"$1":"$2"'));
   const receipt = actual.actual_receipt[0], item = actual.unique_association.actual_supported[0];
-  const m = api.readJson(path.join(history, 'product-r4-win10-r2/frozen-control/master-pin.json'));
+  const m = api.readJson(archiveFile('a9-31-developer/product-r4-win10-r2/frozen-control/master-pin.json'));
   const binding = { source: receipt.source, request_id: receipt.request_id, master_sha256: receipt.master_sha256, revision_sha256: receipt.revision_sha256, parent: receipt.parent };
   const gap = { step: 'OpenQueryHandle', native_error_code: 87, exe: 'cmd.exe', parent_pid: receipt.parent.pid, pid: receipt.result.pid, snapshot_started_ticks: String(item.row.SnapshotStartedTicks), snapshot_captured_ticks: String(item.row.SnapshotCapturedTicks), snapshot_clock: item.snapshot_clock };
   assert.ok(driver.associateSyncReceipt([receipt], gap, binding, m.sync_contract));
@@ -338,20 +339,15 @@ test('capture diagnostic SURROGATE preserves zero, one, wrong, multiple, gap and
   assert.equal(record.excluded[0].reason, exclusion.Reason);
 });
 
-test('actual two-row diagnostic replay preserves old failure and new complete-set proof is explicitly SURROGATE', () => {
-  const file='.acceptance/engineering-win10-entry-r1/resume-18/ordinary-direct/capture-before-assert.json',raw=fs.readFileSync(file),j=JSON.parse(raw);
-  const old=fs.readFileSync('.acceptance/engineering-win10-entry-r1/resume-17/tool-sources-v5-r6/forensic-admission.ps1','utf8');
-  const condition=old.match(/if\((\$capture\.Gaps\.Count[^\n]+?)\)\{throw 'LIFECYCLE_OWN_CHILD_CAPTURE'\}/)[1];
-  const capture={Gaps:{Count:j.gaps_count},Excluded:{Count:j.excluded_count},Added:{Count:j.added_count,0:{Pid:j.added[0].pid}}};
-  assert.equal(vm.runInNewContext(condition.replace(/\$(capture|owned)/g,'$1').replace(/ -ne /g,' !== ').replace(/ -or /g,' || '),{capture,owned:{Id:j.owned.pid}}),true);
+test('TEST_ONLY two-row diagnostic complete-set proof is explicitly SURROGATE', () => {
+  const j=shapeFixture('capture');
   const exit=(BigInt(j.added[1].binding.query_ticks)+1n).toString();
   // Only the capture/identity fields are actual observations. These successful exits and actual_pid fields are SURROGATE.
   const set={schema_version:1,raw_added_count:j.added_count,root_count:1,console_count:1,gap_count:0,excluded_count:0,instances:j.added.map(row=>({kind:row.pid===j.owned.pid?'powershell':'conhost',pid:row.pid,parent_pid:row.parent_pid,creation_ticks:row.creation_ticks,parent_creation_ticks:row.binding.parent_creation_ticks,session:row.session,image:row.binding.image,proof:{...row.binding,actual_pid:row.pid},same_instance:true,exit_code:0,exit_ticks:exit,held_query_after_exit:true}))};
   const child={...j.owned,same_instance:true,exit_code:0,exit_ticks:exit,held_query_after_exit:true,capture_added:2};
   assert.equal(api.validateOrdinaryCaptureSet(set,child,j.parent,BigInt(j.parent.creation_ticks)+1n,BigInt(exit)+1n),set);
   const reversed=JSON.parse(JSON.stringify(set));reversed.instances.reverse();assert.equal(api.validateOrdinaryCaptureSet(reversed,child,j.parent,BigInt(j.parent.creation_ticks)+1n,BigInt(exit)+1n),reversed);
-  const failure=api.readJson('.acceptance/engineering-win10-entry-r1/resume-18/ordinary-direct/capability-result.json');assert.equal(failure.status,'FAIL');assert.equal(failure.details.owned_lifecycle.status,'UNKNOWN');
-  assert.deepEqual(fs.readFileSync(file),raw);
+
 });
 
 test('capture diagnostic bounds and exclusive write stay fail closed in SURROGATE fixtures', () => {
@@ -538,8 +534,8 @@ test('driver keeps rejecting forensic versions but lets v6 reach the central pro
   assert.ok(src.includes('engineeringBinding.requireWin10Execution(engineering,undefined,undefined,undefined,process.env.A9_ENGINEERING_BINDING_SHA256)'));
   const request = src.indexOf('engineeringBinding.assertProductRequest(engineering,phase,engineeringRevision.label)');
   assert.ok(request > 0 && request > src.indexOf('const request=validateRequest(') - 400 && request < src.indexOf("const evidence=path.join(root,'evidence')"));
-  const prior = path.resolve('.acceptance/engineering-win10-entry-r1/resume-7'), dirv = fs.mkdtempSync(path.join(base, 'v6-driver-'));
-  const previous = api.loadStatic(path.join(prior, 'current-forensic-static-v4.json'), '89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b', path.join(prior, 'tool-sources-v4'));
+  const dirv = fs.mkdtempSync(path.join(base, 'v6-driver-'));
+  const previous = bindingFixture('forensic');
   const run = (binding) => { const f = path.join(dirv, binding.tool_identity.version + '.json'); fs.writeFileSync(f, JSON.stringify(binding, null, 2) + '\n'); return spawnSync(process.execPath, [file], { encoding: 'utf8', env: { ...process.env, A9_ENGINEERING_BINDING: f, A9_ENGINEERING_BINDING_SHA256: api.sha(fs.readFileSync(f)) } }); };
   const v5 = run(api.createAdmissionStatic(previous)); assert.notEqual(v5.status, 0); assert.match(v5.stderr, /SCOPE_FORENSIC_EXECUTION_CONTRACT/);
   const v6 = run(api.createProductStatic(previous)); assert.notEqual(v6.status, 0); assert.match(v6.stderr, /SCOPE_PRODUCT_REMOTE_NOT_APPROVED/); assert.doesNotMatch(v6.stderr, /SCOPE_FORENSIC_EXECUTION_CONTRACT|Cannot find module 'electron'/);
@@ -595,4 +591,17 @@ test('forensic admission accepts exactly the v5 and v6 admission-family bindings
   assert.ok(ps.includes("if($binding.tool_identity.version -cnotin @('engineering-02-v5-admission','engineering-02-v6-product')){throw 'SCOPE_ADMISSION_VERSION'}"));
   assert.doesNotMatch(ps, /version -cne 'engineering-02-v5-admission'/);
   assert.equal(ps.split("'SCOPE_ADMISSION_VERSION'").length - 1, 1);
+});
+
+historicalTest('R2 first failure and original two-row diagnostic remain UNKNOWN/FAIL', () => {
+  const file = archiveFile('engineering-win10-entry-r1/resume-4/short-first-failure-return-r1/runs/f49752aa72d4ddd733e483cd61bd5dab/evidence/query-failure-f19490c2fad94115a6de8b6a79be2899.json');
+  const saved = api.parseStrict(fs.readFileSync(file, 'utf8').replace(/:\s*([0-9]{18})/g, ':"$1"'));
+  assert.equal(saved.error, 'LIFECYCLE_PARENT_CREATION_MISMATCH'); assert.equal(saved.ownership, 'UNKNOWN'); assert.equal(saved.binding.SecondStartedTicks, 'UNKNOWN');
+  assert.equal(BigInt(saved.binding.ParentCreationTicks) - BigInt(saved.binding.CreationTicks), 1998146173n);
+  const j=api.readJson(archiveFile('engineering-win10-entry-r1/resume-18/ordinary-direct/capture-before-assert.json'));
+  const old=fs.readFileSync(archiveFile('engineering-win10-entry-r1/resume-17/tool-sources-v5-r6/forensic-admission.ps1'),'utf8');
+  const condition=old.match(/if\((\$capture\.Gaps\.Count[^\n]+?)\)\{throw 'LIFECYCLE_OWN_CHILD_CAPTURE'\}/)[1];
+  const capture={Gaps:{Count:j.gaps_count},Excluded:{Count:j.excluded_count},Added:{Count:j.added_count,0:{Pid:j.added[0].pid}}};
+  assert.equal(vm.runInNewContext(condition.replace(/\$(capture|owned)/g,'$1').replace(/ -ne /g,' !== ').replace(/ -or /g,' || '),{capture,owned:{Id:j.owned.pid}}),true);
+  const failure=api.readJson(archiveFile('engineering-win10-entry-r1/resume-18/ordinary-direct/capability-result.json'));assert.equal(failure.status,'FAIL');assert.equal(failure.details.owned_lifecycle.status,'UNKNOWN');
 });

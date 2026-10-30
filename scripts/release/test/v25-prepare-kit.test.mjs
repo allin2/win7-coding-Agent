@@ -22,10 +22,13 @@ function fixture() {
   const helper = path.join(dir, 'native/helper');
   const kit = path.join(helper, 'build-win10-kit-v25');
   fs.mkdirSync(helper, { recursive: true });
-  for (const name of fs.readdirSync(path.join(root, 'native/helper'))) {
-    if (/\.(?:cpp|h)$/.test(name) || name === 'CMakeLists.txt') {
-      fs.copyFileSync(path.join(root, 'native/helper', name), path.join(helper, name));
-    }
+  const sourceEntries = JSON.parse(fs.readFileSync(path.join(kitRoot, 'input-lock.json'), 'utf8'))
+    .sources.filter(entry => entry.path.startsWith('src/'));
+  const names = fs.readdirSync(path.join(kitRoot, 'src')).sort();
+  assert.deepEqual(names, sourceEntries.map(entry => entry.path.slice(4)).sort());
+  verifyEntries(kitRoot, sourceEntries);
+  for (const entry of sourceEntries) {
+    fs.copyFileSync(path.join(kitRoot, entry.path), path.join(helper, entry.path.slice(4)));
   }
   fs.cpSync(kitRoot, kit, { recursive: true,
     filter: (source) => !['work', 'output', 'evidence', 'result', 'candidate'].includes(path.basename(source)) });

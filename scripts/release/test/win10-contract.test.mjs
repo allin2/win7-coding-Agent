@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { bindingFixture, shapeFixture, temporary, historicalTest, archiveFile } from './fixtures/win10-test-fixture.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const ui = require('../validation/win10/exit-dialog-action.cjs');
 const api = require('../validation/win10/input-binding.cjs');
-const history = '/Users/qlyf/.codex/worktrees/a9-31-background-tools/win7-coding-Agent/.acceptance/a9-31-developer';
 const now = Date.parse('2026-10-06T04:07:58.166Z');
 const current = { request_id: 'a'.repeat(32), source: '8d207ab11d2c8134a81e4e62900f395aae99944e', master_sha256: 'b'.repeat(64), revision_sha256: 'c'.repeat(64), phase: 'StopExit', product_pid: 900, creation_ticks: '639268559292611658' };
 const opened = { schema_version: 1, ...Object.fromEntries(Object.entries(current).filter(([k]) => k !== 'creation_ticks')), sequence: 1, status: 'ACTUAL_NATIVE_API_CALLED', called_at: new Date(now).toISOString() };
@@ -27,22 +27,19 @@ test('ambiguous/old/disabled/wrong native windows and swapped/late/cancelled res
   for (const patch of [{ response: 1 }, { response: 2 }, { sequence: 2 }, { request_id: 'd'.repeat(32) }, { returned_at: new Date(now - 1).toISOString() }, { returned_at: new Date(now + 160500).toISOString() }]) assert.throws(() => ui.verifyResponse({ ...receipt, ...patch }, opened, current));
   assert.equal(ui.verifyResponse({ ...receipt, returned_at: new Date(now + 120000).toISOString() }, opened, current).elapsed_ms, 120000);
 });
-test('historical wrong-choice and late observations remain failure records, while R2 response meanings match', () => {
-  const r7 = api.readJson(path.join(history, 'product-r3-retry-r7/win10-evidence-matrix-r7.json'));
+historicalTest('historical wrong-choice and late observations remain failure records, while R2 response meanings match', () => {
+  const r7 = api.readJson(archiveFile('a9-31-developer/product-r3-retry-r7/win10-evidence-matrix-r7.json'));
   assert.equal(r7.phases.filter(p => p.phase.startsWith('StopExit')).length, 3);
   assert.match(r7.phases.find(p => p.phase === 'StopExit attempt 1').result, /160\.5/);
   assert.match(r7.entry, /HALTED/);
-  const r2 = api.readJson(path.join(history, 'product-r4-win10-r2/win10-evidence-matrix-r4-r2.json'));
+  const r2 = api.readJson(archiveFile('a9-31-developer/product-r4-win10-r2/win10-evidence-matrix-r4-r2.json'));
   for (const [phase, response] of [['StopExit', 0], ['ReleaseExit', 1]]) {
     const click = r2.clicks[phase]; const c = { ...current, phase }, o = { ...opened, phase, called_at: click.opened }, r = { ...receipt, phase, response: click.response, returned_at: click.returned };
     assert.equal(ui.verifyResponse(r, o, c).response, response);
   }
 });
 test('PS source audit: native proof bodies stay unchanged, dual identities are consumed, no target execution is claimed', () => {
-  const old = fs.readFileSync(path.join(history, 'product-r4-win10-r2/control-scripts/serve-product-r3-desktop.ps1'), 'utf8');
   const migrated = fs.readFileSync('scripts/release/validation/win10/serve-product-desktop.ps1', 'utf8');
-  const functionBody = (s, n) => { const start = s.indexOf('function ' + n + '('); assert.ok(start >= 0); return s.slice(start, s.indexOf('\nfunction ', start + 1)); };
-  assert.equal(functionBody(migrated, 'Resolve-ManifestObservation'), functionBody(old, 'Resolve-ManifestObservation').replace('pin_sha256=$o.pin_sha256','build_scope_sha256=$o.build_scope.sha256').replace("$kind=if($image -ieq ($dev+'\\Windows\\System32\\cmd.exe')){'cmd'}elseif($image -ieq ($dev+'\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')){'powershell'}else{$null}", '$kind=Manifest-ParentKind $image $dev'));
   assert.ok(migrated.includes('$build.source -cne $engineering.components.capture.legacy_source_binding'));
   assert.ok(migrated.includes('$a.source -cne $engineering.components.capture.legacy_source_binding'));
   assert.ok(migrated.includes('$x.source -cne $engineering.components.observer.legacy_source_binding'));
@@ -53,8 +50,15 @@ test('PS source audit: native proof bodies stay unchanged, dual identities are c
   // PS5.1 parsing/ETW/NT-path execution are NOT_PERFORMED on this development machine.
 });
 
+historicalTest('native PS proof body comparison', () => {
+  const old = fs.readFileSync(archiveFile('a9-31-developer/product-r4-win10-r2/control-scripts/serve-product-r3-desktop.ps1'), 'utf8');
+  const migrated = fs.readFileSync('scripts/release/validation/win10/serve-product-desktop.ps1', 'utf8');
+  const functionBody = (s, n) => { const start = s.indexOf('function ' + n + '('); assert.ok(start >= 0); return s.slice(start, s.indexOf('\nfunction ', start + 1)); };
+  assert.equal(functionBody(migrated, 'Resolve-ManifestObservation'), functionBody(old, 'Resolve-ManifestObservation').replace('pin_sha256=$o.pin_sha256','build_scope_sha256=$o.build_scope.sha256').replace("$kind=if($image -ieq ($dev+'\\Windows\\System32\\cmd.exe')){'cmd'}elseif($image -ieq ($dev+'\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')){'powershell'}else{$null}", '$kind=Manifest-ParentKind $image $dev'));
+});
+
 test('current admission rejects old schema, missing cases, PASS substrings and constructed development results', () => {
-  const current = api.createWin10Static(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), '.acceptance/engineering-win10-entry-r1/resume-2/component-return-r3', 'C:\\Users\\a9builder.WIN-2JQ66JE4HTQ\\AppData\\Local\\A9-Engineering-Win10-Entry-20261007-R2', 'a53c9b9d861486e5923bc82ea70b31b76af1a939');
+  const current = bindingFixture('current');
   const checks = { schema_version: 3, status: 'DIRECTED_WIN10_CHECKS_PASS_NOT_PRODUCT', master_sha256: 'a'.repeat(64), execution_scope_sha256: api.scopeDigest(current), source: current.product_identity.source, tool_digest: current.tool_identity.files_digest, component_digest: api.componentDigest(current), run_id: 'b'.repeat(32), results: [] };
   assert.throws(() => api.verifyCurrentChecks(checks, current, checks.master_sha256, '/private/tmp'), /INTEGRITY_ADMISSION_SET/);
   assert.throws(() => api.verifyCurrentChecks({ ...checks, schema_version: 1 }, current, checks.master_sha256, '/private/tmp'), /INTEGRITY_CURRENT_ADMISSION/);
@@ -66,9 +70,8 @@ test('current admission rejects old schema, missing cases, PASS substrings and c
 });
 
 test('seven real fixture files with constructed PASS never become Win10 direct admission', () => {
-  const out = path.resolve('outputs/engineering-win10-entry-20261007-r1/fixtures');
-  const dir = fs.mkdtempSync(path.join(out, 'contract-'));
-  const current = api.createWin10Static(path.join(history, 'product-r4-win10-r2'), path.join(history, 'product-r4'), '.acceptance/engineering-win10-entry-r1/resume-2/component-return-r3', 'C:\\Users\\a9builder.WIN-2JQ66JE4HTQ\\AppData\\Local\\A9-Engineering-Win10-Entry-20261007-R2', 'a53c9b9d861486e5923bc82ea70b31b76af1a939');
+  const dir = temporary('contract-');
+  const current = bindingFixture('current');
   const fields = { schema_version: 3, status: 'PASS', evidence_scope: 'SURROGATE', machine: current.execution_scope.machine, master_sha256: 'a'.repeat(64), execution_scope_sha256: api.scopeDigest(current), tool_digest: current.tool_identity.files_digest, component_digest: api.componentDigest(current), run_id: 'b'.repeat(32), source: current.product_identity.source, pid: 123, creation_ticks: '639269600000000000', details: {} };
   const results = api.ADMISSION_CASES.map(case_id => { const file = path.join(dir, case_id + '.json'); api.writeNew(file, { ...fields, case_id }); return { case_id, status: 'PASS', record: api.fileRow(file) }; });
   const checks = { schema_version: 3, status: 'DIRECTED_WIN10_CHECKS_PASS_NOT_PRODUCT', master_sha256: fields.master_sha256, execution_scope_sha256: fields.execution_scope_sha256, source: fields.source, tool_digest: fields.tool_digest, component_digest: fields.component_digest, run_id: fields.run_id, results };
@@ -102,9 +105,15 @@ test('forensic consumer paths require actual new builds and persist explicit rel
     assert.doesNotMatch(text,/-c(?:eq|ne) 'engineering-02-v3'/);
   }
   assert.ok(serve.includes("(-not $script:ForensicFamily)"));
+
+});
+
+historicalTest('native import names retain original source closure', () => {
+  const base='scripts/release/validation/win10';
+  const capture=fs.readFileSync(path.join(base,'capture-source.cs'),'utf8');
   const importNames=s=>[...s.matchAll(/\[DllImport\([^\n]*?\)\]\s*(?:static\s+)?extern\s+\S+\s+(\w+)/g)].map(m=>m[1]).sort();
-  const oldCapture=fs.readFileSync(path.join(history,'product-r4-win10-r1/capture-inherited/capture-source.cs'),'utf8');
-  const oldObserver=fs.readFileSync('.acceptance/engineering-win10-entry-r1/inputs/manifest-process-observer.cs','utf8');
+  const oldCapture=fs.readFileSync(archiveFile('a9-31-developer/product-r4-win10-r2/capture-built/capture-source.cs'),'utf8');
+  const oldObserver=fs.readFileSync(archiveFile('engineering-win10-entry-r1/inputs/manifest-process-observer.cs'),'utf8');
   assert.ok(importNames(oldCapture).length>=10);assert.ok(importNames(oldObserver).length>=5);
   assert.deepEqual(importNames(capture),importNames(oldCapture));
   assert.deepEqual(importNames(fs.readFileSync(path.join(base,'manifest-process-observer.cs'),'utf8')),importNames(oldObserver));
@@ -115,8 +124,7 @@ const admissionNow = Date.parse('2026-10-07T14:30:00.000Z');
 const utcTicks = ms => (BigInt(ms) * 10000n + 621355968000000000n).toString();
 const clone = value => structuredClone(value);
 function admissionFixture(ordinary = false) {
-  const prior = path.resolve('.acceptance/engineering-win10-entry-r1/resume-7');
-  const previous = api.loadStatic(path.join(prior,'current-forensic-static-v4.json'),'89a5b7ac24c8b32b6bb415936ee90abab2d46a2686636eea3c2949b3023c895b',path.join(prior,'tool-sources-v4'));
+  const previous = bindingFixture('forensic');
   const prepared = api.createAdmissionStatic(previous), preparedHash = api.sha(Buffer.from(JSON.stringify(prepared,null,2)+'\n'));
   const approval = {response:'SURROGATE_NO_REMOTE_PERMISSION',review_sha256:'a'.repeat(64),prepared_binding_sha256:preparedHash,approved_at:new Date(admissionNow-1000).toISOString(),valid_until:new Date(admissionNow-1000+7200000).toISOString()};
   const b = api.approveAdmissionStatic(prepared,approval), pin = api.sha(Buffer.from(JSON.stringify(b,null,2)+'\n'));
@@ -166,7 +174,7 @@ test('ordinary capability retains exit query and reports only its observed canar
   for(const mutate of [x=>x.binding_sha256='0'.repeat(64),x=>x.files[0].file='old.json',x=>x.directions.push({direction:'user-write-admin-read',status:'PASS'})]) {const wrong=clone(r);mutate(wrong.details.canary);assert.throws(()=>api.verifyCapability(wrong,b,c));}
 });
 test('complete ordinary capture consumer replays the real two-row counterexample as SURROGATE, rejects every unproven row and old shape', () => {
-  const file='.acceptance/engineering-win10-entry-r1/resume-18/ordinary-direct/capture-before-assert.json',raw=fs.readFileSync(file),actual=JSON.parse(raw);
+  const actual=shapeFixture('capture');
   assert.equal(actual.added_count,2);assert.equal(actual.gaps_count,0);assert.equal(actual.excluded_count,0);
   const {b,c,r}=admissionFixture(true),parent=r.parent,rootTicks=utcTicks(admissionNow+2),consoleTicks=utcTicks(admissionNow+3),exit=utcTicks(admissionNow+20);
   const child={pid:101,creation_ticks:rootTicks,session:parent.session,image:actual.owned.image,exit_code:0,exit_ticks:exit,same_instance:true,capture_added:2,capture_gaps:0,capture_exclusions:0,output:'A9-FORENSIC-OWNED-CHILD',held_query_after_exit:true};
@@ -175,7 +183,7 @@ test('complete ordinary capture consumer replays the real two-row counterexample
   set.instances.push({kind:'conhost',pid:102,parent_pid:101,creation_ticks:consoleTicks,parent_creation_ticks:rootTicks,session:parent.session,image:actual.added[1].binding.image,proof:{...set.instances[0].proof,actual_pid:102,creation_ticks:consoleTicks,parent_creation_ticks:rootTicks,image:actual.added[1].binding.image,snapshot_started_ticks:utcTicks(admissionNow+4),snapshot_captured_ticks:utcTicks(admissionNow+5),query_ticks:utcTicks(admissionNow+6)},same_instance:true,exit_code:0,exit_ticks:exit,held_query_after_exit:true});
   r.details={child,capture_set:set,canary:{canary_run_id:'3'.repeat(32),binding_sha256:c.binding_sha256,files:['admin-a.json','admin-b.json','ordinary-a.json','ordinary-b.json'].map(file=>({file,size:100,sha256:'4'.repeat(64)})),directions:['admin-write-user-read','user-read-admin-write'].map(direction=>({direction,status:'PASS'}))}};
   assert.equal(api.verifyCapability(r,b,c),r);const reversed=clone(r);reversed.details.capture_set.instances.reverse();assert.equal(api.verifyCapability(reversed,b,c),reversed);
-  const old=require(path.resolve('.acceptance/engineering-win10-entry-r1/resume-17/tool-sources-v5-r6/input-binding.cjs'));assert.throws(()=>old.verifyCapability(r,b,c));
+  const oldShape=clone(r);delete oldShape.details.capture_set;assert.throws(()=>api.verifyCapability(oldShape,b,c));
   for(const field of ['schema_version','raw_added_count','root_count','console_count','gap_count','excluded_count']){const bad=clone(r);bad.details.capture_set[field]++;assert.throws(()=>api.verifyCapability(bad,b,c),field);}
   for(const mutate of [x=>delete x.capture_set,x=>x.capture_set.instances=[],x=>x.capture_set.instances.push(clone(x.capture_set.instances[1])),x=>x.capture_set.instances[1].pid=x.capture_set.instances[0].pid,x=>x.child.capture_added=1,x=>x.child.exit_ticks=utcTicks(admissionNow+19)]){const bad=clone(r);mutate(bad.details);assert.throws(()=>api.verifyCapability(bad,b,c));}
   for(let index=0;index<2;index++){
@@ -184,7 +192,6 @@ test('complete ordinary capture consumer replays the real two-row counterexample
   }
   for(const mutate of [x=>x.image=x.image.replace('Volume3','Volume32'),x=>x.image+='\\other',x=>x.parent_creation_ticks=utcTicks(admissionNow+1),x=>x.creation_ticks=parent.creation_ticks,x=>x.proof.snapshot_captured_ticks=utcTicks(admissionNow),x=>x.proof.query_ticks=utcTicks(admissionNow+30),x=>x.exit_ticks=utcTicks(admissionNow+8003)]){const bad=clone(r);mutate(bad.details.capture_set.instances[1]);assert.throws(()=>api.verifyCapability(bad,b,c));}
   const unknown=clone(r);unknown.status='FAIL';unknown.error='LIFECYCLE_OWN_CHILD_CAPTURE';assert.throws(()=>api.verifyCapability(unknown,b,c));
-  assert.deepEqual(fs.readFileSync(file),raw);
 });
 test('administrator canary result binds a separate ordinary receipt before claiming four directions', () => {
   const {b,c,r}=admissionFixture();c.operation=r.operation='canary-admin';
@@ -194,7 +201,7 @@ test('administrator canary result binds a separate ordinary receipt before claim
 });
 test('observer receipt requires exact native volume, both generation proofs and a closed current session', () => {
   const {b,c,r}=admissionFixture();c.operation=r.operation='observer-admit';
-  const old=api.readJson('.acceptance/engineering-win10-entry-r1/resume-4/admission-return-r1/evidence/observer-components/v2/admit-current-small-r1/admission-result.json'), a=clone(old);
+  const old=shapeFixture('observer'), a=clone(old);
   Object.assign(a,{label:c.run_id,exe_sha256:b.components.observer.artifact.sha256,mvid:b.components.observer.artifact.mvid,build_scope_sha256:b.components.observer.build_scope.sha256,own_session_absent:true,native_images:[]});
   Object.assign(a.observer_final,{source:b.components.observer.legacy_source_binding,master_sha256:c.binding_sha256,dispatcher_pid:c.parent.pid,dispatcher_creation_filetime:(BigInt(c.parent.creation_ticks)-504911232000000000n).toString(),revision_sha256:api.sha(Buffer.from(JSON.stringify(api.createRevision(b,c.binding_sha256,'controlled-boot'),null,2)+'\n'))});
   for(let i=0;i<2;i++) {
