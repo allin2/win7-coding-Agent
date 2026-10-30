@@ -68,13 +68,21 @@ function Assert-Writer {
   $rows = @(Lock-Rows)
   if ($rows.Count -ne 4 -or $rows[1] -cne $D['holder'] -or $rows[3] -cne $D['token']) { throw 'LOCK_NOT_OWNED' }
 }
+function Development-Root-Limit([string]$holder, [DateTime]$at) {
+  # ADR-0306: exact A9-43 holder and existing third window only.
+  $start = [DateTime]::Parse('2026-10-30T15:55:13.975Z').ToUniversalTime()
+  $end = [DateTime]::Parse('2026-10-30T18:11:32.708Z').ToUniversalTime()
+  if ($holder -ceq 'a942-751c-7f41ca1c' -and $at -ge $start -and $at -lt $end) { return [long]24000000000 }
+  return [long]20000000000
+}
 function Capacity([long]$incoming) {
   $disks = @(Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'" -ErrorAction Stop)
   if ($disks.Count -ne 1 -or $null -eq $disks[0].FreeSpace) { throw 'DISK_SPACE_UNKNOWN' }
   [long]$used = 0
   foreach ($file in @(Tree $Root)) { $used += $file.Length }
   [long]$free = $disks[0].FreeSpace
-  if ($free -lt 50000000000 -or $used -gt 20000000000 -or ($free - $incoming) -lt 50000000000 -or ($used + $incoming) -gt 20000000000) { throw 'DISK_LIMIT' }
+  [long]$limit = Development-Root-Limit $D['holder'] ([DateTime]::UtcNow)
+  if ($free -lt 50000000000 -or $used -gt $limit -or ($free - $incoming) -lt 50000000000 -or ($used + $incoming) -gt $limit) { throw 'DISK_LIMIT' }
   return @($free,$used)
 }
 function Scheduler {

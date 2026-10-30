@@ -337,6 +337,11 @@ function Trace([string]$event,[string]$data) {
       $lockRows = [IO.File]::ReadAllLines($lockFile.FullName,$Utf8)
       if ($lockRows.Length -ne 4 -or $lockRows[0] -cne '1' -or $lockRows[1] -cne $script:BoundHolder -or $lockRows[3] -cne '') { throw 'LOCK_NOT_IDLE_OR_NOT_HELD' }
       }
+      # ADR-0306: capacity only; this does not grant an execution authority.
+      [long]$devLimit = 20000000000
+      $capacityStart = [DateTime]::Parse('2026-10-30T15:55:13.975Z').ToUniversalTime()
+      $capacityEnd = [DateTime]::Parse('2026-10-30T18:11:32.708Z').ToUniversalTime()
+      if ($script:BoundHolder -ceq 'a942-751c-7f41ca1c' -and [DateTime]::UtcNow -ge $capacityStart -and [DateTime]::UtcNow -lt $capacityEnd -and $script:BoundExpires -le $capacityEnd) { $devLimit = 24000000000 }
       [long]$devUsed = 0; $devFiles = 0; $devDirs = New-Object 'Collections.Generic.List[string]'; $devDirs.Add('C:\A9-DEV'); $devCursor = 0
       $devSizeEnd = (Ticks) + [long](10 * $Frequency)
       while ($devCursor -lt $devDirs.Count) {
@@ -349,7 +354,7 @@ function Trace([string]$event,[string]$data) {
           if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'REPARSE_POINT' }
           if ($item -is [IO.DirectoryInfo]) { $devDirs.Add($item.FullName) }
           else { $devFiles++; if ($devFiles -gt 262144) { throw 'CHANNEL_CAPACITY_UNKNOWN' }; $devUsed += $item.Length }
-          if ($devUsed -gt 20000000000) { throw 'CHANNEL_CAPACITY_LIMIT' }
+          if ($devUsed -gt $devLimit) { throw 'CHANNEL_CAPACITY_LIMIT' }
         }
       }
       $channelExists = [bool](Test-Path -LiteralPath 'C:\A9-DEV' -ErrorAction Stop)

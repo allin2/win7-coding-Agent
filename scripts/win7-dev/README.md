@@ -57,7 +57,7 @@ TOOL=scripts/win7-dev/win7-dev.mjs
 `stop` 必须带完整 run UUID，只清理 `C:\A9-DEV\run\<run_prefix8>\` 实例和 `A9-DEV-<run_prefix8>-` 任务；不得把 `stop` 写成套件清理步骤，也不得以 `close` 删根替代当前 run 收尾。`close` 仅按 ADR-0305 作为恢复命令保留。
 run 作用域的停止标记为 `.channel\stop-<run_prefix8>`；`agent-run` 按 `A9-DEV-<run_prefix8>-...` 名称选择该标记，`stop --run` 只写本 run 标记，其他 run 的协作停止不受影响。
 
-put/cand 在上传前查询空间，C: 剩余低于 **50,000,000,000** 字节、开发根大于 **20,000,000,000** 字节或查询未知即拒绝；也检查上传/解包后的预计余量和总量。使用十进制 GB。空间不是配额沙箱；任意执行的程序仍须由调用方遵守 20 GB 上限。
+put/cand 在上传前查询空间，C: 剩余低于 **50,000,000,000** 字节、开发根大于 **20,000,000,000** 字节或查询未知即拒绝；也检查上传/解包后的预计余量和总量。使用十进制 GB。ADR-0306 仅为 A9-43 的准确 holder `a942-751c-7f41ca1c` 在 UTC `2026-10-30T15:55:13.975Z` 至 `2026-10-30T18:11:32.708Z`（截止不含）提供 24 GB 例外；其他范围仍为 20 GB，最低剩余仍为 50 GB。空间不是配额沙箱；任意执行的程序仍须由调用方遵守适用上限。
 
 每次 SSH/SFTP 调用，包括取锁、释放、失败和恢复下载，都有 `outputs/win7-dev/actions/<UTC>-<命令>-<步骤>-<UUID>/`，保存 `stdin.bin`、`stdout.bin`、`stderr.bin` 原始字节及带 `schema_version:1`、`evidence_class:DEV_CHANNEL` 的 `result.json`。TSV 账本逐次追加 UTC 起止、命令、JSON 参数摘要、退出码、上传/下载文件字节数、action 相对目录。摘要记录路径、哈希、名称；脚本只记摘要哈希，参数内容不进入摘要。SSH 控制消息不计入文件传输字节。传输失败时不能准确证明文件字节数，记 **UNKNOWN**，不记 0；计划字节数在 result.json 单列保存。原始流不重编码、不回显到终端，文件以受限权限创建。
 

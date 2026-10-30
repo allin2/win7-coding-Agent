@@ -7,7 +7,7 @@ Target Branch: main
 Source Baseline: 63e173fc90f81c9c5ddcafe3dabf18f03cdbdad2
 Phase-Gate: A9_43_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305
+Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306
 ```
 
 本任务把 WIN7-55（上一个已签发候选）之后完成的四项工作合成一个版本，走完一次正式流程到发布。
@@ -434,3 +434,35 @@ progress、interrupt、recover 的功能检查完成；recover 收尾于 `16:52:
 开发机定向测试 13/13 PASS，含旧/新观测区分及命令行排除；日志 `local-logs/process-identity-evidence-r1.log`。
 下一步先以新不可变源码、包、run 做一次后台恢复诊断；不重跑整批，不把诊断替代五阶段版本运行。
 继续受第三窗口共同截止、20 GB 开发根与 60 次真实模型总预算约束。便携、Office 完整流程和真实模型阶段当前 NOT_PERFORMED。
+
+负责人随后明确批准逐个删除三份失败运行的上传 ZIP 副本：
+`C:\A9-DEV\run\a1c0c3e8\w\package\candidate.zip`、
+`C:\A9-DEV\run\44fda738\w\package\candidate.zip`、
+`C:\A9-DEV\run\2273b7b4\w\package\candidate.zip`。
+逐项重新核对本地恢复包、远端 SHA/大小、独占锁及零任务/进程后删除；总逻辑字节 333523249，远端位置均已复核不存在。
+失败报告、解包目录、本地恢复包均保留；不从逻辑字节推断实际物理空间释放。
+末次 status 的开发根为 17146635113 字节，锁 idle；记录 `outputs/next-version-r1/p5-integration/uploaded-copy-cleanup-r1.json`。
+
+负责人明确回复“批准本次 A9-43 使用 24 GB 上限”。本次开发窗口容量可调整到 24000000000 字节；50 GB 最低剩余、第三窗口共同截止与 60 次真实模型总预算不变。
+容量投影含诊断和新五阶段的保守预留为 23576666923 字节，记录 `capacity-proposal-r6.json`；这是预估，不是当前用量。
+
+### 8.14 后台单阶段复验与容量例外验证（2026-10-30 UTC）
+
+新诊断包源 `b0c13455841333cdf449e7766de98f8c82577df8`，ZIP SHA-256
+`cf3d065d5001d2e70a4e16dfa8e4c9cfaf78b3bc947fd75c831f93ee88c04710`。
+与 §8.13 包相比，产品/原生文件字节一致；包内变化限于 manifest、kit、SBOM 和本任务合同。
+候选外驱动只增加失败身份取证，不改变身份门、SGTool 分类与等待上限。
+首次部署材料 `d6436091…` 因临时调用器传入绝对上传路径被本地 `REMOTE_PATH_INVALID` 拒绝；未上传该 run、未启动产品，失败后状态零任务/进程、锁 idle。
+修正调用器相对路径参数并验证路径往返后，使用新 run `56bf7b0b-8651-466e-8912-c60984e2444b`。
+产品执行为 UTC `17:19:04.319Z` 至 `17:19:46.541Z`；progress/interrupt/recover/reopen 四模式直接完成，6 次本机夹具请求、0 真实模型请求。
+报告 `DEV_CHANNEL_COMPLETE`，四模式均完成进程收尾；正常退出的工作区锁清空，恢复及重开无模型重放、无重复处置。
+独立通道 status 零任务/进程、锁 idle、无解包未知；开发根 18057759557 字节，仍低于原 20 GB。
+证据：`outputs/next-version-r1/p5-integration/background-diagnostic-r6b/execution/diagnostic-report.json` 与
+`outputs/win7-dev/alpha3-r6b/background-diagnostic/RESULT.json`。
+本次未重现首次身份缺失，准确根因为 UNKNOWN；取证缺口已修，不宣称首次异常根因已解决。
+这是新包单阶段诊断，不能与旧源 batch2 拼接成五阶段通过。
+
+ADR-0306 容量例外已实现。开发机 channel/controller 86/86 PASS；Win7 PowerShell 2.0/5.1 分别直接完成 9 项边界检查，未启动产品或写目标文件。
+准确 holder/开始边界/截止前允许 24 GB，其他 holder、大小写差异、窗口外及总控截止越界仍为 20 GB。
+新增量越界和最低剩余空间保持拒绝。证据 `local-logs/capacity-scope-r1.log` 与 `capacity-admission-r1/RESULT.json`。
+完整新版本五阶段尚未执行；本地继续准备，是否延长当前窗口另由负责人明确决定。

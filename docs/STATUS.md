@@ -18,7 +18,8 @@
   `f54e6216…` 开发包的 batch2 run `77091fbc…` 已在 Win7 DEV_CHANNEL 直接完成 10 阶段、37 用例、67 断言与 GPU gate；R7/R8 PASS。
   总控 stdin、账号绑定、执行起点与 ZIP 文件名缺陷已修复；工具已在 Win7 PowerShell 2.0/5.1 直接解析通过，见 §8.11–§8.13。
   后台恢复 run `13ad75ee…` 因 `PROCESS_CURRENT_IDENTITY_UNKNOWN` 保持 HALTED；三个模式的功能检查不替代收尾通过。
-  失败身份取证已在本地补齐，13/13 定向测试 PASS；下一步先单阶段诊断。便携、Office、真实模型与全阶段结论仍 NOT_PERFORMED。
+  失败身份取证已补齐；新源 `b0c13455…` 的后台诊断 run `56bf7b0b…` 四模式与独立收尾直接完成。首次异常未重现，根因 UNKNOWN，不与旧源 batch2 拼成五阶段通过。
+  便携、Office、真实模型与新版本全阶段仍 NOT_PERFORMED。负责人批准本窗口 24 GB 容量例外（ADR-0306）；86 项开发机检查及 PS2/PS5.1 各 9 项直接边界检查通过。
   第三、最后窗口从 UTC `15:55:13.975` 开始，共同截止 `18:11:32.708`；前两窗口累计 2542.080 秒，真实模型请求仍为 0，额度不重置。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。

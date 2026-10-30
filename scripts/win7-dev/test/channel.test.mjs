@@ -7,7 +7,7 @@ import { PassThrough } from 'node:stream';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ROOT, DevChannel, configuration, parseArgs, remotePath, splitCommand, uploadTimeout,
-  checkCapacity, secretCategories, scanAndPlace, powershellInput, zipManifest, main } from '../win7-dev.mjs';
+  checkCapacity, developmentRootLimit, secretCategories, scanAndPlace, powershellInput, zipManifest, main } from '../win7-dev.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const outRoot = path.resolve(here, '../../../outputs/win7-dev');
@@ -81,6 +81,21 @@ function fixtureZip(filename, entry = 'a.txt', content = 'hello', { localName = 
   end.writeUInt32LE(central.length + name.length, 12); end.writeUInt32LE(local.length + ln.length + bytes.length, 16);
   fs.writeFileSync(filename, Buffer.concat([local, ln, bytes, central, name, end]));
 }
+
+test('A9-43 capacity exception is bounded by exact holder, window, incoming size and free space', () => {
+  const holder = 'a942-751c-7f41ca1c', start = Date.parse('2026-10-30T15:55:13.975Z'), end = Date.parse('2026-10-30T18:11:32.708Z');
+  const scope = { holder, now: start };
+  assert.equal(developmentRootLimit(holder, start), 24e9);
+  assert.equal(developmentRootLimit(holder, end - 1), 24e9);
+  for (const [h, at] of [['other', start], [holder.toUpperCase(), start], [holder, start - 1], [holder, end], [holder, NaN]]) {
+    assert.equal(developmentRootLimit(h, at), 20e9);
+    assert.throws(() => checkCapacity(100e9, 20e9 + 1, 0, { holder: h, now: at }), /DISK_LIMIT/);
+  }
+  checkCapacity(100e9, 23e9, 1e9, scope);
+  for (const values of [[100e9, 24e9, 1], [100e9, 24e9 + 1, 0], [50e9, 0, 1], [50e9 - 1, 0, 0]]) {
+    assert.throws(() => checkCapacity(...values, scope), /DISK_LIMIT/);
+  }
+});
 
 test('eight commands parse, options retain one command-line argument', () => {
   for (const argv of [['status'], ['put', 'file', 'a/b'], ['get', 'a', 'b/c'], ['ps', 's.ps1'], ['cand', 'a.zip'], ['close'], ['agent-run', 'smoke', '"C:\\A9-DEV\\中文 空格\\p.exe" "a b"', '--wait', '15', '--steal']]) assert.equal(parseArgs(argv).command, argv[0]);
