@@ -22,6 +22,12 @@ npm run verify:tools             # 入口/文档工具变化
 npm run verify:release           # 打包工具变化或发布准备
 ```
 
+`verify:release` 执行当前发布规则检查。按 A9-43 D4，11 项历史回放在缺归档时记为 `NOT_PERFORMED`。
+恢复归档后设置 `A9_WIN10_ARCHIVE_ROOT` 为绝对路径；回放入口按原尺寸与 SHA-256 核验文件。
+两项旧 RC 包检查在包缺失时记为 `NOT_PERFORMED`；三项 Windows PowerShell 检查在非 Windows 开发机记同一状态。
+总入口只允许准确用例名及原因匹配的上述未执行项。未知跳过、重复跳过、原因变化、TODO 或计数矛盾均失败。
+汇总保留真实 `pass`、`skipped` 计数及逐项 `not_performed` 明细。开发机入口 PASS 不代表这些未执行项通过，也不代表 Win7 验收。
+
 `test:local` 复用 verify_integration，不添加安装、传输、浏览器或正式冻结。
 每次从源码构建所选消费者的依赖闭包；拒绝未知模块、缺失测试文件和编译失败，Jest 无测试仍非零退出。
 每步输出真实命令、退出码和耗时；`[verify-timing]` 区分构建与测试。无需为小改动运行全部模块。

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GROUPS, commandsFor, selectGroups, verifyGroups } from './verify_project.mjs';
+import { GROUPS, commandsFor, selectGroups, verifyGroups, releaseNotPerformed } from './verify_project.mjs';
 
 assert.deepEqual(selectGroups([]), GROUPS);
 assert.deepEqual(selectGroups(['--group', 'release', '--group', 'docs']), ['docs', 'release']);
@@ -31,6 +31,27 @@ for (const outcome of [{ status: 7 }, { status: null, signal: 'SIGTERM' }, { err
   assert.equal(count, 1);
   assert.equal(failed.status, 'FAIL');
   assert.deepEqual(failed.groups.map((result) => result.status), ['FAIL', 'NOT_PERFORMED', 'NOT_PERFORMED', 'NOT_PERFORMED']);
+}
+const historicalName = 'historical replay: native PS proof body comparison';
+const historicalReason = 'NOT_PERFORMED: set A9_WIN10_ARCHIVE_ROOT to a hash-verified archive restore';
+const historicalSkip = `ok 1 - ${historicalName} # SKIP ${historicalReason}\n`;
+assert.equal(releaseNotPerformed(historicalSkip, { archiveRoot: '' })[0].category, 'HISTORICAL_ARCHIVE_UNAVAILABLE');
+assert.equal(releaseNotPerformed(historicalSkip, { archiveRoot: '/restored' })[0].category, 'UNCLASSIFIED');
+assert.equal(releaseNotPerformed(historicalSkip + historicalSkip, { archiveRoot: '' })[1].category, 'UNCLASSIFIED');
+assert.equal(releaseNotPerformed(historicalSkip.replace('native PS proof body comparison', 'new rule'), { archiveRoot: '' })[0].category, 'UNCLASSIFIED');
+assert.equal(releaseNotPerformed(historicalSkip.replace(historicalReason, 'different reason'), { archiveRoot: '' })[0].category, 'UNCLASSIFIED');
+const platformSkip = 'ok 1 - Windows host gate rejects contradictory and unsupported runtime/registry facts # SKIP Windows PowerShell 5.1 NOT_PERFORMED\n';
+assert.equal(releaseNotPerformed(platformSkip, { platform: 'darwin' })[0].category, 'TARGET_PLATFORM_UNAVAILABLE');
+assert.equal(releaseNotPerformed(platformSkip, { platform: 'win32' })[0].category, 'UNCLASSIFIED');
+const rcSkip = 'ok 1 - RC0708 candidate zip layout matches the scratch-rename extraction contract # SKIP candidate zip not built locally\n';
+const skippedCounts = tap.replace('# pass 1', '# pass 0').replace('# skipped 0', '# skipped 1');
+const applicable = verifyGroups(['release'], { log() {}, run: () => ({ status: 0, stdout: rcSkip + skippedCounts }) });
+assert.equal(applicable.status, 'PASS');
+assert.equal(applicable.groups[0].test_counts.pass, 0);
+assert.equal(applicable.groups[0].not_performed[0].status, 'NOT_PERFORMED');
+for (const stdout of [rcSkip + skippedCounts.replace('# skipped 1', '# skipped 0'),
+  rcSkip + skippedCounts.replace('# tests 1', '# tests 2').replace('# todo 0', '# todo 1')]) {
+  assert.equal(verifyGroups(['release'], { log() {}, run: () => ({ status: 0, stdout }) }).status, 'FAIL');
 }
 const root = mkdtempSync(join(tmpdir(), 'verify-project-中文 空格-'));
 try {
