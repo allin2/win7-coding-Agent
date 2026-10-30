@@ -1,5 +1,7 @@
 # A9-43 P2 第三轮续做交接（2026-10-30）
 
+> 后继状态：main 的 stdin 修复已完成 Win7 PowerShell 5.1 只读入口验证，见文末与 A9-43 §8.11。下列 P2 记录保留其原始范围和结论。
+
 “继续前必须完成的最短链路”第 1～3 项已完成本地实现。`run()` 已接到共同主体，迁移阻断已移除。
 证据只有开发机静态复核及注入执行器测试。目标脚本实际执行、正式材料冻结、门 A/B 均为 `NOT_PERFORMED`。
 本文件取代第二轮检查点的当前状态；前两轮原始日志、来源分类与历史失败全部保留。
@@ -120,3 +122,18 @@ PS2/5.1 解析、C# 编译、真实 ZIP 解包、Scheduler 单一根参数展开
 正式种子、签发、最终 Git/包字节、全阶段开发级运行、双构建冻结及门 A/B 均留待主会话。
 当前无目标进程或目标窗口在运行。本轮未消耗目标机窗口或真实模型预算。
 测试临时目录按日志准确路径做只读盘点，见 `third-scratch-inventory.json`；没有清理任何路径。
+
+## 后继：main 总控 stdin 修复（2026-10-30 UTC）
+
+基线 `d5e4386b…` 加本轮修改，固定源码改用 `$input` 文本管道接收两行输入。
+两行格式不变；先校验源码 SHA，再将 JSON 作为参数传入。
+CLR 2.0 的 SHA256 对象使用 Clear() 释放。
+开发机 controller、authority、deny-set 共 58/58 PASS。
+Electron 22 / Node 16 加载检查通过，组合源码与目标实测原字节一致。
+
+Win7 PowerShell 5.1 的真实 transport、bootstrap 和 R1 完成 2 项正例及 8 项拒绝反例。
+证据为 DEV_CHANNEL，位于 `outputs/next-version-r1/p5-integration/stdin-fix-r1/direct-entry-final/RESULT.json`。
+PowerShell 2.0 已进入 R1，但容量扫描仍返回 CHANNEL_CAPACITY_UNKNOWN；完整 R1 未通过。
+未据此补签此前未执行的 C#、Scheduler、FULL 或正式门。
+只读窗口已结束，诊断进程零残留、通道零进程/任务、锁 inactive。
+当前预算与后续缺口以 A9-43 §8.11、`target-binding-status-r3.json` 为准。

@@ -354,6 +354,9 @@ function fakeExecutor(f,changes={}) {
     const text=options.input.toString(),split=text.indexOf('\n'),body=Buffer.from(text.slice(0,split),'base64');
     const input=JSON.parse(text.slice(split+1));inputs.push(input);
     const encoded=argv[argv.length-1].split(' ').slice(-1)[0],bootstrap=Buffer.from(encoded,'base64').toString('utf16le');
+    assert.match(argv[argv.length-1],/-InputFormat Text -OutputFormat Text/);
+    assert.match(bootstrap,/\$input \| ForEach-Object/);
+    assert.doesNotMatch(bootstrap+body.toString('utf8'),/\[Console\]::In\.|OpenStandardInput/);
     assert.ok(bootstrap.includes(hash(body)),'fixed source bootstrap hash');codeBytes.push(body);calls.push(input.step+(input.phase?'-'+input.phase:''));
     assert.equal(input.run_id,f.binding.run_id);assert.ok(!body.includes(Buffer.from(f.binding.run_id)));
     if(changes.failStep===input.step) return {status:1,stdout:Buffer.from('{"ok":false,"error":"SYNTHETIC_TARGET_FAILURE"}\n'),stderr:Buffer.alloc(0)};
@@ -466,6 +469,8 @@ test('fixed admin stdin grammar and code are shared; no embedded run data or PS3
   const runner=require('../run-rehearsal.cjs'),a=fixture(),b=fixture('FORMAL_GATE_A_EXECUTION');
   a.ctx.lockHolder=b.ctx.lockHolder='TEST_HOLDER';b.ctx.budget.p1.target_session_id=5;
   assert.deepEqual(runner.adminScript(a.ctx),runner.adminScript(b.ctx));
+  a.ctx.pinnedAdminScript=runner.adminScript(a.ctx);b.ctx.pinnedAdminScript=runner.adminScript(b.ctx);
+  assert.equal(runner.adminCommand(a.ctx),runner.adminCommand(b.ctx));
   assert.notDeepEqual(runner.adminBody(a.ctx,'R1'),runner.adminBody(b.ctx,'R1'));
   const reader=fs.readFileSync(path.join(source,'admin-input.ps1'),'utf8');
   const raw=reader.split('\n').find(x=>x.trimStart().startsWith('$pattern = ')).trim().slice(12,-1);

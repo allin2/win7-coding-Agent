@@ -33,17 +33,27 @@ function adminScript(ctx) {
  const reader=fs.readFileSync(path.join(root,'admin-input.ps1'),'utf8');
  const glue=fs.readFileSync(path.join(root,'run-admin.ps1'),'utf8');
  const environment=fs.readFileSync(path.join(root,'environment-process.ps1'),'utf8');
- return Buffer.from(reader+'\n'+glue.split('# @ENVIRONMENT_PROCESS_PS@').join(environment)+
-  '\nInitialize-AdminInput ([Console]::In.ReadToEnd())\nInvoke-RehearsalAdmin -Step $AdminStep -Phase $AdminPhase -Rows $AdminRows -Owned $AdminOwned -DeletePhases $AdminDeletes\n','utf8');
+ return Buffer.from('param([string]$AdminWireInput)\n'+reader+'\n'+glue.split('# @ENVIRONMENT_PROCESS_PS@').join(environment)+
+  '\nInitialize-AdminInput $AdminWireInput\nInvoke-RehearsalAdmin -Step $AdminStep -Phase $AdminPhase -Rows $AdminRows -Owned $AdminOwned -DeletePhases $AdminDeletes\n','utf8');
 }
 function adminCommand(ctx) {
  // A short fixed bootstrap avoids the Windows command-line limit for the large admin source.
  // First stdin line is fixed source bytes; its expected hash depends only on source, never run data.
- const pin=gate.sha(ctx.pinnedAdminScript);
- const ps="$ErrorActionPreference='Stop';$raw=[Convert]::FromBase64String([Console]::In.ReadLine());"+
-  "$h=[Security.Cryptography.SHA256]::Create();try{$actual=[BitConverter]::ToString($h.ComputeHash($raw)).Replace('-','').ToLowerInvariant()}finally{$h.Dispose()};"+
-  "if($actual -cne '"+pin+"'){throw 'ADMIN_SOURCE_HASH'};& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($raw)))";
- return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand '+Buffer.from(ps,'utf16le').toString('base64');
+ const pin=gate.sha(ctx.pinnedAdminScript),sourceChars=ctx.pinnedAdminScript.toString('base64').length;
+ // PowerShell owns redirected stdin. Read its text pipeline, never compete with it through Console.In.
+ // Keep the existing two-line wire contract: fixed source base64, then canonical JSON data.
+ const ps="$ErrorActionPreference='Stop';try{$lines=New-Object 'Collections.Generic.List[string]';"+
+  "$input | ForEach-Object {[string]$line=$_;if($lines.Count -ge 2){throw 'ADMIN_WIRE_LINES'};"+
+  "if(($lines.Count -eq 0 -and $line.Length -ne "+sourceChars+") -or ($lines.Count -eq 1 -and $line.Length -gt 262143)){throw 'ADMIN_WIRE_BOUND'};$lines.Add($line)};"+
+  "if($lines.Count -ne 2){throw 'ADMIN_WIRE_LINES'};"+
+  "if($lines[0] -cnotmatch '\\A(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?\\z'){throw 'ADMIN_SOURCE_BASE64'};"+
+  "$raw=[Convert]::FromBase64String($lines[0]);"+
+  "$h=[Security.Cryptography.SHA256]::Create();try{$actual=[BitConverter]::ToString($h.ComputeHash($raw)).Replace('-','').ToLowerInvariant()}finally{$h.Clear()};"+
+  "if($actual -cne '"+pin+"'){throw 'ADMIN_SOURCE_HASH'};$utf8=New-Object Text.UTF8Encoding($false,$true);"+
+  '& ([ScriptBlock]::Create($utf8.GetString($raw))) ($lines[1]+"`n")'+
+  "}catch{$code=[string]$_.Exception.Message;if($code -cnotmatch '^ADMIN_[A-Z0-9_]+$'){$code='ADMIN_BOOTSTRAP_FAILED'};"+
+  "[Console]::Out.WriteLine(('{\"ok\":false,\"error\":\"'+$code+'\"}'));exit 1}";
+ return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -InputFormat Text -OutputFormat Text -EncodedCommand '+Buffer.from(ps,'utf16le').toString('base64');
 }
 function adminBody(ctx,step,phase='',rows='',owned=false,deletes=[]) {
  need(['R1','R2','R3','R3-state','R4','R5','R6','R7','R8'].includes(step),'ADMIN_STEP');

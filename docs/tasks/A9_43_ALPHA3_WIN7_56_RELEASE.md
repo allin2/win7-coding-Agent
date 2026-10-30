@@ -334,3 +334,50 @@ R1 首次在 10 秒容量扫描处失败。只替换目录枚举的首轮修复�
 准确状态为 `target-binding-status-r2.json`；旧 r1 记录保留。
 当前容量修复改变候选外工具字节；旧包和旧准备材料不得重绑为此修复的全阶段结果。
 本轮未推送、发布、删除或签发门 A/B。
+
+### 8.11 总控 stdin 修复与只读收尾（2026-10-30 UTC）
+
+执行代理已修复总控 stdin 阻塞。Win7 PowerShell 5.1 的实际传输入口完成 R1。
+本轮证据只作 DEV_CHANNEL 诊断；完整版本运行仍为 NOT_PERFORMED。
+源码基线为 main `d5e4386b…`，实测使用本轮未提交修改。
+准确文件 SHA、run、目标身份和预算见 `outputs/next-version-r1/p5-integration/target-binding-status-r3.json`。
+下文证据目录均相对于 `outputs/next-version-r1/p5-integration/stdin-fix-r1/`。
+
+原入口使用 Console.In 读取重定向 stdin，与 PowerShell 宿主的输入处理冲突。
+最小诊断中，改用 `-InputFormat Text` 的 `$input` 后，短输入和 120 KB 输入及时返回。
+总控据此改用文本管道读取两行，再把 JSON 作为参数传入固定源码。
+源码 base64、JSON 的两行传输格式不变；运行数据不拼入可执行文本。
+入口拒绝缺行、多行、超限、非法 base64 和源码 SHA 不符。
+固定源码继续执行原 JSON 格式、目标身份和路径守卫。
+SHA256 对象改用 CLR 2.0/4.0 均支持的 Clear() 释放。
+
+| 检查 | 本轮直接结果 | 证据 |
+|---|---|---|
+| 开发机 controller、authority、deny-set | 58/58 PASS；0 skipped/TODO | `local-tests-final-r2.log` |
+| 开发机 Electron 22.3.27 / Node 16.17.1 | 加载及组合入口检查 PASS；与实机源码原字节一致 | `node16-final.log` |
+| Win7 PowerShell 5.1 实际传输入口 | 普通输入及约 200 KB JSON 均返回 R1；8 项反例按预期拒绝 | `direct-entry-final/RESULT.json` |
+| Win7 PowerShell 2.0 / CLR 2.0 | 已通过 stdin、源码和 JSON 检查并进入 R1；容量扫描返回 CHANNEL_CAPACITY_UNKNOWN | `ps2-r2/runtime.stdout`、`ps2-r2/entry.stdout` |
+| Win7 最终只读收尾 | 通道零进程、零任务，锁 inactive；本轮诊断进程零残留 | `target-status.json`、`target-closeout.json` |
+
+实机验证调用真实 `makeTransport → adminCommand → adminScript → R1`。
+它未执行 FULL 的授权材料消费、占锁、上传或调度。
+8 项反例覆盖重复字段、源码篡改、缺行、多行、超限、非法 base64、错误主机和错误 session。
+最终 run 为 `6d33bc01-382a-4197-b3aa-91bbfa295276`。
+组合源码 SHA 为 `845bf86b…`，总控文件 SHA 为 `4a917e13…`。
+目标仍为 `192.168.1.9` / `DCCS-CHAIZL-PC`，普通 agent console session 2。
+两项 R1 均取得完整通道字节数 `14680360432`。
+
+PowerShell 2.0 的容量扫描缺口未修复，未放宽 10 秒限时。
+不得据 PowerShell 5.1 的结果宣称 PowerShell 2.0 完整 R1 通过。
+首次非法 base64 错误码过滤失败、CLR 2.0 Dispose 失败及容量失败均保留。
+修复后的通过结果不改判这些历史记录。
+
+本轮目标动作全部只读，真实模型请求为 0。
+第二窗口从 `15:24:46.703Z` 至 `15:37:17.201Z`，计入 750.498 秒。
+连同首个窗口，累计 2542.080 秒；剩余 8257.920 秒、1 个窗口、60 次请求。
+窗口已关闭；没有上传、运行产品、关闭他人锁或删除目标文件。
+本轮产物与既有工作树只读盘点后保留，见 `retained-artifacts.json`、`worktrees-retained.txt`。
+
+下一步按当前源码重新准备准确 FULL 材料，再完成后续工具准入与五阶段运行。
+旧开发包及旧准备材料保留，不重绑为本轮工具修复的全阶段结果。
+正式门 A/B、推送与发布均为 NOT_PERFORMED。
