@@ -69,9 +69,9 @@ function Assert-Writer {
   if ($rows.Count -ne 4 -or $rows[1] -cne $D['holder'] -or $rows[3] -cne $D['token']) { throw 'LOCK_NOT_OWNED' }
 }
 function Development-Root-Limit([string]$holder, [DateTime]$at) {
-  # ADR-0306: exact A9-43 holder and existing third window only.
+  # ADR-0306/0307: exact A9-43 holder and existing third window only.
   $start = [DateTime]::Parse('2026-10-30T15:55:13.975Z').ToUniversalTime()
-  $end = [DateTime]::Parse('2026-10-30T18:11:32.708Z').ToUniversalTime()
+  $end = [DateTime]::Parse('2026-10-30T18:56:32.708Z').ToUniversalTime()
   if ($holder -ceq 'a942-751c-7f41ca1c' -and $at -ge $start -and $at -lt $end) { return [long]24000000000 }
   return [long]20000000000
 }

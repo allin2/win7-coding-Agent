@@ -726,14 +726,15 @@
         "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
         "Shared R1/R2 four-condition admission and exact Session; whole channel process/task checks; existing v1 lock current run token; allowed parents only; root-only ACL; bound task cleanup and lock release. PS runtime NOT_PERFORMED.",
         "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
-        "ADR-0306 exact A9-43 holder and current-window capacity ceiling of 24 GB; all other scopes remain 20 GB. No execution authorization or time extension."
+        "ADR-0306 exact A9-43 holder and current-window capacity ceiling of 24 GB; all other scopes remain 20 GB. No execution authorization or time extension.",
+        "ADR-0307 owner-approved 45-minute extension of the same A9-43 window and 24 GB capacity scope to 18:56:32.708Z."
       ],
       "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1",
       "ctrl_source_sha256": "659ee436dc367aec4c2c9a94ea6bb6274e441ed497afe1d02fb107c0067a9d46",
       "ctrl_run_differs": false,
-      "current_sha256": "f81283f5f9f5999e22e408b31f1e8ce095b721cbc74ebdf999e2019889bbf723",
-      "current_bytes": 43008,
+      "current_sha256": "4cf173bc3cf1d0c38587a7a3d8ea27933cc16c1e4146fe84812326dc29e838b3",
+      "current_bytes": 43013,
       "inventory_disposition_ids": {
         "路径安全": [
           "D-0389",

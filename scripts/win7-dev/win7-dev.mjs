@@ -116,10 +116,10 @@ export function uploadTimeout(bytes) {
   return Math.max(600, Math.ceil(bytes / 200000));
 }
 export function developmentRootLimit(holder, now = Date.now()) {
-  // ADR-0306: one owner-approved A9-43 window; no general quota override.
+  // ADR-0306/0307: one owner-approved A9-43 window; no general quota override.
   return holder === 'a942-751c-7f41ca1c' && Number.isFinite(now)
     && now >= Date.parse('2026-10-30T15:55:13.975Z')
-    && now < Date.parse('2026-10-30T18:11:32.708Z') ? 24e9 : 20e9;
+    && now < Date.parse('2026-10-30T18:56:32.708Z') ? 24e9 : 20e9;
 }
 export function checkCapacity(free, used, incoming = 0, scope = {}) {
   need([free, used, incoming].every((n) => Number.isSafeInteger(n) && n >= 0), 'DISK_SPACE_UNKNOWN');

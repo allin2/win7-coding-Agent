@@ -7,7 +7,7 @@ Target Branch: main
 Source Baseline: 63e173fc90f81c9c5ddcafe3dabf18f03cdbdad2
 Phase-Gate: A9_43_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306
+Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307
 ```
 
 本任务把 WIN7-55（上一个已签发候选）之后完成的四项工作合成一个版本，走完一次正式流程到发布。
@@ -87,7 +87,7 @@ ENGINEERING_04 其余验收削减建议：E4-2、E4-4、E4-5 延到 RC；E4-6 �
 
 | 项 | 上限 |
 |---|---|
-| Win7 开发级运行目标机窗口 | 合计 3 小时，最多 3 次窗口 |
+| Win7 开发级运行目标机窗口 | 合计 3 小时 45 分钟，最多 3 次窗口（ADR-0307） |
 | 开发级运行真实模型请求 | 合计 60 次 |
 | 费用 | UNKNOWN，不设金额上限 |
 | 正式执行 | 预算在门 A 中另签 |
@@ -484,3 +484,8 @@ FULL 材料生成在原共同截止下返回 `RUN_CONTEXT:WINDOW_BUDGET`，未�
 
 最新只读状态和连续计时预算见 `target-snapshot-r7.json`、`budget-snapshot-r7.json`；等待负责人期间窗口继续计时，不重置额度。
 本轮本地产物只读盘点见 `retained-artifacts-r7.json`、`worktrees-retained-r7.txt`；全部保留，未新增删除。
+
+### 8.16 负责人批准延长当前窗口（2026-10-30 UTC）
+
+负责人对 §8.15 准确提案回复“批准”。第三窗口截止为 UTC `18:56:32.708Z`，总预算 13500 秒；24 GB 例外同步截止，仍最多三个窗口、60 次真实模型请求。
+旧窗口记录与失败材料保留；新执行记录使用 `execution-window-r4.json`，沿用原开始点与前两窗口计时。按 ADR-0307 更新范围后，用新不可变源码、包及五阶段材料继续。

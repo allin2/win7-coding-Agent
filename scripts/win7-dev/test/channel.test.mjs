@@ -83,7 +83,7 @@ function fixtureZip(filename, entry = 'a.txt', content = 'hello', { localName = 
 }
 
 test('A9-43 capacity exception is bounded by exact holder, window, incoming size and free space', () => {
-  const holder = 'a942-751c-7f41ca1c', start = Date.parse('2026-10-30T15:55:13.975Z'), end = Date.parse('2026-10-30T18:11:32.708Z');
+  const holder = 'a942-751c-7f41ca1c', start = Date.parse('2026-10-30T15:55:13.975Z'), end = Date.parse('2026-10-30T18:56:32.708Z');
   const scope = { holder, now: start };
   assert.equal(developmentRootLimit(holder, start), 24e9);
   assert.equal(developmentRootLimit(holder, end - 1), 24e9);
