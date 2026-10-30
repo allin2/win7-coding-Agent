@@ -20,7 +20,8 @@
   后台恢复 run `13ad75ee…` 因 `PROCESS_CURRENT_IDENTITY_UNKNOWN` 保持 HALTED；三个模式的功能检查不替代收尾通过。
   失败身份取证已补齐；新源 `b0c13455…` 的后台诊断 run `56bf7b0b…` 四模式与独立收尾直接完成。首次异常未重现，根因 UNKNOWN，不与旧源 batch2 拼成五阶段通过。
   便携、Office、真实模型与新版本全阶段仍 NOT_PERFORMED。负责人批准本窗口 24 GB 容量例外（ADR-0306）；86 项开发机检查及 PS2/PS5.1 各 9 项直接边界检查通过。
-  第三、最后窗口从 UTC `15:55:13.975` 开始，共同截止 `18:11:32.708`；前两窗口累计 2542.080 秒，真实模型请求仍为 0，额度不重置。
+  新开发包源 `e93b78d1…`、ZIP `80a70e64…` 及五阶段绑定材料已完成开发机完整性检查；该包 Win7 运行 NOT_PERFORMED。FULL 材料被 `RUN_CONTEXT:WINDOW_BUDGET` 拒绝生成执行授权，详见 §8.15。
+  第三、最后窗口从 UTC `15:55:13.975` 开始，共同截止 `18:11:32.708`；前两窗口累计 2542.080 秒，真实模型请求仍为 0，额度不重置。延长 45 分钟的提案待负责人明确批准。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
   当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。

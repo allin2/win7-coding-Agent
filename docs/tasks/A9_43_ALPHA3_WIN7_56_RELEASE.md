@@ -466,3 +466,21 @@ ADR-0306 容量例外已实现。开发机 channel/controller 86/86 PASS；Win7 
 准确 holder/开始边界/截止前允许 24 GB，其他 holder、大小写差异、窗口外及总控截止越界仍为 20 GB。
 新增量越界和最低剩余空间保持拒绝。证据 `local-logs/capacity-scope-r1.log` 与 `capacity-admission-r1/RESULT.json`。
 完整新版本五阶段尚未执行；本地继续准备，是否延长当前窗口另由负责人明确决定。
+
+### 8.15 容量变更收尾与后继完整批次的预算阻断（2026-10-30 UTC）
+
+ADR-0306 实现已本地提交 `e93b78d13aeb266b9ddbe5706f62ece5d3405add`。
+干净源码 r7 开发包 ZIP SHA-256 为 `80a70e641203923096564e23275e87041508177b04b3225fecf61b541857a63e`；新包自身完整 ZIP、目录与真实包内授权校验器检查 PASS（开发机）。
+五阶段绑定材料位于 `outputs/next-version-r1/p5-integration/prepared-version-r7/`，计划 SHA-256 为
+`7e13341d2777dfbe3feac086c6e2ec0fbed99ebe7cd83add6b7530f0afb77f0d`。
+本包 Win7 产品运行 NOT_PERFORMED，不继承旧源的阶段 PASS。
+
+FULL 材料生成在原共同截止下返回 `RUN_CONTEXT:WINDOW_BUDGET`，未产出执行授权，未启动新批次；原失败日志 `local-logs/prepare-full-r5.log` 保留。
+该检查拒绝 6600 秒技术上限大于剩余窗口，不通过改写截止或删减用例绕过。
+本地已准备有直接时长依据的后继预算提案：保留 37 用例/67 断言、10 产品阶段和 GPU gate；batch2 技术预算 4110 秒，包含 300 秒收尾预留。
+各阶段上限仍高于本轮直接测得的完成时长，上传/解包按本轮实际记录保留余量；不是已执行结果。
+提案 `execution-extension-proposal-r1.json` 请求第三窗口延长 2700 秒至 UTC `18:56:32.708Z`，合计预算 13500 秒，仍最多三个窗口及 60 次真实模型请求，24 GB 例外同步截止。
+负责人尚未批准时间变更；原 UTC `18:11:32.708Z` 截止继续生效。阻断完整上机批次，其余本地准备已完成。
+
+最新只读状态和连续计时预算见 `target-snapshot-r7.json`、`budget-snapshot-r7.json`；等待负责人期间窗口继续计时，不重置额度。
+本轮本地产物只读盘点见 `retained-artifacts-r7.json`、`worktrees-retained-r7.txt`；全部保留，未新增删除。
