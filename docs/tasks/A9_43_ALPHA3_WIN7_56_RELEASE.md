@@ -547,3 +547,9 @@ CLR 编译临时文件限定在 `C:\A9-DEV\.channel`，不创建 run 根或修�
 新窗口与空间提案为 `next-window-proposal-r10.json`：90 分钟新窗口、累计不超过 18900 秒/4 窗口、真实模型仍累计最多 60 次，开发根建议 30 GB。
 当前 21.51 GB 加一次 Office 复验及全阶段保守预留为 28.78 GB；50 GB 最低剩余不变，保留所有历史证据，不计划额外删除。
 该提案未批准，不自动开放目标执行或改变当前已批准上限。
+
+修正已本地保存为 `384dd6f541f8102e77f3015d7196cb73651f9612`。
+新干净源码包 ZIP SHA-256 `325614bac1171d502c6ed14b0efe2932def5d5321a31329cf1b788ebbecc95cd`，字节数 111180891；真实包内完整性入口在开发机 PASS。
+五阶段材料 `prepared-version-r10/` 已准备，计划 SHA-256 `417e4d555bacc57049b805822a9779cce03168e438484508b760be91c2a67c40`。
+材料为 PREPARED_NOT_AUTHORIZED，期限为空；当前预算已关闭，不生成可执行 FULL 授权。新包目标运行 NOT_PERFORMED。
+本地只读产物盘点见 `retained-artifacts-r10.json`、`worktrees-retained-r10.txt`，全部保留；原有三个用户测试文件哈希未变。
