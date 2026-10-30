@@ -6,8 +6,10 @@ Task Type: EXECUTION_CAPABILITY
 Target Branch: main
 Source Baseline: 6ea0b9af67145603f5991cd441bdc4c9af658d4c
 Phase-Gate: A9_42_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: DEV_CHANNEL
 ```
+
+Win7字段仅表示已有范围限定的开发级实机证据，准确直接/继承/未执行范围见§7.13；不签发正式通过。
 
 ## 1. 授权与交付结果
 
@@ -867,3 +869,57 @@ Mac Electron22/Node16原生夹具新增“关闭遮罩后输入框可点击”�
 
 本阶段只读盘点见 `outputs/a9-42-tools/office-journey/native-retry-artifact-inventory.json`；
 两轮原始结果、运行字节日志、失败/问询/副本截图及所有准备材料保留，未删除本地或目标文件。
+
+### 7.12 限定取消场景批准与执行
+
+负责人对§7.11准确材料回复“批准”。本轮从main `9b2e963a62b800b22bb991b808e6c200970f6937`
+开启新15分钟DEV_CHANNEL窗口，最后10分钟不开新场景，真实模型0次、Win7夹具累计最多3次，最多2个场景run。
+材料manifest、driver/source-binding与§7.11准确SHA相符，产品src树、源和r4包不变。
+首个run `a942o-2e94bc71`，候选外证据位于 `outputs/a9-42-tools/office-journey/win7-r4-question-cancel-r1/`。
+首次目标动作固定原窗口起止及收尾线；准入确认通过后立即部署并启动限定场景，不借用已关闭窗口剩余预算。
+Office已完成场景只按准确hash继承，不改写为本次直接执行或一次完整Office GUI旅程PASS。
+
+### 7.13 限定取消场景完成与增量证据汇总
+
+本次窗口起点为2026-10-29 UTC `23:47:27.952`，收尾线 `23:52:27.952`，
+截止2026-10-30 UTC `00:02:27.952`。准入直接确认DCCS-CHAIZL-PC/7601/SP1/x64、普通agent Medium/会话2，
+自有holder inactive、根内无进程/任务、无未知解包状态；材料SHA及产品src树与§7.11一致。
+只使用1个场景run、2次本机夹具请求（probe与ask）、真实模型0次。
+
+真实产品main/preload/strict IPC/Runtime/State/Core/Renderer直接完成：
+
+- 未回答期间不自动重发或写文档；问题卡可见，不记住密钥。
+- 点击取消后pending清除；迟到的旧questionId/revision回答被真实IPC拒绝，模型请求数保持2，原同批文档工具未执行。
+- Renderer无Node/进程权限，SQLite事件无本轮原始sentinel，正常窗口关闭。
+- SQL问题pending/resolved事件各1，唯一turn为cancelled，工作区锁为空；输入包及运行副本完整性重新核对。
+- 原启动任务正常移除后，独立普通用户postflight直接确认无阻断产品实例及异常根内实例。
+
+Controller结论为 `QUESTION_CANCEL_CHECKS_COMPLETE_POSTFLIGHT_REQUIRED`，独立POSTFLIGHT为
+`QUESTION_CANCEL_DEV_CHANNEL_COMPLETE`，两入口均0退出。本结论仅覆盖取消限定场景。
+证据摘要见 `outputs/a9-42-tools/office-journey/win7-r4-question-cancel-r1/RESULT.md`，
+原RESULT/ui-result/POSTFLIGHT及截图保留在 `outputs/win7-dev/office-journey/a942o-2e94bc71/`。
+取消后截图沿用原驱动文件名undo-and-cancel.png，本场景没有执行Office撤销。
+
+最终status于UTC `23:55:33.270`结束，提前收尾：根内零进程/临时任务、holder inactive、无解包标记，
+root_bytes=12248077913、free_bytes=881235542016。搜狗环境实例PID10900/创建时间
+`20261030074925.243000+480`按ADR-0297准确分类保留，未终止根外进程，不声称该实例同步退出。
+此后无目标动作，本次窗口及请求预算不再开放。
+
+| 当前范围 | 证据等级及绑定 |
+|---|---|
+| 取消、迟到拒绝、同批不执行、取消落盘及退出 | 本窗口直接DEV_CHANNEL，run a942o-2e94bc71 |
+| 问询回答、DOCX/XLSX新稿/读取、原稿hash副本、工具记录、界面撤销及原件保持 | INHERITED_EVIDENCE，准确同包run a942o-b12c6d8e，限定继承已通过断言 |
+| 单次完整Office GUI旅程 | NOT_PERFORMED；所有原HALTED不改判 |
+| 真实模型、正式Gate A/B、长期资源预算、负责人实际使用验收与发布 | NOT_PERFORMED |
+
+两场景产品源均为 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`、ZIP SHA-256
+`845853613765327ccb41786fb1763a2ef4aed531c32bc1c426668e41911dc063`、manifest SHA-256
+`316a97129a92e2d00c5e6b12eecb69dd56cbd5d44981d1486d42d55778ef1a2c`，
+未重建产品/原生或更换依赖；当前取消限定增量范围已覆盖完成，不改签整个产品或历史候选。
+
+本阶段已只读盘点准确材料、本次run、通道原始文件及Git worktree入口，
+记录见 `outputs/a9-42-tools/office-journey/question-cancel-artifact-inventory.json`。
+全部材料保留，未清理本地/目标文件。后续仅修改状态文档，完成docs:check与diff检查；
+未对已通过且输入不变的产品代码重复全量构建/测试。
+docs:check首轮发现索引已更新但任务书头部仍为NOT_PERFORMED的元数据不一致；
+统一为范围限定DEV_CHANNEL后，394文件/64任务检查PASS，git diff --check PASS，原失败日志保留。

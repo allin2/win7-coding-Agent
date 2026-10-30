@@ -12,37 +12,15 @@
 
 ## 进行中的工作与授权
 
-- [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：负责人授权按平民模式推进六项轻量工具与文档能力。
-  编辑反馈、环境、Skills、ask_user 已整合到下述产品提交并通过开发机定向检查。
-  图片全链路本地实现及文件/数量/生命周期/历史隔离定向检查通过；五项完成开发交付。
-  [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 的 DOCX/XLSX 有界读、新稿与修改副本已在主工作区实现；相关开发机定向验证通过。
-  六项均完成本地开发交付；开发机Electron22/Node16模块探针5项PASS，包含真实图片解码与Office Worker。
-  Office打包夹具依赖缺口已修复；相关打包回归123项PASS，0跳过。完整release组仍有11项历史FAIL及5项未执行，独立记录。
-  批准范围82项已保存为本地产品提交 `100f8db4…`，真实干净源码开发包已构建，ZIP SHA-256 `31482faf…76bd4c3`。
-  包完整性与99项Office依赖闭包校验PASS；开发机Electron22/Node16包内模块探针3项PASS，准确绑定见任务书§4.8。
-  后续发现并修复问询失败返回导致卡片清空/无法重试：65项定向检查PASS，Electron22真实preload/IPC加Runtime夹具交互6项PASS。
-  Node16包内Office反复读取128次，130个Worker均退出；RSS观察不构成Win7轻量预算结论。
-  修复版产品提交 `94135364…`，新开发ZIP SHA-256 `751c76f2…d72085d` 已构建并校验；旧包保留，见任务书§4.9～§4.10。
-  负责人已批准准确包的Win7开发试用及非活动锁转交；Win7普通agent真实portable窗口、Read Only、新建对话、SQLite持久化及正常退出均完成。
-  Win7包内Office/图片3项、Runtime夹具工作台6项通过；Office读取32次的34个Worker全部退出，结果只作DEV_CHANNEL，见任务书§5.1～§5.4。
-  15:10 UTC收尾确认根内进程/临时任务为空、锁inactive，保留SGTool环境实例和全部文件；原包及副本4082文件哈希一致。
-  包external_acceptance_eligible=false；真实模型、完整Office Agent GUI旅程、正式门A/B、长期预算、推送发布仍为 NOT_PERFORMED。
-  后续已切换GPT重置，两项员工Fast，主对话保持Sol/max/default。打包优化提交 `c9e29545…`，r3开发ZIP SHA-256 `1d2a1289…7320f42`。
-  原99工件/运行字节保持；完整新包标准cand路径最长201字符已直接通过，受影响合同及闭包124项、最终包Electron模块3项PASS。
-  两项Fast员工均已完成并整合；Office驱动/HTTP与绑定反例10项、真实Runtime/SQLite组合5项通过，完整GUI仍待直接执行。
-  最终开发包源 `5143b9cf…`、r4 ZIP SHA-256 `84585361…1dc063`，完整性/标准路径校验及39产品/117编译文件正向绑定PASS。
-  负责人已批准r4的60分钟/0真实模型/最多16次Win7 loopback夹具窗口，准确范围见任务书§7。
-  已确认Win7普通agent会话2、原holder inactive和零未知生命周期；首次上传超时保留，前缀校验续传后完整ZIP哈希匹配。
-  r4 Win7真实问题卡回答、DOCX/XLSX新稿与读取、哈希绑定修改副本及原件保持已直接完成，累计13次夹具请求。
-  完整GUI在工具记录展开处HALTED，撤销/第二问题取消及迟到回答仍为 NOT_PERFORMED，首失败保留，见任务书§7.6。
-  独立普通agent诊断确认两轮completed_with_warnings、SQLite锁已释放、原件/工作簿不变、产品树已结束，输入/副本各3256文件hash一致。
-  最终status于UTC17:02:10确认零根内进程/任务、锁inactive、无解包标记，原窗口提前收尾。真实模型及正式门A/B/发布NOT_PERFORMED。
-  后继仅本地改进原生点击等待和失败定位：13项驱动检查、Electron22/Node16原生交互夹具3项PASS；Win7中断具体原因UNKNOWN。
-  取证代码已本地保存为 `3c43199…`；负责人随后批准20分钟复验，本轮新增真实工具记录显示和界面撤销证据。
-  首run在撤销后被检查器抽屉挡住输入；第二run完成准备时触发收尾线，未启动UI。全窗口13次夹具、0真实模型，取消/迟到回复仍NOT_PERFORMED。
-  最后status于UTC23:20:15确认零根内进程/任务、锁inactive、无解包标记；普通agent SQL/文件/进程树收尾通过，完整旅程仍HALTED，见任务书§7.9～§7.10。
-  驱动已本地加入提交前关闭检查器抽屉，13项驱动与Electron22/Node16原生交互4项PASS；该修正后的Win7完整旅程尚未执行。
-  剩余取消/迟到回复的15分钟、0真实模型、最多3次夹具限定材料已准备，模板不可执行；待决定，见任务书§7.11。已证明Office场景拟按准确hash继承，单次完整旅程不改判。
+- [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
+  [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
+  当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。
+  Win7开发增量范围已覆盖：问询回答、Office生成/读取/哈希副本、真实工具记录和界面撤销引用同包run `a942o-b12c6d8e`，标INHERITED_EVIDENCE。
+  本窗口run `a942o-2e94bc71` 直接完成取消、迟到回复拒绝、同批不执行、SQL cancelled事实及正常退出；独立postflight为QUESTION_CANCEL_DEV_CHANNEL_COMPLETE，见任务书§7.13。
+  本次仅2次本机夹具请求、0真实模型。最后目标status于UTC23:55:33.270结束：根内零进程/任务、锁inactive、无解包标记；准确搜狗环境实例按ADR-0297保留。
+  原包/运行副本完整性已直接核对，组件字节不变；历史失败和中断全部保留。两场景不改写为一次完整Office GUI旅程PASS。
+  取证驱动抽屉顺序修复已本地保存为 `9b2e963…`，13项驱动与Electron22/Node16原生交互4项PASS；该修正后单次完整Win7旅程仍NOT_PERFORMED。
+  真实模型、正式Gate A/B、长期资源预算、负责人实际使用验收、推送发布仍NOT_PERFORMED。完整release组11项历史FAIL与5项未执行不改判；前序包与全部验证见任务书§4～§7。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。
