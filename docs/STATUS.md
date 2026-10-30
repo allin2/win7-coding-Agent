@@ -12,6 +12,9 @@
 
 ## 进行中的工作与授权
 
+- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：2026-10-29 负责人批准把 A9-34、A9-40、A9-41、A9-42 合成 `v0.3.0-alpha.3`（候选 WIN7-56），走正式流程到发布。
+  main 源码已推送到 `63e173fc…`；标签与发布 NOT_PERFORMED。冻结前缺口、D1～D6 裁决和开发级运行预算见任务书 §3～§6；执行目录与拒绝集见 ADR-0304。
+  Win7 正式验收 NOT_PERFORMED；负责人试用材料在 `outputs/next-version-r1/owner-trial/`，试用结果 NOT_PERFORMED。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
   当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。

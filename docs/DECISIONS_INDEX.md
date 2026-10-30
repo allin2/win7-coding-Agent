@@ -296,7 +296,7 @@
 | ADR-0290 | 已确认范围内连续交付与本轮工程落地 | Accepted |
 | ADR-0291 | 日常验证二次收敛与入口去旧 | Accepted |
 | ADR-0292 | 不签完整 Alpha 2；WIN7-55 限定结论保持，补证留待 RC | Accepted |
-| ADR-0293 | 彩排与正式执行使用同一远端目录布局（ENGINEERING_04 E4-3，草案） | Proposed |
+| ADR-0293 | 彩排与正式执行使用同一远端目录布局（ENGINEERING_04 E4-3，草案） | Accepted |
 | ADR-0294 | A9-34 重启恢复“清理未确认”后台事实的用户确认处置出口 | Accepted |
 | ADR-0295 | 提前修复后台任务进展显示与结束同步（A9-40） | Accepted |
 | ADR-0296 | 从 WIN7-55 恢复开发构建的锁定 helper | Accepted |
@@ -307,3 +307,4 @@
 | ADR-0301 | A9-42 有界本地图片输入 | Accepted |
 | ADR-0302 | A9-42 本地可选 Office Lite | Accepted |
 | ADR-0303 | A9-42 Office Lite交付子集与原始工件双重绑定 | Accepted |
+| ADR-0304 | WIN7-56 起执行目录统一与拒绝集数据文件 | Accepted |
