@@ -717,3 +717,14 @@ test('R1 projected capacity uses only the approved holder and window exception',
   assert.equal(run.channelCapacityLimit(ctx,Date.parse(ctx.window.expires_at_utc)),20000000000);
   assert.equal(run.channelCapacityLimit({...ctx,window:{expires_at_utc:'2026-10-30T18:56:32.709Z'}},at),20000000000);
 });
+
+
+test('fourth-window projected capacity remains holder and deadline bound', () => {
+ const run=require('../run-rehearsal.cjs'),start=Date.parse('2026-10-30T23:45:35.980Z'),end=Date.parse('2026-10-31T01:15:35.980Z');
+ const ctx={lockHolder:'a942-751c-7f41ca1c',window:{expires_at_utc:'2026-10-31T01:15:35.980Z'}};
+ assert.equal(run.channelCapacityLimit(ctx,start),30000000000);
+ assert.equal(run.channelCapacityLimit(ctx,end-1),30000000000);
+ assert.equal(run.channelCapacityLimit(ctx,end),20000000000);
+ assert.equal(run.channelCapacityLimit({...ctx,lockHolder:'other'},start),20000000000);
+ assert.equal(run.channelCapacityLimit({...ctx,window:{expires_at_utc:new Date(end+1).toISOString()}},start),20000000000);
+});

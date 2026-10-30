@@ -728,14 +728,15 @@
         "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
         "ADR-0306 exact A9-43 holder and current-window capacity ceiling of 24 GB; all other scopes remain 20 GB. No execution authorization or time extension.",
         "ADR-0307 owner-approved 45-minute extension of the same A9-43 window and 24 GB capacity scope to 18:56:32.708Z.",
-        "Capacity admission uses bounded Win7 FindFirstFileW/FindNextFileW metadata traversal with FindClose, preserving 10-second/count/reparse/byte checks; controller projected capacity shares the owner-approved 24 GB holder/window scope."
+        "Capacity admission uses bounded Win7 FindFirstFileW/FindNextFileW metadata traversal with FindClose, preserving 10-second/count/reparse/byte checks; controller projected capacity shares the owner-approved 24 GB holder/window scope.",
+        "ADR-0308 separately approved fourth 90-minute window and exact-holder 30 GB capacity; prior scopes remain immutable."
       ],
       "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1",
       "ctrl_source_sha256": "659ee436dc367aec4c2c9a94ea6bb6274e441ed497afe1d02fb107c0067a9d46",
       "ctrl_run_differs": false,
-      "current_sha256": "696fac484e7e64ca7a153d961e2a8af05558f9918e8f5289e6d72fdda6ddcf58",
-      "current_bytes": 46063,
+      "current_sha256": "61c33c69ee3ca71e0359108c82cb06d4d295c4e4573e7fd9f36cbe76357fb624",
+      "current_bytes": 46437,
       "inventory_disposition_ids": {
         "路径安全": [
           "D-0389",
@@ -815,14 +816,15 @@
         "Shared local prepare/admission/R1-R8 injected-executor loop; fixed source bootstrap and separate stdin JSON; one transport counter; no presign/run-set/receipt upload. CLI remains blocked.",
         "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
         "Preserve the bound ZIP top-level release name plus .zip across upload, expansion and request; the packaged verifier still rejects renamed archives.",
-        "Capacity admission uses bounded Win7 FindFirstFileW/FindNextFileW metadata traversal with FindClose, preserving 10-second/count/reparse/byte checks; controller projected capacity shares the owner-approved 24 GB holder/window scope."
+        "Capacity admission uses bounded Win7 FindFirstFileW/FindNextFileW metadata traversal with FindClose, preserving 10-second/count/reparse/byte checks; controller projected capacity shares the owner-approved 24 GB holder/window scope.",
+        "ADR-0308 separately approved fourth 90-minute window and exact-holder 30 GB capacity; prior scopes remain immutable."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs",
       "ctrl_source_sha256": "beb20e18488c076f9fba10471531efc7ebaf03364e9c2fe6c2cc7b5b21ccaccd",
       "ctrl_run_differs": false,
-      "current_sha256": "7496a664f9957fb5156017e07210df471e0a1c3c189b7fa89a0e444b1cc0a2c2",
-      "current_bytes": 38586,
+      "current_sha256": "8c30637b1218820fcef12b1468d75998369b1be83c48c63062dea310c4358768",
+      "current_bytes": 38861,
       "inventory_disposition_ids": {
         "统一": [
           "D-0404",

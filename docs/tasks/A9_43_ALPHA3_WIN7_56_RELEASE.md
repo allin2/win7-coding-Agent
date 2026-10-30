@@ -7,7 +7,7 @@ Target Branch: main
 Source Baseline: 63e173fc90f81c9c5ddcafe3dabf18f03cdbdad2
 Phase-Gate: A9_43_IMPLEMENTATION_AUTHORIZED
 Win7-Validation: NOT_PERFORMED
-Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307
+Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307, ADR-0308
 ```
 
 本任务把 WIN7-55（上一个已签发候选）之后完成的四项工作合成一个版本，走完一次正式流程到发布。
@@ -87,7 +87,7 @@ ENGINEERING_04 其余验收削减建议：E4-2、E4-4、E4-5 延到 RC；E4-6 �
 
 | 项 | 上限 |
 |---|---|
-| Win7 开发级运行目标机窗口 | 合计 3 小时 45 分钟，最多 3 次窗口（ADR-0307） |
+| Win7 开发级运行目标机窗口 | 合计 5 小时 15 分钟，最多 4 次窗口（ADR-0308） |
 | 开发级运行真实模型请求 | 合计 60 次 |
 | 费用 | UNKNOWN，不设金额上限 |
 | 正式执行 | 预算在门 A 中另签 |
@@ -553,3 +553,9 @@ CLR 编译临时文件限定在 `C:\A9-DEV\.channel`，不创建 run 根或修�
 五阶段材料 `prepared-version-r10/` 已准备，计划 SHA-256 `417e4d555bacc57049b805822a9779cce03168e438484508b760be91c2a67c40`。
 材料为 PREPARED_NOT_AUTHORIZED，期限为空；当前预算已关闭，不生成可执行 FULL 授权。新包目标运行 NOT_PERFORMED。
 本地只读产物盘点见 `retained-artifacts-r10.json`、`worktrees-retained-r10.txt`，全部保留；原有三个用户测试文件哈希未变。
+
+### 8.20 第四窗口授权（2026-10-30 UTC）
+
+负责人明确批准 §8.19 的准确后续提案，见 ADR-0308。先 Office 定向复验，再同源五阶段。
+从本地准备锚点 `2026-10-30T23:45:35.980Z` 保守计时至 `2026-10-31T01:15:35.980Z`，5400 秒；累计上限 18900 秒/4 窗口，已耗 13230.449 秒/0 真实模型请求。30 GB 例外同步生效，50 GB 最低剩余不变。
+记录 `execution-window-r5.json`；不覆盖前三窗口及失败证据。

@@ -347,3 +347,13 @@ test('stop scope is current run only while the channel close command remains ava
   const docs = fs.readFileSync(path.resolve(here, '../README.md'), 'utf8');
   assert.match(docs, /stop --run <UUID>/);
 });
+
+
+test('fourth A9-43 window grants only the approved 30 GB scope', () => {
+ const holder='a942-751c-7f41ca1c',start=Date.parse('2026-10-30T23:45:35.980Z'),end=Date.parse('2026-10-31T01:15:35.980Z');
+ assert.equal(developmentRootLimit(holder,start),30e9);assert.equal(developmentRootLimit(holder,end-1),30e9);
+ for(const [h,t] of [['other',start],[holder.toUpperCase(),start],[holder,start-1],[holder,end]])assert.equal(developmentRootLimit(h,t),20e9);
+ checkCapacity(100e9,29e9,1e9,{holder,now:start});
+ assert.throws(()=>checkCapacity(100e9,30e9,1,{holder,now:start}),/DISK_LIMIT/);
+ assert.throws(()=>checkCapacity(50e9,0,1,{holder,now:start}),/DISK_LIMIT/);
+});

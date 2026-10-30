@@ -117,6 +117,9 @@ export function uploadTimeout(bytes) {
 }
 export function developmentRootLimit(holder, now = Date.now()) {
   // ADR-0306/0307: one owner-approved A9-43 window; no general quota override.
+  // ADR-0308: the separately approved fourth window.
+  if (holder === 'a942-751c-7f41ca1c' && Number.isFinite(now)
+    && now >= Date.parse('2026-10-30T23:45:35.980Z') && now < Date.parse('2026-10-31T01:15:35.980Z')) return 30e9;
   return holder === 'a942-751c-7f41ca1c' && Number.isFinite(now)
     && now >= Date.parse('2026-10-30T15:55:13.975Z')
     && now < Date.parse('2026-10-30T18:56:32.708Z') ? 24e9 : 20e9;

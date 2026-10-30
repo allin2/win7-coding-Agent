@@ -311,3 +311,4 @@
 | ADR-0305 | WIN7-56 上机前三项裁决：补充组留待 RC、根外夹具例外续期、门 A 前统一准入 | Accepted |
 | ADR-0306 | A9-43 当前开发窗口的 24 GB 容量例外 | Accepted |
 | ADR-0307 | A9-43 第三窗口延长 45 分钟 | Accepted |
+| ADR-0308 | A9-43 第四窗口与 30 GB 开发根 | Accepted |

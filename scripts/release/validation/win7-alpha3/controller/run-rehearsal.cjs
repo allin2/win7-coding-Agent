@@ -372,6 +372,9 @@ function runMigration(args,deps={}) {
   preflight_ssh:0,total_control_ssh:transport.counts.ssh,total_transport_sessions:transport.counts.ssh+transport.counts.sftp,formal_gate_a:false,formal_gate_b:false,automatic_retry:false,automatic_retry_scope:'PHASE_AND_CONTROL_SSH',sftp_resumptions:{upload:Math.max(0,transport.counts.upload-1),download:Math.max(0,transport.counts.download-1)},sftp_max_sessions_per_batch:3};write(path.join(where.out,'RUN_RESULT.json'),result);return result;
 }
 function channelCapacityLimit(ctx, at) {
+ const fourthStart=Date.parse('2026-10-30T23:45:35.980Z'),fourthEnd=Date.parse('2026-10-31T01:15:35.980Z');
+ if(ctx.lockHolder==='a942-751c-7f41ca1c'&&Number.isFinite(at)&&at>=fourthStart&&at<fourthEnd
+  &&Date.parse(ctx.window.expires_at_utc)<=fourthEnd)return 30000000000;
  const start=Date.parse('2026-10-30T15:55:13.975Z'),end=Date.parse('2026-10-30T18:56:32.708Z');
  return ctx.lockHolder==='a942-751c-7f41ca1c'&&Number.isFinite(at)&&at>=start&&at<end
   &&Date.parse(ctx.window.expires_at_utc)<=end?24000000000:20000000000;

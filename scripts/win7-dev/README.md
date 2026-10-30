@@ -126,3 +126,5 @@ npm run docs:check
 准备器会把执行闭包同时与 `source_root` 的绑定 Git commit 及 prepare 实际所在源码树逐文件比较。只改驱动依赖、产品 `src` 未变也会拒绝；从其他工作树运行仅在字节均相符时允许。
 A9-3440 配置须带 `source_binding_sha256`，绑定文件包含 `schema_version:1`、`source_commit`、`zip_sha256`、`manifest_sha256`、`driver_sha256`、`execution_binding_sha256` 与 `execution_files`。真实入口先核原字节 SHA 和身份，再核整个执行闭包；复制到克隆应用后复核相同清单。准备材料不能只提供入口脚本哈希。
 本机 Node16 部署/绑定入口为 `ELECTRON_RUN_AS_NODE=1 <Electron22> scripts/win7-dev/test/a9-43-binding-runtime.cjs --output=<绝对新目录>`。
+
+ADR-0308 另批准第四窗口：准确 holder `a942-751c-7f41ca1c` 从 `2026-10-30T23:45:35.980Z` 至 `2026-10-31T01:15:35.980Z`（截止不含）容量为 30 GB；最低剩余 50 GB，其他时段沿用原规则。
