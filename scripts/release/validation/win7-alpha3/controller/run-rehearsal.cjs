@@ -295,7 +295,7 @@ function runMigration(args,deps={}) {
    admission.admit(ctx,value);parentState=value;
    const sizes=fs.readFileSync(path.join(ctx.prep,'ZIP_ENTRIES.tsv'),'utf8').trimEnd().split('\n').reduce((n,row)=>n+Number(row.split('\t')[1]),0);
    const reserve=Math.max(2*1024**3,ctx.facts.builds[0].bytes+sizes+a.rehearsal.download_max_bytes);
-   need(Number.isSafeInteger(sizes)&&sizes>=0&&Number.isSafeInteger(value.free_bytes)&&Number.isSafeInteger(value.channel_used_bytes)&&value.channel_used_bytes>=0&&value.channel_used_bytes+reserve<=20000000000&&value.free_bytes-reserve>=50000000000,'R1_CAPACITY');
+   need(Number.isSafeInteger(sizes)&&sizes>=0&&Number.isSafeInteger(value.free_bytes)&&Number.isSafeInteger(value.channel_used_bytes)&&value.channel_used_bytes>=0&&value.channel_used_bytes+reserve<=channelCapacityLimit(ctx,now())&&value.free_bytes-reserve>=50000000000,'R1_CAPACITY');
    need(Number.isFinite(Date.parse(value.target_utc))&&Math.ceil(Math.abs(now()-Date.parse(value.target_utc))/1000)<=60,'R1_CLOCK');write(path.join(where.out,'R1.json'),value);
   });
   step('R2',()=>{
@@ -371,10 +371,15 @@ function runMigration(args,deps={}) {
   execution_inputs:prepared.execution_inputs,run_descriptor:ctx.descriptor,execution_tools_sha256:gate.sha(gate.encode(a.execution_tools)),submitted_phases:submitted,first_failure:first,failures,transport:transport.counts,remaining_ssh:transport.limits.ssh-transport.counts.ssh,
   preflight_ssh:0,total_control_ssh:transport.counts.ssh,total_transport_sessions:transport.counts.ssh+transport.counts.sftp,formal_gate_a:false,formal_gate_b:false,automatic_retry:false,automatic_retry_scope:'PHASE_AND_CONTROL_SSH',sftp_resumptions:{upload:Math.max(0,transport.counts.upload-1),download:Math.max(0,transport.counts.download-1)},sftp_max_sessions_per_batch:3};write(path.join(where.out,'RUN_RESULT.json'),result);return result;
 }
+function channelCapacityLimit(ctx, at) {
+ const start=Date.parse('2026-10-30T15:55:13.975Z'),end=Date.parse('2026-10-30T18:56:32.708Z');
+ return ctx.lockHolder==='a942-751c-7f41ca1c'&&Number.isFinite(at)&&at>=start&&at<end
+  &&Date.parse(ctx.window.expires_at_utc)<=end?24000000000:20000000000;
+}
 function main(argv,deps={}) {
  const args={};for(const item of argv){const m=/^--(run-descriptor|authorization)=(.+)$/.exec(item);need(m,'USAGE');const key=m[1]==='run-descriptor'?'descriptor':'authorization';need(!args[key]&&path.isAbsolute(m[2]),'ARGUMENTS');args[key]=m[2];}
  need(args.descriptor&&args.authorization,'LOCAL_INPUTS_REQUIRED');return run(args,deps);
 }
-module.exports={sftpBatch,verifyTransfer,transportHost,r2Body,finalInventory,run,runMigration,main,locations,makeTransport,SSH_OPTIONS,adminCommand,adminScript,adminBody,verifyStock,recoveryPlan,snapshot};
+module.exports={channelCapacityLimit,sftpBatch,verifyTransfer,transportHost,r2Body,finalInventory,run,runMigration,main,locations,makeTransport,SSH_OPTIONS,adminCommand,adminScript,adminBody,verifyStock,recoveryPlan,snapshot};
 if(require.main===module){try{const r=main(process.argv.slice(2),{spawn:child.spawnSync});process.stdout.write(JSON.stringify(r,null,2)+'\n');if(r.status!=='PASS')process.exitCode=1;}
  catch(e){process.stderr.write(JSON.stringify({ok:false,error:code(e)})+'\n');process.exitCode=1;}}

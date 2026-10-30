@@ -46,6 +46,80 @@ function Exception-Detail($record) {
   if ($detail.Length -gt 300) { $detail = $detail.Substring(0,300) }
   return $detail
 }
+function Measure-DevelopmentRoot([string]$directory,[long]$limit) {
+  Safe $directory
+  if (-not ('A9DevelopmentCapacity' -as [type])) {
+    # Compile with the already-supported CLR compiler; keep temporary files in the development root.
+    $priorTemp = $env:TEMP; $priorTmp = $env:TMP
+    try {
+      Safe 'C:\A9-DEV\.channel'
+      $env:TEMP = 'C:\A9-DEV\.channel'; $env:TMP = $env:TEMP
+      Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+public static class A9DevelopmentCapacity {
+  static Exception Unknown(Stopwatch clock, int directories, int cursor, int files, long bytes) {
+    Exception failure = new InvalidOperationException("CHANNEL_CAPACITY_UNKNOWN");
+    failure.Data["A9Detail"] = "CHANNEL_CAPACITY_UNKNOWN:ms=" + clock.ElapsedMilliseconds + ":dirs=" + directories + ":visited=" + cursor + ":files=" + files + ":bytes=" + bytes;
+    return failure;
+  }
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+  struct FindData {
+    public uint attributes, creationLow, creationHigh, accessLow, accessHigh, writeLow, writeHigh;
+    public uint sizeHigh, sizeLow, reserved0, reserved1;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst=260)] public string name;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst=14)] public string alternate;
+  }
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  static extern IntPtr FindFirstFileW(string pattern, out FindData data);
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+  [return: MarshalAs(UnmanagedType.Bool)] static extern bool FindNextFileW(IntPtr handle, out FindData data);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  [return: MarshalAs(UnmanagedType.Bool)] static extern bool FindClose(IntPtr handle);
+  public static long Measure(string root, long limit, int milliseconds, int directoryLimit, int fileLimit) {
+    Stopwatch clock = Stopwatch.StartNew();
+    if ((File.GetAttributes(root) & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("REPARSE_POINT");
+    List<string> pending = new List<string>(); pending.Add(root);
+    long bytes = 0; int files = 0;
+    for (int cursor = 0; cursor < pending.Count; cursor++) {
+      if (clock.ElapsedMilliseconds >= milliseconds || pending.Count > directoryLimit) throw Unknown(clock,pending.Count,cursor,files,bytes);
+      FindData entry; IntPtr handle = FindFirstFileW(pending[cursor] + "\\*", out entry);
+      if (handle == new IntPtr(-1)) {
+        if (Marshal.GetLastWin32Error() == 2) continue;
+        throw Unknown(clock,pending.Count,cursor,files,bytes);
+      }
+      try {
+        for (;;) {
+          if (clock.ElapsedMilliseconds >= milliseconds) throw Unknown(clock,pending.Count,cursor,files,bytes);
+          if (entry.name != "." && entry.name != "..") {
+            if ((entry.attributes & (uint)FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("REPARSE_POINT");
+            if ((entry.attributes & (uint)FileAttributes.Directory) != 0) {
+              pending.Add(pending[cursor] + "\\" + entry.name);
+              if (pending.Count > directoryLimit) throw Unknown(clock,pending.Count,cursor,files,bytes);
+            } else {
+              if (++files > fileLimit) throw Unknown(clock,pending.Count,cursor,files,bytes);
+              bytes = checked(bytes + (long)(((ulong)entry.sizeHigh << 32) | entry.sizeLow));
+              if (bytes > limit) throw new InvalidOperationException("CHANNEL_CAPACITY_LIMIT");
+            }
+          }
+          if (!FindNextFileW(handle, out entry)) {
+            if (Marshal.GetLastWin32Error() != 18) throw Unknown(clock,pending.Count,cursor,files,bytes);
+            break;
+          }
+        }
+      } finally { if (!FindClose(handle)) throw new InvalidOperationException("CHANNEL_CAPACITY_UNKNOWN"); }
+    }
+    return bytes;
+  }
+}
+'@
+    } finally { $env:TEMP = $priorTemp; $env:TMP = $priorTmp }
+  }
+  return [A9DevelopmentCapacity]::Measure($directory,$limit,10000,65536,262144)
+}
 function Load-LauncherNative {
   if ('RehearsalLauncherNative' -as [type]) { return }
   Add-Type -TypeDefinition @'
@@ -342,21 +416,7 @@ function Trace([string]$event,[string]$data) {
       $capacityStart = [DateTime]::Parse('2026-10-30T15:55:13.975Z').ToUniversalTime()
       $capacityEnd = [DateTime]::Parse('2026-10-30T18:56:32.708Z').ToUniversalTime()
       if ($script:BoundHolder -ceq 'a942-751c-7f41ca1c' -and [DateTime]::UtcNow -ge $capacityStart -and [DateTime]::UtcNow -lt $capacityEnd -and $script:BoundExpires -le $capacityEnd) { $devLimit = 24000000000 }
-      [long]$devUsed = 0; $devFiles = 0; $devDirs = New-Object 'Collections.Generic.List[string]'; $devDirs.Add('C:\A9-DEV'); $devCursor = 0
-      $devSizeEnd = (Ticks) + [long](10 * $Frequency)
-      while ($devCursor -lt $devDirs.Count) {
-        if ((Ticks) -ge $devSizeEnd -or $devDirs.Count -gt 65536) { throw 'CHANNEL_CAPACITY_UNKNOWN' }
-        $devDir = $devDirs[$devCursor]; $devCursor++; Safe $devDir
-        $devDirectory = [IO.DirectoryInfo]$devDir
-        foreach ($item in @($devDirectory.GetFileSystemInfos())) {
-          if ((Ticks) -ge $devSizeEnd) { throw 'CHANNEL_CAPACITY_UNKNOWN' }
-          # Safe checked this directory and its ancestors above; inspect every child's own attributes.
-          if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'REPARSE_POINT' }
-          if ($item -is [IO.DirectoryInfo]) { $devDirs.Add($item.FullName) }
-          else { $devFiles++; if ($devFiles -gt 262144) { throw 'CHANNEL_CAPACITY_UNKNOWN' }; $devUsed += $item.Length }
-          if ($devUsed -gt $devLimit) { throw 'CHANNEL_CAPACITY_LIMIT' }
-        }
-      }
+      [long]$devUsed = Measure-DevelopmentRoot 'C:\A9-DEV' $devLimit
       $channelExists = [bool](Test-Path -LiteralPath 'C:\A9-DEV' -ErrorAction Stop)
       $runExists = [bool](Test-Path -LiteralPath 'C:\A9-DEV\run' -ErrorAction Stop)
       foreach ($parent in @('C:\A9-DEV','C:\A9-DEV\run')) {

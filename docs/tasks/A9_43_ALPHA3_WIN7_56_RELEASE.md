@@ -489,3 +489,20 @@ FULL 材料生成在原共同截止下返回 `RUN_CONTEXT:WINDOW_BUDGET`，未�
 
 负责人对 §8.15 准确提案回复“批准”。第三窗口截止为 UTC `18:56:32.708Z`，总预算 13500 秒；24 GB 例外同步截止，仍最多三个窗口、60 次真实模型请求。
 旧窗口记录与失败材料保留；新执行记录使用 `execution-window-r4.json`，沿用原开始点与前两窗口计时。按 ADR-0307 更新范围后，用新不可变源码、包及五阶段材料继续。
+
+### 8.17 大开发根容量扫描的真实入口修复（2026-10-30 UTC）
+
+延期后源 `45a0a8cb…`、ZIP `0f037c3f…` 的 run `83fdcbae…` 在 R1 返回 `CHANNEL_CAPACITY_UNKNOWN`，未上传包、未启动产品。
+R7 因尚未取得 run 锁而失败；R8 直接确认零任务/进程、锁 idle。原 HALTED 保留于 `outputs/next-version-r1/controller/83fdcbae/`。
+同一 10 秒扫描在受控诊断中已读 12373 个目录、65804 个文件、17906616907 字节，仍未遍历完；不是空间或数量越界。
+
+最小修复把目录遍历移到已有 CLR 中，使用 Win7 原生 `FindFirstFileW`、`FindNextFileW`、`FindClose` 直接读取 Unicode 文件名、属性与逻辑大小。
+保持 10 秒、65536 目录、262144 文件、逐项 reparse 拒绝和适用容量上限；根和祖先仍经 Safe 检查，句柄在 finally 中关闭，枚举错误 fail-closed。
+代码随固定总控源码绑定 SHA，不引入安装项、产品依赖或原生重建；使用 Win7 已有 kernel32/CLR 编译能力。
+CLR 编译临时文件限定在 `C:\A9-DEV\.channel`，不创建 run 根或修改产品；该准入含工具编译临时写入，不将新检查描述为目标零写入。
+另修本地 R1 预计占用检查遗漏的固定 20 GB 条件，同步采用已批准的准确 holder/窗口 24 GB 例外；50 GB 最低剩余和 2 GiB 预留不变。
+
+实际总控 stdin/JSON/R1 入口在 PS2/CLR2 与 PS5.1/CLR4 分别于 2.728、3.127 秒完成，完整字节数均为 18057759750，与独立通道状态一致。
+两解释器分别执行超字节、零时间、目录数和文件数四个拒绝反例；全部拒绝。开发机 controller 定向 46/46 PASS。
+证据 `capacity-scanner-admission-r3/RESULT.json`、`local-logs/capacity-scanner-local-r1.log`；两轮受控诊断原失败日志保留。
+修复后使用新源码、包和 run 继续，不复用失败 run。

@@ -704,3 +704,16 @@ test('target scripts use the short layout and never the retired work root', () =
   assert.match(probe, /'w\\observed\\' \+ \$Phase/);
 });
 
+
+
+test('R1 projected capacity uses only the approved holder and window exception', () => {
+  const run = require('../run-rehearsal.cjs');
+  const at = Date.parse('2026-10-30T17:40:00Z');
+  const ctx = {lockHolder:'a942-751c-7f41ca1c',window:{expires_at_utc:'2026-10-30T18:56:32.708Z'}};
+  const measured = 18057759750, reserved = 2 * 1024 ** 3;
+  assert(measured + reserved > 20000000000);
+  assert(measured + reserved <= run.channelCapacityLimit(ctx,at));
+  assert.equal(run.channelCapacityLimit({...ctx,lockHolder:'other'},at),20000000000);
+  assert.equal(run.channelCapacityLimit(ctx,Date.parse(ctx.window.expires_at_utc)),20000000000);
+  assert.equal(run.channelCapacityLimit({...ctx,window:{expires_at_utc:'2026-10-30T18:56:32.709Z'}},at),20000000000);
+});
