@@ -276,10 +276,12 @@ test('shared consume preserves request pin, identity, Session, Medium, Job and T
     const f = fixture(klass), ctx = f.ctx; ctx.prep = temp(); ctx.executionStartedAt = now - 1000;
     const files = gate.activationPaths(ctx); fs.mkdirSync(files.root);
     const activation = { ok: true, verifier: 'ACCEPTED', run_id: f.binding.run_id,
-      authority_sha256: hash(f.bytes), started_at_utc: new Date(ctx.executionStartedAt).toISOString(),
+      authority_sha256: hash(f.bytes), started_at_utc: new Date(ctx.executionStartedAt + 119).toISOString(),
+      execution_started_at_utc: new Date(ctx.executionStartedAt).toISOString(),
       common_deadline_utc: new Date(ctx.executionStartedAt + (ctx.budget.p1.r1_start_max_seconds + ctx.budget.p1.max_total_seconds) * 1000).toISOString() };
     const raw = c.encode(activation); fs.writeFileSync(files.file, raw);
     fs.writeFileSync(files.anchor, c.encode({ schema_version: 1, run_id: f.binding.run_id, authority_sha256: hash(f.bytes), activation_sha256: hash(raw) }));
+    delete ctx.executionStartedAt;
     const env = gate.expectedEnvironment({ rehearsal: ctx.budget.p1 });
     const observed = { ...f.binding.target, integrity_level: 'Medium', elevated: false, session_id: 2,
       active_console_session_id: 2, console_state: 'Active', in_job: false,
@@ -298,6 +300,23 @@ test('shared consume preserves request pin, identity, Session, Medium, Job and T
     assert.throws(() => consume({ ...request, bindings: { ...request.bindings, release_authority_sha256: hash('tamper') } }), /REQUEST_PIN/);
     assert.throws(() => consume({ ...request, expires_at: new Date(now).toISOString() }), /REQUEST_TTL/);
     assert.throws(() => consume({ ...request, candidate_root: ctx.budget.evidence_root }), /REQUEST_RUN_ROOT/);
+  }
+});
+
+test('target reload preserves the earlier execution clock when activation occurs later', () => {
+  for (const klass of c.CLASSES) {
+    const f = fixture(klass), ctx = f.ctx; ctx.prep = temp(); ctx.executionStartedAt = now - 1000;
+    const activation = gate.activate(f.bytes, null, ctx, 'FULL', { verifyAuthority: () => ({ ok: true }) }, 'TEST_ONLY_ZIP', now - 881);
+    assert.notEqual(activation.started_at_utc, activation.execution_started_at_utc);
+    const original = gate.validateExecution(f.bytes, ctx, 'FULL', now);
+    delete ctx.executionStartedAt; // A separate target process has only uploaded activation evidence.
+    const reloaded = gate.validateExecution(f.bytes, ctx, 'FULL', now);
+    assert.equal(reloaded.confirmed, original.confirmed);
+    assert.equal(activation.common_deadline_utc, new Date(Math.min(reloaded.end,
+      reloaded.confirmed + (ctx.budget.p1.r1_start_max_seconds + ctx.budget.p1.max_total_seconds) * 1000)).toISOString());
+    const changed = { ...activation }; delete changed.execution_started_at_utc;
+    fs.writeFileSync(gate.activationPaths(ctx).file, c.encode(changed));
+    assert.throws(() => gate.validateExecution(f.bytes, ctx, 'FULL', now), /EXECUTION_START/);
   }
 });
 

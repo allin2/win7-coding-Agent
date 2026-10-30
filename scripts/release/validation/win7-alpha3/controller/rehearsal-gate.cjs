@@ -120,7 +120,7 @@ function validateExecution(bytes, ctx, plan, now = Date.now()) {
   const a = Object.assign({}, original, { rehearsal: ctx.budget.p1, execution_tools: ctx.executionTools });
   let begun = ctx.executionStartedAt;
   const active = activationPaths(ctx).file;
-  if (begun === undefined && fs.existsSync(active)) begun = utc(json(active).started_at_utc, 'R1_START');
+  if (begun === undefined && fs.existsSync(active)) begun = utc(json(active).execution_started_at_utc, 'EXECUTION_START');
   if (begun === undefined) begun = now;
   must(Number.isFinite(begun) && begun <= now && begun >= Date.parse(ctx.window.starts_at_utc), 'START_RANGE');
   return { authority:a, pin:expected, start:begun, confirmed:begun, end:Date.parse(ctx.window.expires_at_utc) };
@@ -214,6 +214,7 @@ function verifyActivation(v, activation, ctx, now) {
   must(activation && activation.ok === true && activation.verifier === 'ACCEPTED' && activation.run_id === v.authority.run_id
     && activation.authority_sha256 === v.pin, 'ACTIVATION');
   const begun = utc(activation.started_at_utc, 'R1_START');
+  must(utc(activation.execution_started_at_utc, 'EXECUTION_START') === v.confirmed, 'ACTIVATION_EXECUTION_START');
   must(begun >= v.confirmed && begun <= now && begun <= v.confirmed + v.authority.rehearsal.r1_start_max_seconds * 1000, 'R1_START_RANGE');
   must(activation.common_deadline_utc === new Date(Math.min(v.end, v.confirmed
     + (v.authority.rehearsal.r1_start_max_seconds + v.authority.rehearsal.max_total_seconds) * 1000)).toISOString(), 'ACTIVATION_DEADLINE');

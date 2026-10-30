@@ -396,3 +396,11 @@ FULL run `a1c0c3e8-4d73-4d0a-84eb-d76bc6906cf0` 在 R0～R5 完成后，于 p01 
 开发机 controller/authority/deny-set 59/59 PASS，0 skipped；新增用例调用真实产品环境断言，覆盖短名、错主机、错账号、SID 与 session 反例。
 保留首次 CLI 测试后缀错误日志；正确入口结果为 `outputs/next-version-r1/p5-integration/local-logs/account-binding-r2.log`。
 本地取证回放只用于定位，不代替新 run 的实机证据。修复后须以新源码、新包和新 run 推进；后续四阶段仍 NOT_PERFORMED。
+
+第二轮 run `44fda738-a25c-4db4-9d8c-adb4ba455c61` 绑定源码 `4192b5e…`、ZIP `18056bd2…`。
+R0～R5 完成；目标请求签入前在 `ACTIVATION_DEADLINE` 停止，未重入产品断言。
+本地执行起点为 `16:07:53.604Z`，激活写入为 `16:07:53.723Z`。目标新进程错误地使用后者重算截止点，造成 119 毫秒不一致。
+原较长预算被共同窗口截止截断，掩盖了该错误。本次改为从已锚定激活记录读取准确 `execution_started_at_utc`，并继续核对锚点、开始范围和截止点相等。
+不扩展窗口、不增加容差。开发机 60/60 PASS；真实 consume 反例模拟独立目标进程丢失内存状态和延迟激活。
+日志 `local-logs/activation-clock-r2.log`；首次 run 证据仍在 `outputs/next-version-r1/controller/44fda738/`。
+该轮 R7/R8 PASS，零任务/进程、锁 idle；真实模型请求仍为 0。继续以新不可变源码、包及 run 复验。

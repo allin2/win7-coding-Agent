@@ -488,13 +488,14 @@
         "Remove local signing/static deny history; shared binding, window, Session, activation and ledger guards. R1-R8 caller pending.",
         "Remove now-unused wire require; shared consume/activation/ledger gates retained and exercised in loop tests.",
         "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
-        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals."
+        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals.",
+        "Restore the exact execution_started_at_utc from activation evidence in a new target process; do not move the common deadline to the later activation timestamp."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs",
       "ctrl_source_sha256": "7320b2500e96183570be24e799b71245fdff57a22c5fe00dda3d5493b1bc3ddd",
       "ctrl_run_differs": false,
-      "current_sha256": "5f34a40e042b5324d782cad3d1410105f146f0f2946bad358042f8e90ee8aead",
+      "current_sha256": "291692821651e1867cc4f78c51917ea713ca1bd28fc7191a262eba7a330a00c2",
       "current_bytes": 25733,
       "inventory_disposition_ids": {
         "仅证据标签": [
