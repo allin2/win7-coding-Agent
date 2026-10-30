@@ -411,3 +411,26 @@ p01 环境阶段直接 PASS，验证前两项修复；p02 模块加载 PASS，�
 本次统一上传、解包和请求使用绑定的 `zip_top + '.zip'`，不修改产品完整性判据。真实请求入口反例直接调用包内 ZIP 校验器的文件名守卫。
 开发机 60/60 PASS，0 skipped，日志 `local-logs/zip-name-r1.log`。R7/R8 已直接通过，第三轮零任务/进程、锁 idle。
 所有三轮失败保留，未将 p01 与旧包证据拼成完整通过；第四轮需新源码/包/run。
+
+### 8.13 batch2 直接通过与后台恢复取证修复（2026-10-30 UTC）
+
+开发包源 `f54e62163132e1455658eeff11d8b3e7385d87dc`，ZIP SHA-256
+`f3c9fce9c1fb973faae41548fe46bc9698f4701d74cbea051041a8521899f65c`。
+Win7 DEV_CHANNEL run `77091fbc-394b-4978-aec5-cd5fc97fd0c0` 的 10 个产品阶段、GPU gate、37 个用例和 67 个断言直接 PASS。
+R7 校验回收 1584 个文件，另 233 项按既有合同排除；R8 零进程、零任务、锁 idle。
+完整报告复核位于 `outputs/next-version-r1/controller/77091fbc/LOCAL_REPORT_VERIFICATION.json`。
+此前三轮 HALTED 均保留；本结论不是正式门 A/B，也不覆盖后续四阶段。
+
+后台恢复 run `13ad75ee-9334-4627-94fc-2afa7cbbff7a` 绑定同一包。
+progress、interrupt、recover 的功能检查完成；recover 收尾于 `16:52:25.103Z` 报 `PROCESS_CURRENT_IDENTITY_UNKNOWN`，整阶段 HALTED，reopen 未执行。
+末次成功观测记录两个 `C:\Program Files (x86)\SogouInput\SogouExe\SogouExe.exe` 实例仍阻断；准确失败瞬间的身份缺失对象为 UNKNOWN。
+`SGTool.exe` 已按 ADR-0297 分类；本次不扩展环境进程豁免、不终止根外进程。
+后补只读核对时相关 PID 全部不存在，通道零任务/进程、锁 idle；不据此改判原失败。
+原结果与复查位于 `outputs/win7-dev/alpha3-r5/background-recovery/RESULT.json` 和
+`outputs/next-version-r1/p5-integration/background-closeout-r5.json`。
+
+本地最小修复只补取证：`remainingInstances` 在身份缺失时附带原实例及当前失败行，后台与便携控制器保存到 HALTED 报告。
+仅保存 PID、父 PID、创建时间、映像、来源、会话及名称；不保存命令行。身份未知仍立即失败，等待上限和环境分类不变。
+开发机定向测试 13/13 PASS，含旧/新观测区分及命令行排除；日志 `local-logs/process-identity-evidence-r1.log`。
+下一步先以新不可变源码、包、run 做一次后台恢复诊断；不重跑整批，不把诊断替代五阶段版本运行。
+继续受第三窗口共同截止、20 GB 开发根与 60 次真实模型总预算约束。便携、Office 完整流程和真实模型阶段当前 NOT_PERFORMED。

@@ -141,7 +141,17 @@ function remainingInstances(observed, current) {
     need(Number.isInteger(old.pid) && old.created && old.image, 'PROCESS_EVIDENCE_INVALID');
     const row = current.find((item) => item.pid === old.pid);
     if (!row) return false;
-    need(row.created && row.image, 'PROCESS_CURRENT_IDENTITY_UNKNOWN');
+    if (!row.created || !row.image) {
+      const error = new Error('PROCESS_CURRENT_IDENTITY_UNKNOWN');
+      // The last successful observation cannot identify a later failed query.
+      // Retain only this instance's identity fields, never command lines.
+      const identity = (value) => Object.fromEntries(
+        ['pid', 'parent', 'created', 'image', 'imageSource', 'session', 'name']
+          .map((key) => [key, value[key] === undefined ? null : value[key]]));
+      error.process_identity_failure = { at: new Date().toISOString(),
+        observed_instance: identity(old), current_instance: identity(row) };
+      throw error;
+    }
     return row.created === old.created;
   });
 }
@@ -477,6 +487,7 @@ async function controller(config) {
   } catch (error) {
     result.status = 'HALTED';
     result.error = String(error && error.message || error).slice(0, 500);
+    if (error.process_identity_failure) result.process_identity_failure = error.process_identity_failure;
     process.exitCode = 1;
   } finally {
     if (fixture) {
@@ -773,6 +784,7 @@ async function portableController(config) {
   } catch (error) {
     result.status = 'HALTED';
     result.error = String(error && error.message || error).slice(0, 500);
+    if (error.process_identity_failure) result.process_identity_failure = error.process_identity_failure;
     process.exitCode = 1;
   } finally {
     result.ended_at = new Date().toISOString();

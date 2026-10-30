@@ -25,6 +25,28 @@ test('observed process instances require identity and never turn query failure i
   assert.deepEqual(trial.remainingInstances([root], [{ ...root, created: '20261028020000.000000-420' }]), []);
 });
 
+test('failed current identity retains the exact failing sample without exposing command lines', () => {
+  for (const change of [{ image: '' }, { created: '' }, { image: '', created: '' }]) {
+    const current = { ...child, ...change, commandLine: 'private process arguments' };
+    const previous = trial.processObservation([root, child], [child], 1);
+    assert.deepEqual(previous.blocking_instances, [child]);
+    assert.throws(() => trial.processObservation([root, child], [current], 1), error => {
+      assert.equal(error.message, 'PROCESS_CURRENT_IDENTITY_UNKNOWN');
+      const saved = JSON.parse(JSON.stringify(error.process_identity_failure));
+      assert(Number.isFinite(Date.parse(saved.at)));
+      assert.equal(saved.observed_instance.pid, child.pid);
+      assert.equal(saved.observed_instance.created, child.created);
+      assert.equal(saved.current_instance.image, current.image);
+      assert.equal(saved.current_instance.created, current.created);
+      assert.equal(saved.current_instance.imageSource, null);
+      assert.equal(JSON.stringify(saved).includes('private process arguments'), false);
+      assert.deepEqual(Object.keys(saved.current_instance).sort(),
+        ['created', 'image', 'imageSource', 'name', 'parent', 'pid', 'session']);
+      return true;
+    });
+  }
+});
+
 test('process-tree collection excludes stale parent links but fails on unknown child identity', () => {
   const stale = { ...child, pid: 12, created: '20261028005959.000000-420' };
   assert.deepEqual(trial.observedTree([root, child, stale], root.pid), [root, child]);
