@@ -171,7 +171,7 @@ describe('A9-31 managed package binding', () => {
   });
 });
 
-describe('A9-32 developer and A9-33 batch-2 package binding', () => {
+describe('A9-32 developer and A9-43 alpha.3 batch-2 package binding', () => {
   const MANAGED = 'D-013-v26-managed-a9-trusted-shell-current-user';
   const A9_32 = 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED';
   const BATCH2 = 'A9-BATCH2-INPUTS-D013-V26-MANAGED';
@@ -194,8 +194,11 @@ describe('A9-32 developer and A9-33 batch-2 package binding', () => {
       manifest.status = 'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE';
       manifest.external_acceptance_eligible = false;
     } else {
-      descriptor.lock_id = manifest.lock_id = BATCH2;
-      descriptor.candidate = manifest.candidate = 'WIN7-45';
+      const lock = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../../release/win7-product-v3/a9-batch2-input-lock.json'), 'utf8'));
+      descriptor.version = manifest.version = lock.version;
+      descriptor.release_id = manifest.release_id = lock.release_id;
+      descriptor.lock_id = manifest.lock_id = lock.lock_id;
+      descriptor.candidate = manifest.candidate = lock.provenance.candidate;
       manifest.candidate_tentative = true;
       manifest.status = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
       manifest.external_acceptance_eligible = true;
@@ -212,7 +215,8 @@ describe('A9-32 developer and A9-33 batch-2 package binding', () => {
     const formal = managed('batch2');
     try {
       expect(load(dev.productRoot)).toMatchObject({ runnerHelperProtocol: 3, runnerHelperProfile: MANAGED });
-      expect(load(formal.productRoot)).toMatchObject({ runnerHelperProtocol: 3, runnerHelperProfile: MANAGED });
+      expect(load(formal.productRoot)).toMatchObject({ version: '0.3.0-alpha.3', releaseId: 'WIN7-CODING-AGENT-A9-ALPHA3', runnerHelperProtocol: 3, runnerHelperProfile: MANAGED });
+      expect(formal.descriptor.candidate).toBe('WIN7-56');
     } finally { dev.cleanup(); formal.cleanup(); }
   });
 
@@ -255,6 +259,11 @@ describe('A9-32 developer and A9-33 batch-2 package binding', () => {
     ['batch2 lock on protocol 2', (e: any) => { e.descriptor.runner_helper_protocol = 2; e.manifest.required_native.runner_helper_protocol = 2; }],
     ['batch2 lock without a candidate', (e: any) => { delete e.descriptor.candidate; }],
     ['batch2 lock with a malformed candidate', (e: any) => { e.descriptor.candidate = 'WIN7-4'; e.manifest.candidate = 'WIN7-4'; }],
+    ['batch2 lock on the retired alpha.2 version', (e: any) => { e.descriptor.version = e.manifest.version = '0.3.0-alpha.2'; }],
+    ['batch2 lock on an unapproved future version', (e: any) => { e.descriptor.version = e.manifest.version = '0.3.0-alpha.4'; }],
+    ['batch2 lock with the retired release identity', (e: any) => { e.descriptor.release_id = e.manifest.release_id = 'WIN7-CODING-AGENT-A9-ALPHA2'; }],
+    ['batch2 lock with the retired candidate on both sides', (e: any) => { e.descriptor.candidate = e.manifest.candidate = 'WIN7-55'; }],
+    ['batch2 lock with an unapproved candidate on both sides', (e: any) => { e.descriptor.candidate = e.manifest.candidate = 'WIN7-57'; }],
     ['batch2 lock on the alpha.1 version', (e: any) => { e.descriptor.version = e.manifest.version = '0.3.0-alpha.1'; }],
   ])('rejects a descriptor with %s', (_label, mutate) => {
     const env = managed('batch2');
@@ -262,6 +271,15 @@ describe('A9-32 developer and A9-33 batch-2 package binding', () => {
       (mutate as (e: unknown) => void)(env);
       env.save();
       expect(() => load(env.productRoot)).toThrow(/A9_PACKAGE_(RELEASE_MANIFEST|RUNTIME_CONFIG)_INVALID/);
+    } finally { env.cleanup(); }
+  });
+
+  it.each(['a9-31', 'a9-32'])('rejects alpha.3 on the historical %s developer contract', (kind) => {
+    const env = managed(kind as 'a9-31' | 'a9-32');
+    try {
+      env.descriptor.version = env.manifest.version = '0.3.0-alpha.3';
+      env.save();
+      expect(() => load(env.productRoot)).toThrow('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
     } finally { env.cleanup(); }
   });
 

@@ -70,6 +70,7 @@ const STREAMING_PROFILE = 'D-013-v26-a9-trusted-shell-current-user';
 const MANAGED_PROFILE = 'D-013-v26-managed-a9-trusted-shell-current-user';
 const A9_32_LOCK_ID = 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED';
 const BATCH2_LOCK_ID = 'A9-BATCH2-INPUTS-D013-V26-MANAGED';
+const BATCH2_IDENTITY = Object.freeze({ version: '0.3.0-alpha.3', releaseId: 'WIN7-CODING-AGENT-A9-ALPHA3', candidate: 'WIN7-56' });
 const HISTORICAL_STATUS = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
 
 /**
@@ -82,22 +83,24 @@ const HISTORICAL_STATUS = 'DEVELOPER_PACKAGE_CANDIDATE_NOT_WIN10_OR_WIN7_PASS';
  */
 function manifestContract(descriptor) {
   if (descriptor.runner_helper_protocol !== 3) {
-    return { kind: 'HISTORICAL', status: HISTORICAL_STATUS };
+    return { kind: 'HISTORICAL', status: HISTORICAL_STATUS, version: '0.3.0-alpha.1' };
   }
   const managed = descriptor.runner_helper_profile === MANAGED_PROFILE;
   const lockId = descriptor.lock_id;
   const hasCandidate = Object.prototype.hasOwnProperty.call(descriptor, 'candidate');
   if (lockId === undefined) {
     if (hasCandidate) throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
-    return { kind: 'DEVELOPER', status: managed ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE', lockId: undefined };
+    return { kind: 'DEVELOPER', version: '0.3.0-alpha.2', status: managed ? 'A9_31_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE' : 'A9_30_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE', lockId: undefined };
   }
   if (!managed || (lockId !== A9_32_LOCK_ID && lockId !== BATCH2_LOCK_ID)) throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   if (lockId === A9_32_LOCK_ID) {
     if (hasCandidate) throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
-    return { kind: 'DEVELOPER', status: 'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE', lockId };
+    return { kind: 'DEVELOPER', version: '0.3.0-alpha.2', status: 'A9_32_DEVELOPER_CHECK_NOT_WIN7_CANDIDATE', lockId };
   }
-  if (!/^WIN7-[0-9]{2}$/.test(String(descriptor.candidate || ''))) throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
-  return { kind: 'FORMAL_BATCH2', status: HISTORICAL_STATUS, lockId, candidate: descriptor.candidate };
+  if (descriptor.candidate !== BATCH2_IDENTITY.candidate || descriptor.release_id !== BATCH2_IDENTITY.releaseId) {
+    throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
+  }
+  return { kind: 'FORMAL_BATCH2', status: HISTORICAL_STATUS, lockId, version: BATCH2_IDENTITY.version, candidate: BATCH2_IDENTITY.candidate };
 }
 
 function validateDescriptor(descriptor, manifest) {
@@ -107,14 +110,15 @@ function validateDescriptor(descriptor, manifest) {
       descriptor.storage_native_binding !== '../native/storage/node_modules/better-sqlite3/build/Release/better_sqlite3.node' ||
       descriptor.runner_helper !== '../native/runner/spike02_helper.exe' ||
       !((descriptor.runner_helper_profile === 'D-013-v25-a9-trusted-shell-current-user' && descriptor.runner_helper_protocol === 2 && descriptor.version === '0.3.0-alpha.1') ||
-        ([STREAMING_PROFILE, MANAGED_PROFILE].includes(descriptor.runner_helper_profile) && descriptor.runner_helper_protocol === 3 && descriptor.version === '0.3.0-alpha.2')) ||
+        ([STREAMING_PROFILE, MANAGED_PROFILE].includes(descriptor.runner_helper_profile) && descriptor.runner_helper_protocol === 3)) ||
       descriptor.data_root !== '%LOCALAPPDATA%\\Win7CodingAgent\\a9' || descriptor.portable_flag !== '--portable') {
     throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   }
   const contract = manifestContract(descriptor);
+  if (descriptor.version !== contract.version) throw new Error('A9_PACKAGE_RUNTIME_CONFIG_INVALID');
   const streaming = descriptor.runner_helper_protocol === 3;
   if (!manifest || manifest.schema_version !== 1 || manifest.status !== contract.status ||
-      !['0.3.0-alpha.1', '0.3.0-alpha.2'].includes(manifest.version) || !manifest.required_native || !Array.isArray(manifest.files) ||
+      manifest.version !== contract.version || !manifest.required_native || !Array.isArray(manifest.files) ||
       manifest.required_native.runner_helper_profile !== descriptor.runner_helper_profile ||
       manifest.required_native.runner_helper_protocol !== descriptor.runner_helper_protocol ||
       manifest.gates?.win10 !== 'NOT_PERFORMED' || manifest.gates?.win7 !== 'NOT_PERFORMED' ||

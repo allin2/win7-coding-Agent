@@ -31,9 +31,10 @@ const repositoryRoot = path.resolve(scriptDirectory, '..', '..');
 const RUNTIME_MODULES = ['core', 'gateway', 'git-adapter', 'runner', 'shell', 'state', 'workspace'];
 
 const RELEASE_PROFILES = {
-  // A9-39 §3：正式 batch2 候选 Profile。候选号 WIN7-55 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
+  // A9-43 D1 / DESIGN §5.3：全阶段 DEV 与正式执行共用此 batch2 Profile。候选号 WIN7-56 仅为暂定，冻结前核号；核号后须同步修改本项、锁与包内套件。
   'A9-BATCH2-INPUTS-D013-V26-MANAGED': {
-    task: 'A9-39', candidate: 'WIN7-55', candidateTentative: true, batch2: true,
+    task: 'A9-43', candidate: 'WIN7-56', candidateTentative: true, batch2: true,
+    releaseId: 'WIN7-CODING-AGENT-A9-ALPHA3', version: '0.3.0-alpha.3',
     lockFile: 'a9-batch2-input-lock.json', kitFile: 'A9_BATCH2_VALIDATION_KIT.json',
     validationDoc: 'A9_BATCH2_WIN7_VALIDATION.md',
     integrityCommand: 'RUN_A9_BATCH2_INTEGRITY.cmd', smokeCommand: 'RUN_A9_BATCH2_SMOKE.cmd',
@@ -580,7 +581,7 @@ export function buildA9ProductCandidate(options) {
     }
     const runtimeDependencies = copyRuntimeDependencies(root, appRoot);
     writeJson(path.join(appRoot, 'package.json'), {
-      name: profile.developmentOnly ? 'win7-coding-agent-a9-alpha2-developer' : profile.batch2 ? 'win7-coding-agent-a9-alpha2' : 'win7-coding-agent-a9-alpha1',
+      name: profile.developmentOnly ? 'win7-coding-agent-a9-alpha2-developer' : profile.batch2 ? 'win7-coding-agent-a9-alpha3' : 'win7-coding-agent-a9-alpha1',
       productName: 'Win7 Coding Agent',
       version: lock.version,
       private: true,
@@ -854,7 +855,7 @@ function createValidationKit(root, sourceCommit, lock, profile) {
   return createWin22ValidationKit(root, sourceCommit, lock);
 }
 
-// ---- A9-39 正式 batch2 候选（WIN7-55 暂定）-------------------------------------------------------
+// ---- A9-43 正式 batch2 Profile（WIN7-56 暂定；DEV 与正式同包）-------------------------------------------------------
 // 套件文件清单与 kit 由 a9-batch2-fixtures.cjs 的合同定义；生产者只搬运、校验编码并绑定哈希。
 
 function batch2Closure(profile) {
@@ -877,7 +878,7 @@ function batch2InstallationGuide(lock, profile) {
     + '- The application does not change PATH, services, registry or firewall and does not download a runtime.\n'
     + '- Keep the old program directory during upgrade. On failure stop the new candidate and relaunch the old directory against the preserved data; retain corruption backups and evidence.\n'
     + '- API keys are entered only in Settings. Never put them in validation commands or reports.\n'
-    + `- The tentative number ${profile.candidate} is re-checked against refs, registrations and directories before freeze. This package is NOT_PERFORMED for Win10, Win7 and Alpha 2 until same-candidate external evidence is recorded.\n`;
+    + `- The tentative number ${profile.candidate} is re-checked against refs, registrations and directories before freeze. This package is NOT_PERFORMED for Win10, Win7 and Alpha 3 until same-candidate external evidence is recorded.\n`;
 }
 
 function loadBatch2Fixtures(root) {
@@ -2311,7 +2312,7 @@ function copyContractEvidence(root, stage, profile) {
   fs.mkdirSync(destination, { recursive: true });
   // ADR-0125/ADR-0141/ADR-0142：候选任务书映射。
   const developerTaskBooks = { 'A9-30': 'docs/tasks/A9_30_SHELL_STREAMING.md', 'A9-31': 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'A9-32': 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md' };
-  const taskBook = profile.developmentOnly ? developerTaskBooks[profile.task] : profile.batch2 ? 'docs/tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md' : profile.candidate === 'WIN7-38'
+  const taskBook = profile.developmentOnly ? developerTaskBooks[profile.task] : profile.batch2 ? 'docs/tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md' : profile.candidate === 'WIN7-38'
     ? 'docs/tasks/A9_22_WIN7_38_REISSUE_AND_ACCEPTANCE.md'
     : profile.candidate === 'WIN7-39'
     ? 'docs/tasks/A9_23_WIN7_39_REISSUE_AND_ACCEPTANCE.md'
@@ -2336,9 +2337,9 @@ function copyContractEvidence(root, stage, profile) {
   if (profile.candidate === 'WIN7-38' || profile.candidate === 'WIN7-39' || profile.candidate === 'WIN7-40' || profile.candidate === 'WIN7-41' || profile.candidate === 'WIN7-42') {
     contracts.push('docs/tasks/A9_20_GIT_CONFIRMATION_CLASSIFIER_HARDENING.md', 'docs/tasks/A9_21_A9_18_SALVAGE_PORT.md');
   }
-  // A9-39 §3：当前任务身份之外保留 A9-30/31/32/33 原合同、增量矩阵与覆盖台账。
+  // A9-43：当前任务身份之外保留 A9-30/31/32/33/39 原合同、增量矩阵与覆盖台账。
   if (profile.batch2) {
-    contracts.push('docs/tasks/A9_30_SHELL_STREAMING.md', 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md',
+    contracts.push('docs/tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md', 'docs/tasks/A9_30_SHELL_STREAMING.md', 'docs/tasks/A9_31_BACKGROUND_PROCESS_TOOLS.md', 'docs/tasks/A9_32_EXPLICIT_TASK_CONTINUE.md',
       'docs/tasks/A9_33_BATCH_2_WIN7_ACCEPTANCE.md',
       'docs/plans/A9_BATCH_2_INCREMENTAL_VALIDATION.md', 'docs/plans/A9_BATCH_2_ACCEPTANCE_COVERAGE.md');
   }
@@ -2604,7 +2605,8 @@ function parseArguments(argv) {
 function validateV26DeveloperLock(lock) {
   const managed = ['A9-31-DEVELOPER-INPUTS-D013-V26-MANAGED', 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED'].includes(lock.lock_id);
   const expectedTask = lock.lock_id === 'A9-32-DEVELOPER-INPUTS-D013-V26-MANAGED' ? 'A9-32' : managed ? 'A9-31' : 'A9-30';
-  if (lock.provenance?.task !== expectedTask || lock.provenance?.development_only !== true
+  if (lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA2' || lock.version !== '0.3.0-alpha.2'
+    || lock.provenance?.task !== expectedTask || lock.provenance?.development_only !== true
     || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED' || lock.gates?.win7 !== 'NOT_PERFORMED' || lock.gates?.alpha !== 'NOT_PERFORMED') {
     throw new Error('A9_V26_DEVELOPER_INPUT_LOCK_INVALID');
   }
@@ -2617,6 +2619,7 @@ function validateV26DeveloperLock(lock) {
 function validateBatch2Lock(lock) {
   const profile = RELEASE_PROFILES['A9-BATCH2-INPUTS-D013-V26-MANAGED'];
   if (lock.lock_id !== 'A9-BATCH2-INPUTS-D013-V26-MANAGED'
+    || lock.release_id !== profile.releaseId || lock.version !== profile.version
     || lock.provenance?.task !== profile.task || lock.provenance?.development_only !== false
     || lock.provenance?.candidate !== profile.candidate || lock.provenance?.candidate_tentative !== true
     || lock.gates?.win10 !== 'PASS_D013_V26_RETURN_REVIEWED'
@@ -2631,7 +2634,7 @@ function validateV26NativeInputs(lock, managed, failure) {
   const expectedHelper = managed ? 'D-013-v26-managed-a9-trusted-shell-current-user' : 'D-013-v26-a9-trusted-shell-current-user';
   const hex = (n, v) => new RegExp('^[a-f0-9]{' + n + '}$').test(String(v || ''));
   const runner = lock.inputs?.runner_return_zip;
-  if (lock.schema_version !== 1 || lock.release_id !== 'WIN7-CODING-AGENT-A9-ALPHA2' || lock.version !== '0.3.0-alpha.2'
+  if (lock.schema_version !== 1
     || lock.inputs_are_not_a9_pass !== true || !lock.runtime_profiles?.runner || !Number.isSafeInteger(lock.source_date_epoch)
     || runner?.profile !== expectedHelper || runner.protocol_version !== 3
     || (managed && runner.managed_contract?.revision !== 'a9-31-managed-r1')

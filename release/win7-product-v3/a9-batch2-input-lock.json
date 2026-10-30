@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "lock_id": "A9-BATCH2-INPUTS-D013-V26-MANAGED",
-  "release_id": "WIN7-CODING-AGENT-A9-ALPHA2",
-  "version": "0.3.0-alpha.2",
+  "release_id": "WIN7-CODING-AGENT-A9-ALPHA3",
+  "version": "0.3.0-alpha.3",
   "source_date_epoch": 1790380800,
   "target": {
     "os": "Windows 7 SP1 build 7601",
@@ -114,16 +114,16 @@
     "developer_package_integrity": "NOT_PERFORMED",
     "product_assembly": "NOT_PERFORMED",
     "win10": "PASS_D013_V26_RETURN_REVIEWED",
-    "win7": "NOT_PERFORMED_WIN7_55",
+    "win7": "NOT_PERFORMED_WIN7_56",
     "alpha": "NOT_PERFORMED"
   },
-  "generated_at": "2026-10-12T00:00:00.000Z",
+  "generated_at": "2026-10-30T00:00:00.000Z",
   "provenance": {
-    "task": "A9-39",
+    "task": "A9-43",
     "development_only": false,
-    "candidate": "WIN7-55",
+    "candidate": "WIN7-56",
     "candidate_tentative": true,
-    "decision": "ADR-0250, ADR-0251 (ADR-0155 remains Proposed)",
+    "decision": "ADR-0289, ADR-0290, ADR-0304 (ADR-0155 remains Proposed)",
     "rule": "formal candidate lock; release authority and independent pin are external to the candidate and are bound only at gate A"
   }
 }

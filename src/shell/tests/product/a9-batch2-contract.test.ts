@@ -1797,8 +1797,8 @@ describe('A9-33 batch-2 evidence contract', () => {
     expect(check).toMatchObject({ ok: true, cases: 37, assertions: 67, phases: 10, request_cost: 10, max_requests: 16, retry_headroom: 6 });
     expect(fixtures.PHASES.map((phase: any) => phase.id)).toEqual(['p01-env', 'p02-integrity', 'p03-chain', 'p04-streaming', 'p05-session-bg', 'p06-continue', 'p07-safe', 'p08-ui', 'p09-report', 'p10-postflight']);
     expect(fixtures.LIMITS).toEqual({ max_requests: 16, max_wall_seconds: 21600, desktop_windows: 1, max_background_processes: 3, request_ttl_seconds: 900 });
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-55', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
-    expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 2/);
+    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-56', candidate_tentative: true, lock_id: 'A9-BATCH2-INPUTS-D013-V26-MANAGED' });
+    expect(fixtures.CONTRACT.result_ceiling).toMatch(/never the full Alpha 3/);
   });
 
   test('the owner-ruled narrowing removed CONT-02 and SAFE-01 and carries them as known limits', () => {
@@ -6625,15 +6625,19 @@ describe('A9-39 phase 2 fixed secrets contract', () => {
       expect(observed(auth.input.split('\n')[0])).toBe(auth.expected.split('\n')[0]);
       for (const kind of ['cmd', 'powershell']) { const p = authCommand(sample.caseId, sample, kind); expect(observed(p.input)).toBe(p.expected); }
     });
-  test('ADR-0260/ADR-0261/ADR-0262: WIN7-55 current labels include the A9-36 request and validation document', () => {
-    expect(fixtures.CONTRACT).toMatchObject({ candidate: 'WIN7-55', candidate_tentative: true });
+  test('A9-43 current labels advance to alpha.3 while the A9-36 supplement remains historical', () => {
+    expect(fixtures.CONTRACT).toMatchObject({ task: 'A9-43', version: '0.3.0-alpha.3', release_id: 'WIN7-CODING-AGENT-A9-ALPHA3', candidate: 'WIN7-56', candidate_tentative: true });
     const lock = JSON.parse(fs.readFileSync(path.join(releaseDir, 'a9-batch2-input-lock.json'), 'utf8'));
-    expect(lock.provenance.candidate).toBe('WIN7-55'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_55');
+    expect(lock.provenance.candidate).toBe('WIN7-56'); expect(lock.gates.win7).toBe('NOT_PERFORMED_WIN7_56');
     const producer = fs.readFileSync(path.resolve(releaseDir, '../../scripts/release/build-a9-product-v3.mjs'), 'utf8');
-    expect(producer).toContain("task: 'A9-39', candidate: 'WIN7-55', candidateTentative: true, batch2: true");
+    expect(producer).toContain("task: 'A9-43', candidate: 'WIN7-56', candidateTentative: true, batch2: true");
+    for (const name of ['A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd']) {
+      const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
+      expect(text).toContain('WIN7-56'); expect(text).not.toMatch(/WIN7[-_]55/);
+    }
     const request = fs.readFileSync(path.join(releaseDir, 'a9-alpha2-supplement-request.cjs'), 'utf8');
     expect(request).toContain("a.candidate !== 'WIN7-55'");
-    for (const name of ['README.md', 'A9_BATCH2_WIN7_VALIDATION.md', 'RUN_A9_BATCH2_INTEGRITY.cmd', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
+    for (const name of ['README.md', 'A9_ALPHA2_SUPPLEMENT_VALIDATION.md']) {
       const text = fs.readFileSync(path.join(releaseDir, name), 'utf8');
       expect(text).toContain('WIN7-55'); expect(text).not.toMatch(/WIN7[-_](?:46|47|48|49|50|51)/);
     }

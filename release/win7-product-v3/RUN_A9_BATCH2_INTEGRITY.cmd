@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 if "%~6"=="" (
-  echo Usage: RUN_A9_BATCH2_INTEGRITY.cmd ^<original-WIN7-55-zip^> ^<external-a9-batch2-input-lock.json^> ^<external-a9-v26-approved-build-kits.json^> ^<external-release-authority.json^> ^<independently-approved-authority-sha256^> ^<run-id^>
+  echo Usage: RUN_A9_BATCH2_INTEGRITY.cmd ^<original-WIN7-56-zip^> ^<external-a9-batch2-input-lock.json^> ^<external-a9-v26-approved-build-kits.json^> ^<external-release-authority.json^> ^<independently-approved-authority-sha256^> ^<run-id^>
   exit /b 2
 )
 if not exist "..\a9-batch2-evidence" mkdir "..\a9-batch2-evidence"
@@ -12,5 +12,5 @@ set "ELECTRON_RUN_AS_NODE=1"
 set "RESULT=%ERRORLEVEL%"
 set "ELECTRON_RUN_AS_NODE="
 if not "%RESULT%"=="0" exit /b %RESULT%
-echo A9-39 batch2 package integrity PASS. Evidence: ..\a9-batch2-evidence\standalone-integrity\a9-package-integrity.json
+echo A9-43 batch2 package integrity PASS. Evidence: ..\a9-batch2-evidence\standalone-integrity\a9-package-integrity.json
 exit /b 0
