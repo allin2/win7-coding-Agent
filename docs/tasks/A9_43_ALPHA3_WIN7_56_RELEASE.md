@@ -506,3 +506,44 @@ CLR 编译临时文件限定在 `C:\A9-DEV\.channel`，不创建 run 根或修�
 两解释器分别执行超字节、零时间、目录数和文件数四个拒绝反例；全部拒绝。开发机 controller 定向 46/46 PASS。
 证据 `capacity-scanner-admission-r3/RESULT.json`、`local-logs/capacity-scanner-local-r1.log`；两轮受控诊断原失败日志保留。
 修复后使用新源码、包和 run 继续，不复用失败 run。
+
+### 8.18 r9 三阶段通过、Office 停止与窗口收尾（2026-10-30 UTC）
+
+本轮实际源码 `35ad300144973a81703bfbe745ed0043e41d6323`，ZIP SHA-256
+`1569a0a454b2337483269e87705bdf0f9ff525c87b384a60f1e2a6222df31d46`。
+五阶段计划仍保持顺序与完整判据；实际完成前 3/5，未形成版本完整通过。
+
+| 阶段 | run | Win7 DEV_CHANNEL 结果 |
+|---|---|---|
+| batch2 | `40bc6c06-bb1f-4448-95ae-60f82faecb8e` | PASS；10 阶段、37 用例、67 断言、GPU gate；1584 文件回收校验、R8 零任务/进程、锁 idle |
+| 后台恢复 | `4c14cff0-33d7-4c4d-8a0c-a6d737d0e93b` | PASS；四模式与独立收尾通过，首次身份缺失未复现 |
+| 便携 | `9000ba76-5dde-4c99-9b14-aae2d56973eb` | PASS；隔离数据、Read Only、对话持久化及独立收尾通过，截图已核对 |
+| Office 完整旅程 | `bf804776-f69d-4774-90b6-b3b4000353ae` | HALTED；UI 首失败 TIMEOUT_VIEWPORT；控制器失败 PROCESS_OBSERVATION_FAILED |
+| 真实模型 | `176cf6ca-4d43-4dc7-886a-e50040343e65` | NOT_PERFORMED；被前阶段阻断，未启动 |
+
+后继部署复用了绑定提交的原生目录扫描辅助代码；代码来源 SHA 和生成脚本 SHA 写入各 deployment-manifest。
+前置就绪查询不重复统计根占用，明确记录 null；部署前完整校验现占用、预计新增和最低剩余空间，后置仍采集完整 status。
+本轮全部真实模型请求为 0；夹具请求不计入真实模型。
+
+最后目标 status 于 UTC `18:53:22.344Z` 返回：零根内进程、零任务、锁 idle、无解包未知；开发根 21509578163 字节，C: 剩余 870598696960 字节。
+三窗口累计计入 13230.449 秒，低于 13500 秒；本轮目标动作已关闭，剩余时间不自动授权新窗口。
+源包、失败报告和全部证据保留；汇总 `outputs/next-version-r1/p5-integration/VERSION_R9_RESULT.json`，窗口记录 `execution-window-r4-closeout.json`。
+正式门、冻结、双干净构建和发布仍 NOT_PERFORMED。
+
+### 8.19 Office 驱动视口修正与失败取证补齐（2026-10-30 UTC）
+
+保留原 `failure.png` 和两个独立失败原因；原控制器未保存进程观测错误细节，准确原因仍 UNKNOWN。
+在相同 Electron 22.3.27 / Node16.17.1 与产品窗口配置下，独立几何诊断复现：调用 `setMinimumSize(0,0)` 后仍受原最小窗口约束；1079×540 实际为 1079×582，800/780 宽实际为 844。
+改用非零最小尺寸后，六个请求视口全部精确达到目标；不删视口、不改几何判据、不改产品最小窗口设置。
+这是窗口几何诊断，不是修正后 Office 完整旅程通过。
+证据位于 `outputs/win7-dev/alpha3-r9/geometry-probe-r1/RESULT.json` 与 `geometry-probe-r2/RESULT.json`。
+第二诊断首次因重复任务名被拒，未启动进程；以新任务名完成。原拒绝记录保留。
+
+本地实现将轻量旅程的最小尺寸覆盖改为非零值；Office 观测器额外保存首个错误代码、相关原/当前实例和 UI 首失败。
+只保留 PID、父 PID、创建时间、映像、来源、会话及名称，最多 128 个实例；查询失败记 null，不保存命令行。原硬门继续 fail-closed。
+开发机 Office/版本定向测试 20/20 PASS。修正后完整 Office 与真实模型为 NOT_PERFORMED。
+
+建议下一轮先定向验证 Office，成功后再用最终同一源码/包执行五阶段，避免在已知驱动失败下整批重跑。
+新窗口与空间提案为 `next-window-proposal-r10.json`：90 分钟新窗口、累计不超过 18900 秒/4 窗口、真实模型仍累计最多 60 次，开发根建议 30 GB。
+当前 21.51 GB 加一次 Office 复验及全阶段保守预留为 28.78 GB；50 GB 最低剩余不变，保留所有历史证据，不计划额外删除。
+该提案未批准，不自动开放目标执行或改变当前已批准上限。

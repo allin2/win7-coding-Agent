@@ -12,16 +12,13 @@
 
 ## 进行中的工作与授权
 
-- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：2026-10-29 负责人批准合并 A9-34、A9-40、A9-41、A9-42。目标版本 `v0.3.0-alpha.3`（候选 WIN7-56），走正式流程到发布。
-  main 源码已推送到 `63e173fc…`；标签与发布 NOT_PERFORMED。冻结前缺口、D1～D6 裁决和开发级运行预算见任务书 §3～§6；执行目录与拒绝集见 ADR-0304。
-  Win7 正式验收 NOT_PERFORMED；负责人试用材料在 `outputs/next-version-r1/owner-trial/`。试用结果 NOT_PERFORMED。
-  `f54e6216…` 开发包的 batch2 run `77091fbc…` 已在 Win7 DEV_CHANNEL 直接完成 10 阶段、37 用例、67 断言与 GPU gate；R7/R8 PASS。
-  总控 stdin、账号绑定、执行起点与 ZIP 文件名缺陷已修复；工具已在 Win7 PowerShell 2.0/5.1 直接解析通过，见 §8.11–§8.13。
-  后台恢复 run `13ad75ee…` 因 `PROCESS_CURRENT_IDENTITY_UNKNOWN` 保持 HALTED；三个模式的功能检查不替代收尾通过。
-  失败身份取证已补齐；新源 `b0c13455…` 的后台诊断 run `56bf7b0b…` 四模式与独立收尾直接完成。首次异常未重现，根因 UNKNOWN，不与旧源 batch2 拼成五阶段通过。
-  便携、Office、真实模型与新版本全阶段仍 NOT_PERFORMED。负责人批准本窗口 24 GB 容量例外（ADR-0306）；86 项开发机检查及 PS2/PS5.1 各 9 项直接边界检查通过。
-  新开发包源 `e93b78d1…`、ZIP `80a70e64…` 及五阶段绑定材料已完成开发机完整性检查；该包 Win7 运行 NOT_PERFORMED。FULL 材料被 `RUN_CONTEXT:WINDOW_BUDGET` 拒绝生成执行授权，详见 §8.15。
-  第三、最后窗口从 UTC `15:55:13.975` 开始，共同截止 `18:56:32.708`；前两窗口累计 2542.080 秒，真实模型请求仍为 0，额度不重置。负责人已批准延长 45 分钟，总预算 13500 秒，见 ADR-0307；继续同一第三窗口。
+- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：目标 `v0.3.0-alpha.3` / 暂定 WIN7-56，当前阶段结果见 §8.18–§8.19。
+  Win7 DEV_CHANNEL 源 `35ad3001…`、ZIP `1569a0a4…` 已直接完成 batch2（10 阶段/37 用例/67 断言/GPU）、后台恢复与便携，独立收尾通过。
+  Office run `bf804776…` 保持 HALTED：UI 为 TIMEOUT_VIEWPORT，控制器为 PROCESS_OBSERVATION_FAILED；原观测错误细节缺失，准确原因 UNKNOWN。真实模型 NOT_PERFORMED，版本全阶段未通过。
+  已定位并本地修正 Win7 Electron 空最小尺寸覆盖失效：六视口独立诊断全部精确通过。观测失败取证已补齐；开发机定向 20/20 PASS，修正后完整旅程仍 NOT_PERFORMED。
+  第三窗口已于 UTC `18:53:22.344` 收尾：零任务/进程、锁 idle；累计 13230.449/13500 秒，0/60 真实模型请求。三份获批 ZIP 副本已删除，其他证据保留。
+  新一轮 90 分钟窗口与 30 GB 空间提案待负责人决定；现有授权不自动续期。正式门 A/B、冻结、双干净构建、负责人试用与发布均 NOT_PERFORMED。
+  main 推送记录仍到 `63e173fc…`；本轮后继修改仅本地保存。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
   当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。

@@ -82,7 +82,8 @@ async function workbench({ win, evaluate, click, wait, snapshot }) {
   need(renamed && renamed.ok, 'LONG_TITLE_RENAME');
   await evaluate('window.win7AgentA9Workbench.refreshSnapshot()');
   await wait(() => evaluate(`Array.from(document.querySelectorAll('#conversation-list button')).some(b=>b.title.includes(${JSON.stringify(TITLE)}))`), 5000, 'LONG_TITLE_VISIBLE');
-  const rows = []; win.setMinimumSize(0, 0);
+  // Electron 22 on Win7 treats an empty minimum as no override.
+  const rows = []; win.setMinimumSize(1, 1);
   for (const [width,height] of [[1366,768],[1093,614],[1079,540],[900,650],[800,650],[780,640]]) {
     win.setContentSize(width,height);
     await wait(() => evaluate(`innerWidth===${width}&&innerHeight===${height}`), 5000, 'VIEWPORT');

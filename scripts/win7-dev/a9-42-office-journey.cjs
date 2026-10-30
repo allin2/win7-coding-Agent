@@ -179,6 +179,18 @@ function processRows() {
   return parseProcesses(result.stdout);
 }
 
+function observationFailure(error, rootPid, observed, current) {
+  const ids = new Set([rootPid, ...observed.map(row => row.pid)]);
+  const related = Array.isArray(current) ? current.filter(row => ids.has(row.pid) || ids.has(row.parent)) : null;
+  const identity = row => Object.fromEntries(['pid','parent','created','image','imageSource','session','name']
+    .map(key => [key, row[key] === undefined ? null : row[key]]));
+  const code = String(error && error.message || error);
+  return { at: new Date().toISOString(), code: /^PROCESS_[A-Z0-9_]+$/.test(code) ? code : 'PROCESS_OBSERVATION_FAILED',
+    root_pid: rootPid, observed_instances: observed.slice(0,128).map(identity),
+    current_instances: related === null ? null : related.slice(0,128).map(identity),
+    truncated: observed.length > 128 || (related !== null && related.length > 128) };
+}
+
 function observedTree(rows, pid) {
   const first = rows.find((row) => row.pid === pid);
   need(first && /^\d{14}\.\d{6}[+-]\d{3}$/.test(first.created) && first.image, 'PROCESS_IDENTITY_UNKNOWN');
@@ -715,17 +727,26 @@ async function controller(config) {
         let timedOut = false;
         const timer = setTimeout(() => { timedOut = true; child.kill(); }, Math.min(300000, Date.parse(config.deadline_utc) - Date.now()));
         observer = setInterval(() => {
+          let rows;
           try {
-            const rows = processRows();
+            rows = processRows();
             observed = observed.length ? extendObservedTree(observed, rows, config.session_id) : observedTree(rows, child.pid);
             result.observed_process_tree = observed; save(report, result);
-          } catch (_) { observationError = 'PROCESS_OBSERVATION_FAILED'; }
+          } catch (error) {
+            observationError = 'PROCESS_OBSERVATION_FAILED';
+            if (!result.observation_failure) { result.observation_failure = observationFailure(error, child.pid, observed, rows); save(report, result); }
+          }
         }, 1500);
         child.once('error', error => { clearTimeout(timer); clearInterval(observer); reject(error); });
         child.once('exit', (code, signal) => { clearTimeout(timer); clearInterval(observer); resolve({ pid: child.pid, code, signal, timed_out: timedOut }); });
       });
     } finally { fs.closeSync(out); fs.closeSync(err); }
     need(!result.exit.timed_out && result.exit.code === 0 && result.exit.signal === null, 'UI_EXIT_UNEXPECTED');
+    if (observationError && fs.existsSync(path.join(config.run_root, 'ui-result.json'))) {
+      try { const uiFailure = JSON.parse(fs.readFileSync(path.join(config.run_root, 'ui-result.json'), 'utf8'));
+        result.ui_first_failure = /^[A-Z][A-Z0-9_]+$/.test(uiFailure.first_failure || '') ? uiFailure.first_failure : null;
+      } catch (error) { result.ui_failure_read_error = safeError(error); }
+    }
     need(!observationError, 'PROCESS_OBSERVATION_FAILED');
     result.ui = JSON.parse(fs.readFileSync(path.join(config.run_root, 'ui-result.json'), 'utf8'));
     for (const name of ['ui-stdout.bin','ui-stderr.bin']) need(!/a942-local-[a-f0-9]{32}/.test(fs.readFileSync(path.join(config.run_root, name), 'utf8')), 'SECRET_IN_PROCESS_LOG');
@@ -956,7 +977,7 @@ async function ui(config) {
     if (win) win.close(); else app.quit();
   }
 }
-module.exports = { driverClosure, copyDriverClosure, verifyDriverClosure, validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
+module.exports = { observationFailure, driverClosure, copyDriverClosure, verifyDriverClosure, validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
   makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi, inside, processRows, observedTree, extendObservedTree, cleanEnvironment,
   currentIdentity, currentTasks, copyPortablePackage, waitFor, EXECUTION_LAYOUT, loadExecutionBinding, expandExecutionLayout,
   taskNameFor, rejectDriverOverrides, executionBindingPathFor };

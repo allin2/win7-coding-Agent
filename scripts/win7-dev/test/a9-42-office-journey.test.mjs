@@ -281,3 +281,16 @@ test('both public prepares reject changed committed closure and code from a diff
     assert.equal(fs.existsSync(spec.output_root), false);
   }
 });
+
+
+test('observation failure records the failing related identities and excludes command lines', () => {
+  const root = {pid:10,parent:1,created:'20261030010000.000000+480',image:'C:\\A9-DEV\\root.exe',session:2,name:'electron.exe'};
+  const child = {pid:11,parent:10,created:'',image:'',commandLine:'private arguments'};
+  const unrelated = {pid:99,parent:98,image:'private unrelated image',commandLine:'private arguments'};
+  const result = d.observationFailure(Error('PROCESS_CHILD_IDENTITY_UNKNOWN'),10,[root],[child,unrelated]);
+  assert.equal(result.code,'PROCESS_CHILD_IDENTITY_UNKNOWN');assert.equal(result.current_instances.length,1);
+  assert.equal(result.current_instances[0].pid,11);assert.equal(result.current_instances[0].created,'');
+  assert.equal(JSON.stringify(result).includes('private'),false);assert.equal(result.truncated,false);
+  assert.equal(d.observationFailure(Error('sensitive text'),10,[root],undefined).code,'PROCESS_OBSERVATION_FAILED');
+  assert.equal(d.observationFailure(Error('PROCESS_QUERY_FAILED'),10,[root],undefined).current_instances,null);
+});
