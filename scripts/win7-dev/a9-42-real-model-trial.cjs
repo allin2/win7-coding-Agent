@@ -1,11 +1,12 @@
 'use strict';
 // Candidate-external DEV_CHANNEL ONLY. Target execution needs a separately approved window.
-// Local tests inject loopback upstream through startRelay's argument; CLI always uses DeepSeek.
+// Direct product HTTPS, bounded by candidate-external instrumentation; no relay is started.
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
 const base = require('./a9-42-office-journey.cjs');
 const relayTools = require('./a9-42-real-model-relay.cjs');
+const directTools = require('./a9-42-real-model-direct.cjs');
 const office = require('./a9-42-real-model-samples.cjs');
 const resources = require('./a9-42-resource-sampler.cjs');
 const os = require('os');
@@ -15,16 +16,16 @@ const ROOT = 'C:\\A9-DEV';
 const need = (v, code) => { if (!v) throw new Error(code); };
 const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-const SUPPORT = ['a9-42-office-journey.cjs','a9-42-real-model-relay.cjs','a9-42-real-model-samples.cjs','a9-42-resource-sampler.cjs'];
-const EXTRA_KEYS = ['upstream','model','idle_seconds','api_key_file'];
+const SUPPORT = ['a9-42-office-journey.cjs','a9-42-real-model-relay.cjs','a9-42-real-model-direct.cjs','a9-42-real-model-samples.cjs','a9-42-resource-sampler.cjs'];
+const EXTRA_KEYS = ['upstream','model','idle_seconds','transport','credential_source'];
 function validateConfig(c, now = Date.now(), template = false) {
   need(c && c.profile === 'office-real-model' && /^a942r-[a-f0-9]{8}$/.test(c.run_id), 'CONFIG_PROFILE_RUN_ID');
   need(EXTRA_KEYS.every(k => Object.prototype.hasOwnProperty.call(c, k)), 'CONFIG_FIELDS');
+  need(c.transport === 'direct' && c.credential_source === 'current-user-default-dpapi', 'CONFIG_DIRECT_CREDENTIAL_SOURCE');
   need(c.upstream === relayTools.UPSTREAM, 'CONFIG_UPSTREAM');
   need(Number.isInteger(c.real_model_request_limit) && c.real_model_request_limit >= 1 && c.real_model_request_limit <= 40, 'CONFIG_LIMIT');
   need(Number.isInteger(c.idle_seconds) && c.idle_seconds >= 30 && c.idle_seconds <= 120, 'CONFIG_IDLE');
   need(typeof c.model === 'string' && /^deepseek-[a-z0-9-]{1,50}$/.test(c.model), 'CONFIG_MODEL');
-  need(base.canonical(c.api_key_file) && inside(c.run_root + '\\secret', c.api_key_file), 'CONFIG_SECRET_PATH');
   const old = Object.fromEntries(Object.entries(c).filter(([k]) => !EXTRA_KEYS.includes(k)));
   // Reuse the original strict identity/layout contract without reopening that profile.
   const oldId = c.run_id.replace('a942r-', 'a942o-');
@@ -43,6 +44,7 @@ function verifyBinding(c, io = fs, root = __dirname) {
 }
 function verifySupport(binding, c, io = fs, root = __dirname) {
   need(binding.profile === c.profile && Array.isArray(binding.support_files) && binding.support_files.length === SUPPORT.length, 'BINDING_SUPPORT');
+  need(binding.transport === c.transport && binding.credential_source === c.credential_source, 'BINDING_DIRECT_PROFILE');
   for (const name of SUPPORT) {
     if (process.platform === 'win32') noLinks(c.run_root, path.join(root, name), io);
     const e = binding.support_files.find(e => e.path === name);
@@ -113,27 +115,6 @@ function resourceObserver(getObserved, queryRows = () => resources.queryResource
     sample: () => sampler.sampleOnce() };
 }
 
-// Window order: materials -> key-less network preflight PASS -> key upload -> controller.
-// The controller refuses to start (and never reads a key) without this run's PASS record.
-const PREFLIGHT = 'NETWORK_PREFLIGHT.json';
-function requirePreflight(c, io = fs) {
-  const file = path.join(c.run_root, PREFLIGHT); need(io.existsSync(file), 'NETWORK_PREFLIGHT_REQUIRED');
-  const p = JSON.parse(io.readFileSync(file, 'utf8'));
-  need(p.status === 'PASS' && p.run_id === c.run_id && p.driver_sha256 === c.driver_sha256 && p.upstream === relayTools.UPSTREAM, 'NETWORK_PREFLIGHT_REQUIRED');
-  return p;
-}
-async function networkPreflight(config, { io = fs, check = () => relayTools.upstreamPreflight(), identity = currentIdentity } = {}) {
-  identity(config);
-  need(hash(io.readFileSync(__filename)) === config.driver_sha256, 'DRIVER_HASH');
-  need(!io.existsSync(config.api_key_file), 'PREFLIGHT_SECRET_PRESENT');
-  const file = path.join(config.run_root, PREFLIGHT); need(!io.existsSync(file), 'PREFLIGHT_REUSE');
-  const r = { ...(await check()), run_id: config.run_id, driver_sha256: config.driver_sha256, evidence_class: 'DEV_CHANNEL', at: new Date().toISOString() };
-  io.writeFileSync(file, JSON.stringify(r, null, 2) + '\n', { flag: 'wx' });
-  process.stdout.write(JSON.stringify({ status: r.status, error_code: r.error_code }) + '\n');
-  if (r.status !== 'PASS') process.exitCode = 1;
-  return r;
-}
-
 async function postflight(config) {
   currentIdentity(config);
   const file = path.join(config.run_root, 'POSTFLIGHT.json'); need(!fs.existsSync(file), 'POSTFLIGHT_REUSE');
@@ -144,6 +125,7 @@ async function postflight(config) {
     const prior = JSON.parse(fs.readFileSync(path.join(config.run_root, 'RESULT.json'), 'utf8'));
     need(prior.status === 'TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED' && prior.driver_sha256 === config.driver_sha256
       && prior.zip_sha256 === config.zip_sha256, 'POSTFLIGHT_PRIOR_RESULT');
+    r.saved_provider_unchanged = directTools.verifyOriginals(prior.credential_seed);
     const rows = queryProcesses();
     const own = observedTree(rows, process.pid)[0];
     const launchers = launcherInstances(rows, own, config);
@@ -168,16 +150,18 @@ async function controller(config, injectedQuery) {
   need(Date.now() < Date.parse(config.deadline_utc) - 600000, 'WINDOW_NO_NEW_SCENARIO');
   for (const target of [config.run_root, config.input_package_root, config.zip_path]) noLinks(ROOT, target);
   for (const target of [config.package_root, config.workspace_root, path.join(config.run_root, 'RESULT.json')]) need(!fs.existsSync(target), 'OUTPUT_REUSE');
-  const preflight = requirePreflight(config);
   const report = path.join(config.run_root, 'RESULT.json');
   fs.writeFileSync(report, '{}\n', { flag: 'wx' });
   const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'IN_PROGRESS',
     source_commit: config.source_commit, zip_sha256: config.zip_sha256, manifest_sha256: config.manifest_sha256,
     driver_sha256: config.driver_sha256, source_binding_sha256: config.source_binding_sha256,
-    network_preflight: { status: preflight.status, at: preflight.at, tls: preflight.tls }, timeline: [], started_at: new Date().toISOString(), task_cleanup: 'NOT_PERFORMED_EXTERNAL_POSTFLIGHT_REQUIRED' };
-  let observed = []; let observer; let observationError; let key;
+    transport: 'direct', credential_source: config.credential_source,
+    timeline: [], started_at: new Date().toISOString(), task_cleanup: 'NOT_PERFORMED_EXTERNAL_POSTFLIGHT_REQUIRED' };
+  let observed = []; let observer; let observationError;
   const logLeaks = [];
-  const logChunk = (fd, b) => { if (!relayTools.scanSecrets(b, key)) { logLeaks.push('SECRET_IN_PROCESS_LOG'); fs.writeSync(fd, '[REDACTED]\n'); } else fs.writeSync(fd, b); };
+  // The controller never sees a decrypted key. Retain only byte count/hash of native logs;
+  // exact-key scanning of UI/SQL/screenshot projections happens in the product process.
+  const logChunk = (fd, b) => fs.writeSync(fd, JSON.stringify({ content: 'NOT_RETAINED', bytes: b.length, sha256: hash(b) }) + '\n');
   try {
     result.identity = currentIdentity(config);
     const rows = query(); const own = launcherInstances(rows, result.identity, config);
@@ -196,7 +180,8 @@ async function controller(config, injectedQuery) {
     result.package = verifyPackage(config);
     need(hash(fs.readFileSync(config.cmd_path)) === hash(fs.readFileSync(path.join(process.env.SystemRoot, 'System32/cmd.exe'))), 'CMD_COPY_HASH');
     const runtime = prepareDriverRuntime(config);
-    key = relayTools.consumeKey(config).key; result.api_key_sha256 = hash(key);
+    result.credential_seed = directTools.seedSavedProvider(directTools.savedProviderRoot(), config.data_root, config.model);
+    fs.writeFileSync(path.join(config.run_root, 'credential-seed.json'), JSON.stringify(result.credential_seed, null, 2) + '\n', { flag: 'wx' });
     // Do not put mutable/unchecked executable paths into the strict input config.
     result.driver_runtime = runtime;
     fs.writeFileSync(path.join(config.run_root, 'runtime-config.json'), JSON.stringify(config, null, 2) + '\n', { flag: 'wx' });
@@ -209,9 +194,8 @@ async function controller(config, injectedQuery) {
     try {
       result.exit = await new Promise((resolve, reject) => {
         const child = cp.spawn(runtime.executable, [runtime.app_root, '--ui', '--config', path.join(config.run_root, 'runtime-config.json'), '--portable'],
-          { env, cwd: config.run_root, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe', 'pipe'] });
+          { env, cwd: config.run_root, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
         result.product_spawned_at = Date.now(); save(report, result);
-        child.stdio[3].on('error', () => logLeaks.push('SECRET_PIPE_FAILED')); child.stdio[3].end(key, 'utf8');
         // Buffer bounded chunks with overlap so secrets split across writes cannot reach disk.
         for (const [stream, fd] of [[child.stdout, out],[child.stderr, err]]) {
           let chunks = [], length = 0;
@@ -236,10 +220,10 @@ async function controller(config, injectedQuery) {
     need(!result.exit.timed_out && result.exit.code === 0 && result.exit.signal === null, 'UI_EXIT_UNEXPECTED');
     need(!observationError, 'PROCESS_OBSERVATION_FAILED');
     const uiResult = JSON.parse(fs.readFileSync(path.join(config.run_root, 'ui-result.json'), 'utf8'));
-    need(relayTools.scanSecrets(uiResult, key), 'SECRET_IN_UI_RESULT'); result.ui = uiResult;
+    need(relayTools.scanSecrets(uiResult), 'SECRET_IN_UI_RESULT'); result.ui = uiResult;
     need(logLeaks.length === 0, logLeaks[0] || 'PROCESS_LOG_FAILURE');
-    for (const name of ['ui-stdout.bin','ui-stderr.bin']) need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, name)), key), 'SECRET_IN_PROCESS_LOG');
-    need(relayTools.scanSecrets(result.ui, key), 'SECRET_IN_UI_RESULT');
+    for (const name of ['ui-stdout.bin','ui-stderr.bin']) need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, name))), 'SECRET_IN_PROCESS_LOG');
+    need(relayTools.scanSecrets(result.ui), 'SECRET_IN_UI_RESULT');
     result.real_model_requests = result.ui.real_model_requests;
     need(result.ui.status === 'CHECKS_COMPLETE' && result.ui.normal_quit === true, 'UI_INCOMPLETE');
     // UI and controller must have observed the same actual account/session.
@@ -253,16 +237,17 @@ async function controller(config, injectedQuery) {
       return result.last_process_observation.blocking_instances.length === 0 && result.last_process_observation.unexpected_root_instances.length === 0;
     }, Math.min(40000, Date.parse(config.deadline_utc) - Date.now()), 'PRODUCT_TREE_ENDED');
     result.timeline.push({ name: 'tree_ended', at: Date.now() });
-    const facts = sqlFacts(config, key);
+    const facts = sqlFacts(config);
     result.database = { workspace_locks: facts.workspace_locks, workspaces: facts.workspaces,
       turns: facts.turns.map(t => ({ turn_id: t.turn_id, status: t.status })), all_events_sha256: hash(JSON.stringify(facts.events)) };
     need(facts.workspace_locks.length === 0, 'PRODUCT_LOCK_REMAINS');
     need(facts.workspaces.length === 1 && facts.workspaces[0].workspace_path === path.win32.resolve(config.workspace_root).toLowerCase()
       && facts.workspaces[0].permission_mode === 'full_access', 'WORKSPACE_PERSISTENCE');
     need(!facts.turns.some(t => ['active','interrupted'].includes(t.status)), 'TURN_PERSISTENCE');
-    need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, 'relay.json')), key), 'SECRET_IN_RELAY_LOG');
-    need(relayTools.scanSecrets(result, key), 'SECRET_IN_RESULT');
-    for (const name of ['RESULT.json','ui-result.json','ui-stdout.bin','ui-stderr.bin','relay.json']) need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, name)), key), 'SECRET_IN_EVIDENCE');
+    result.saved_provider_unchanged = directTools.verifyOriginals(result.credential_seed);
+    need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, 'direct-requests.json'))), 'SECRET_IN_REQUEST_LOG');
+    need(relayTools.scanSecrets(result), 'SECRET_IN_RESULT');
+    for (const name of ['RESULT.json','ui-result.json','ui-stdout.bin','ui-stderr.bin','direct-requests.json','credential-seed.json']) need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, name))), 'SECRET_IN_EVIDENCE');
     result.launcher_tasks = currentTasks(config);
     need(result.launcher_tasks.length === 1, 'LAUNCHER_TASK_IDENTITY');
     result.package_after = verifyPackage(config); result.original_after = verifyPackage(config, config.input_package_root);
@@ -279,8 +264,8 @@ async function controller(config, injectedQuery) {
       result.resources = { summary: resources.summarizeResources(samples, timeline, { logicalCpus: os.cpus().length }),
         errors: sampler.errors(), sample_count: samples.length, logical_cpus: os.cpus().length };
     } catch (_) { result.resources = 'UNKNOWN'; }
-    const safe = relayTools.scanSecrets(result, key) ? result : { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'HALTED', first_failure: 'SECRET_IN_RESULT' };
-    if (safe !== result) process.exitCode = 1; save(report, safe); key = undefined;
+    const safe = relayTools.scanSecrets(result) ? result : { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'HALTED', first_failure: 'SECRET_IN_RESULT' };
+    if (safe !== result) process.exitCode = 1; save(report, safe);
     process.stdout.write(JSON.stringify({ status: safe.status, first_failure: safe.first_failure || null }) + '\n');
   }
 }
@@ -288,21 +273,14 @@ async function controller(config, injectedQuery) {
 function lateReplyRejected(reply) {
   return Boolean(reply && reply.ok === false && reply.error && ['A9_QUESTION_REPLY_CONFLICT','A9_QUESTION_STALE'].includes(reply.error.code));
 }
-async function readKeyPipe(fd = 3) {
-  return new Promise((resolve, reject) => {
-    const stream = fs.createReadStream(null, { fd, encoding: 'utf8', autoClose: true }); let key = '';
-    stream.on('data', b => { key += b; if (key.length > 256) stream.destroy(new Error('SECRET_PIPE_LIMIT')); });
-    stream.once('error', () => reject(new Error('SECRET_PIPE_FAILED')));
-    stream.once('end', () => { if (key.length < 8) reject(new Error('SECRET_PIPE_EMPTY')); else resolve(key); });
-  });
-}
 async function ui(config) {
   const { app, BrowserWindow, dialog } = require('electron');
   const report = path.join(config.run_root, 'ui-result.json');
   const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: config.profile, run_id: config.run_id,
     status: 'IN_PROGRESS', normal_quit: false, timeline: [], scenarios: [], source_commit: config.source_commit, zip_sha256: config.zip_sha256 };
-  let win, relay, key, timer, cancelGuard, cancelWatcher;
-  const persist = () => { need(relayTools.scanSecrets(result, key), 'SECRET_IN_UI_RESULT'); save(report, result); };
+  let win, guard, timer, cancelGuard, cancelWatcher;
+  const scan = value => guard ? guard.scanSecrets(value) : relayTools.scanSecrets(value);
+  const persist = () => { need(scan(result), 'SECRET_IN_UI_RESULT'); save(report, result); };
   const mark = (name, at = Date.now()) => { result.timeline.push({ name, at }); persist(); };
   const evaluate = code => win.webContents.executeJavaScript(code);
   const wait = (fn, ms, name) => waitFor(fn, Math.max(1, Math.min(ms, Date.parse(config.deadline_utc) - Date.now() - 15000)), name);
@@ -312,6 +290,7 @@ async function ui(config) {
     throw new Error(`TIMEOUT_${name}`);
   };
   const snapshot = async () => { const s = await evaluate('window.win7Agent.a9.snapshot()'); need(s && s.ok && s.snapshot, 'SNAPSHOT_FAILED'); return s.snapshot; };
+  const readSql = turnIds => { const facts = sqlFacts(config, undefined, turnIds); need(scan(facts), 'SECRET_IN_SQLITE_EVENTS'); return facts; };
   const click = selector => clickUi({ evaluate, focus: () => win.focus(), sendInputEvent: e => win.webContents.sendInputEvent(e) }, selector);
   const fill = async (selector, value) => {
     await click(selector);
@@ -321,17 +300,18 @@ async function ui(config) {
   const close = () => { if (!result.timeline.some(t => t.name === 'close_requested')) mark('close_requested'); if (win && !win.isDestroyed()) win.close(); else app.quit(); };
   const screenshot = async name => {
     need(await evaluate('document.getElementById("a9-provider-key").type==="password"'), 'SECRET_FIELD_NOT_PASSWORD');
-    need(relayTools.scanSecrets(await evaluate('document.body.innerText'), key), 'SECRET_IN_SCREENSHOT_TEXT');
+    need(scan(await evaluate('document.body.innerText')), 'SECRET_IN_SCREENSHOT_TEXT');
     fs.writeFileSync(path.join(config.run_root, name + '.png'), (await win.webContents.capturePage()).toPNG(), { flag: 'wx' });
   };
   dialog.showOpenDialog = async (_owner, options) => { need(options && options.properties.includes('openDirectory'), 'UNEXPECTED_FILE_PICKER'); return { canceled: false, filePaths: [config.workspace_root] }; };
-  app.on('will-quit', () => { clearTimeout(timer); if (cancelGuard) cancelGuard(); if (cancelWatcher) cancelWatcher.close(); result.normal_quit = true; mark('will_quit'); });
+  app.on('will-quit', () => { clearTimeout(timer); if (cancelGuard) cancelGuard(); if (cancelWatcher) cancelWatcher.close();
+    result.normal_quit = true; mark('will_quit'); if (guard) guard.restore(); });
   try {
     result.identity = currentIdentity(config);
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'UI_DRIVER_HASH'); verifyBinding(config);
-    key = await readKeyPipe(); result.api_key_sha256 = hash(key);
-    need(!fs.existsSync(config.api_key_file), 'SECRET_FILE_NOT_DELETED');
-    need(process.argv.includes('--portable') && !fs.existsSync(config.workspace_root) && !fs.existsSync(config.data_root), 'UI_OUTPUT_REUSE');
+    const seed = JSON.parse(fs.readFileSync(path.join(config.run_root, 'credential-seed.json'), 'utf8'));
+    directTools.verifySeed(config.data_root, seed);
+    need(process.argv.includes('--portable') && !fs.existsSync(config.workspace_root), 'UI_OUTPUT_REUSE');
     fs.mkdirSync(config.workspace_root);
     const binding = JSON.parse(fs.readFileSync(config.source_binding_path, 'utf8'));
     const originals = {};
@@ -341,16 +321,16 @@ async function ui(config) {
     }
     result.sample_sha256 = originals;
     app.setPath('crashDumps', path.join(config.run_root, 'environment/temp'));
-    relay = relayTools.startRelay({ limit: config.real_model_request_limit, deadline: Date.parse(config.deadline_utc),
-      log: () => { save(path.join(config.run_root, 'relay.json'), relay.state.records); } });
-    const url = await relay.listen(); save(path.join(config.run_root, 'relay.json'), []);
+    guard = directTools.installDirectGuard({ limit: config.real_model_request_limit, deadline: Date.parse(config.deadline_utc),
+      log: () => save(path.join(config.run_root, 'direct-requests.json'), guard.state) });
+    save(path.join(config.run_root, 'direct-requests.json'), guard.state);
     const spawnedAt = JSON.parse(fs.readFileSync(path.join(config.run_root, 'RESULT.json'), 'utf8')).product_spawned_at;
     need(Number.isSafeInteger(spawnedAt), 'PRODUCT_SPAWN_TIME'); mark('product_spawned', spawnedAt);
     require(path.join(config.package_root, 'resources/app/product/main.js'));
     need(app.getPath('userData') === config.data_root, 'PRODUCT_DATA_ROOT');
     await app.whenReady();
     win = await wait(() => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes('/renderer/workbench.html')), 30000, 'WORKBENCH');
-    timer = setTimeout(() => { relay.stop(); result.status = 'HALTED'; result.first_failure = 'WINDOW_DEADLINE'; persist(); close(); }, Math.max(1, Date.parse(config.deadline_utc) - Date.now() - 15000));
+    timer = setTimeout(() => { guard.stop(); result.status = 'HALTED'; result.first_failure = 'WINDOW_DEADLINE'; persist(); close(); }, Math.max(1, Date.parse(config.deadline_utc) - Date.now() - 15000));
     await wait(() => evaluate('document.readyState==="complete"&&Boolean(window.win7Agent&&window.win7Agent.a9)'), 20000, 'RENDERER');
     await wait(() => win.isVisible() && !win.isMinimized(), 15000, 'VISIBLE');
     mark('workbench_ready'); mark('idle_start'); await delay(config.idle_seconds * 1000); mark('idle_end');
@@ -361,18 +341,26 @@ async function ui(config) {
     await wait(async () => (await snapshot()).mode === 'full_access', 10000, 'FULL_ACCESS');
     await click('#a9-provider-open');
     need(await evaluate('document.getElementById("a9-provider-key").type==="password"'), 'SECRET_FIELD_NOT_PASSWORD');
-    await fill('#a9-provider-url', url); await fill('#a9-provider-model', config.model); await fill('#a9-provider-key', key);
-    need(await evaluate('!document.getElementById("a9-provider-remember").checked'), 'REMEMBER_MUST_BE_OFF');
+    const restored = (await snapshot()).provider;
+    need(restored && restored.configured && restored.apiKey && restored.apiKey.available && restored.apiKey.source === 'dpapi'
+      && restored.apiKey.remembered && restored.model === config.model && !restored.diagnostics, 'DPAPI_KEY_NOT_RESTORED');
+    need(new URL(restored.baseUrl).origin === directTools.UPSTREAM, 'DIRECT_RESTORED_ENDPOINT');
+    result.credential_restore = { source: 'dpapi', available: true, remembered: true, model: restored.model, base_url: restored.baseUrl };
+    need(guard.state.requests === 0, 'DIRECT_UNEXPECTED_EARLY_REQUEST');
+    need(await evaluate(`document.getElementById('a9-provider-key').value===''&&document.getElementById('a9-provider-remember').checked&&document.getElementById('a9-provider-url').value===${JSON.stringify(restored.baseUrl)}&&document.getElementById('a9-provider-model').value===${JSON.stringify(config.model)}`), 'DIRECT_PROVIDER_FORM');
+    // Apply unchanged settings via the real UI: one probe; "re-probe" currently issues two.
     await click('#a9-provider-apply');
     await wait(() => evaluate('!document.getElementById("a9-provider-apply").disabled&&document.getElementById("a9-provider-probe-state").textContent==="tool_calling"'), 65000, 'PROBE');
     await click('#settings-drawer header [data-close]');
     const terminal = new Set(['completed','completed_with_warnings','blocked','failed','cancelled','interrupted']);
     for (const id of ['S1','S2','S3','S4','S5']) {
-      if (Date.now() >= Date.parse(config.deadline_utc) - 600000 || relay.state.requests >= config.real_model_request_limit) {
-        result.scenarios.push({ name: id, status: 'NOT_PERFORMED', reason: relay.state.requests >= config.real_model_request_limit ? 'REAL_MODEL_BUDGET_EXHAUSTED' : 'WINDOW_NO_NEW_SCENARIO' }); persist(); continue;
+      guard.assertInstalled();
+      need(!guard.state.first_failure, guard.state.first_failure || 'DIRECT_GUARD_FAILURE');
+      if (Date.now() >= Date.parse(config.deadline_utc) - 600000 || guard.state.requests >= config.real_model_request_limit) {
+        result.scenarios.push({ name: id, status: 'NOT_PERFORMED', reason: guard.state.requests >= config.real_model_request_limit ? 'REAL_MODEL_BUDGET_EXHAUSTED' : 'WINDOW_NO_NEW_SCENARIO' }); persist(); continue;
       }
       const before = office.workspaceFacts(config.workspace_root);
-      const oldTurns = new Set(sqlFacts(config, key).turns.map(t => t.turn_id));
+      const oldTurns = new Set(readSql().turns.map(t => t.turn_id));
       if (await evaluate('!document.getElementById("inspector-backdrop").hidden')) { await click('#close-inspector'); await wait(() => evaluate('document.getElementById("inspector-backdrop").hidden'), 10000, 'INSPECTOR_CLOSED'); }
       await wait(() => evaluate('!document.getElementById("task-prompt").disabled'), 10000, 'COMPOSER_READY');
       await fill('#task-prompt', office.PROMPTS[id]);
@@ -389,7 +377,7 @@ async function ui(config) {
         }, 240000, 'SCENARIO_RESPONSE');
         const question = first.s.pendingQuestion;
         if (question) {
-          asked = true; beforeCancel = office.workspaceFacts(config.workspace_root); requestBefore = relay.state.attempts;
+          asked = true; beforeCancel = office.workspaceFacts(config.workspace_root); requestBefore = guard.state.attempts;
           if (id === 'S4') {
             await click('#a9-question-card input[type="radio"]'); await click('#a9-question-card .a9-question-actions button:first-child');
           } else {
@@ -397,14 +385,14 @@ async function ui(config) {
             await click('#a9-question-card .a9-question-actions button:last-child');
             await wait(async () => !(await snapshot()).pendingQuestion, 10000, 'QUESTION_CANCELLED');
             const late = await evaluate(`window.win7Agent.a9.replyQuestion(${JSON.stringify(question.conversationId)},${JSON.stringify(question.questionId)},${question.revision},'answered',${JSON.stringify(question.options && question.options[0] || '确认')})`);
-            lateRejected = lateReplyRejected(late); await delay(1500); requestAfter = relay.state.attempts;
+            lateRejected = lateReplyRejected(late); await delay(1500); requestAfter = guard.state.attempts;
           }
         }
         await slowWait(() => {
           const rows = turnRows(config).filter(t => !oldTurns.has(t.turn_id)); return rows.length && rows.every(t => terminal.has(t.status));
         }, 240000, 'SCENARIO_COMPLETED');
-        const turns = sqlFacts(config, key).turns.filter(t => !oldTurns.has(t.turn_id));
-        const sql = sqlFacts(config, key, turns.map(t => t.turn_id));
+        const turns = readSql().turns.filter(t => !oldTurns.has(t.turn_id));
+        const sql = readSql(turns.map(t => t.turn_id));
         const answer = sql.events.filter(e => e.event_type === 'turn_completed').map(e => e.data.finalMessage || '').join('\n');
         facts = { before, after: office.workspaceFacts(config.workspace_root), originals, sql, answer, asked,
           cancel_write_events: cancelWriteEvents, late_rejected: lateRejected, before_cancel: beforeCancel, requests_before_cancel: requestBefore, requests_after_cancel: requestAfter };
@@ -422,7 +410,7 @@ async function ui(config) {
       } finally { if (cancelWatch) { if (id === 'S5') cancelWatcher = cancelWatch; else cancelWatch.close(); } }
       if (id === 'S5' && asked) cancelGuard = () => {
         let currentFiles; try { currentFiles = office.workspaceFacts(config.workspace_root); } catch (_) { currentFiles = null; }
-        const stable = cancelWriteEvents === 0 && relay.state.attempts === requestBefore
+        const stable = cancelWriteEvents === 0 && guard.state.attempts === requestBefore
           && JSON.stringify(currentFiles) === JSON.stringify(beforeCancel);
         if (!stable) { const scenario = result.scenarios.find(s => s.name === 'S5'); scenario.status = 'FAIL'; scenario.reason = 'CANCEL_SIDE_EFFECT_OR_LATE_REPLY';
           result.status = 'HALTED'; result.first_failure = 'CANCEL_SIDE_EFFECT_OR_LATE_REPLY'; }
@@ -435,19 +423,20 @@ async function ui(config) {
         && facts.after[office.FILES.book].sha256 === originals[office.FILES.book], 'ORIGINAL_INTEGRITY_FAILED');
     }
     need(await evaluate('typeof require==="undefined"&&typeof process==="undefined"'), 'RENDERER_ISOLATION');
-    sqlFacts(config, key); result.real_model_requests = relay.state.requests;
+    readSql();
+    result.real_model_requests = guard.state.requests; guard.assertEvidence();
     result.process_tree = observedTree(queryProcesses(), process.pid);
-    await relay.close(); result.status = 'CHECKS_COMPLETE'; if (cancelGuard) cancelGuard(); persist(); key = undefined; close();
+    guard.stop(); result.status = 'CHECKS_COMPLETE'; if (cancelGuard) cancelGuard(); persist(); close();
   } catch (error) {
     result.status = 'HALTED'; result.first_failure = safeError(error);
     for (const id of ['S1','S2','S3','S4','S5']) if (!result.scenarios.some(s => s.name === id)) result.scenarios.push({ name: id, status: 'NOT_PERFORMED', reason: 'PRIOR_HARD_STOP' });
     if (win && !win.isDestroyed()) { try { await screenshot('failure'); } catch (_) { result.failure_screenshot = 'NOT_PERFORMED'; } }
-    if (relay) { result.real_model_requests = relay.state.requests; await relay.close(); }
+    if (guard) { result.real_model_requests = guard.state.requests; guard.stop(); }
     try { result.process_tree = observedTree(queryProcesses(), process.pid); } catch (_) { result.process_query = 'UNKNOWN'; }
-    persist(); key = undefined; close();
+    persist(); close();
   }
 }
-module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, requirePreflight, networkPreflight, readKeyPipe, lateReplyRejected, SUPPORT,
+module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, lateReplyRejected, SUPPORT,
   controller, ui, postflight, ...relayTools, ...office };
 if (require.main === module) {
   try {
@@ -455,8 +444,8 @@ if (require.main === module) {
     const configFile = path.resolve(args[at + 1]);
     const config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
     need(inside(config.run_root, configFile), 'CONFIG_LOCATION'); noLinks(config.run_root, configFile);
-    Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config)
-      : args.includes('--network-preflight') ? networkPreflight(config) : controller(config))
+    need(!args.includes('--network-preflight'), 'DIRECT_NO_NETWORK_PREFLIGHT');
+    Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config) : controller(config))
       .catch(error => { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; });
   } catch (error) { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; }
 }

@@ -3,7 +3,8 @@
 // Usage: node a9-42-real-model-prepare.cjs spec.json
 // Also supply model, idle_seconds (30..120, normally 60), real_model_request_limit (1..40).
 // No upstream setting is accepted. Samples/support scripts are emitted beside driver.cjs.
-// Transfer only after separate target approval; put API key under run_root\secret.
+// Direct product HTTPS; restore only the current user's encrypted Provider seed.
+// Transfer only after separate target approval. No plaintext key file is used.
 // deadline_utc=null templates are deliberately NOT executable.
 // spec: {source_root, zip_path, output_root, source_commit, run_id, session_id,
 //        target_input_package_root, target_zip_path}. No target connection or launch.
@@ -95,11 +96,12 @@ function emitMaterials(s, { manifestBytes, m, products, compiled, sourceIdentity
     input_package_root: s.target_input_package_root, zip_path: s.target_zip_path,
     run_root: trial + '\\run', package_root: trial + '\\pkg', workspace_root: trial + '\\中文 workspace',
     data_root: trial + '\\pkg\\portable-data', cmd_path: trial + '\\run\\cmd.exe', source_binding_path: trial + '\\run\\source-binding.json',
-    upstream: driver.UPSTREAM, model: s.model, idle_seconds: s.idle_seconds, api_key_file: trial + '\\run\\secret\\api-key.txt' };
+    upstream: driver.UPSTREAM, model: s.model, idle_seconds: s.idle_seconds,
+    transport: 'direct', credential_source: 'current-user-default-dpapi' };
   const binding = { schema_version: 1, source_commit: c.source_commit,
     ...sourceIdentity,
     zip_sha256: c.zip_sha256, manifest_sha256: c.manifest_sha256, driver_sha256: c.driver_sha256,
-    profile: c.profile, support_files: support, samples: sampleFiles,
+    profile: c.profile, transport: c.transport, credential_source: c.credential_source, support_files: support, samples: sampleFiles,
     sample_generation: 'Deterministic developer-generated minimal OOXML; original bytes frozen before model access; no target engine pre-generation.',
     product_files: products, compiled_files: compiled,
     compilers,

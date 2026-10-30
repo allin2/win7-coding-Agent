@@ -6,7 +6,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
-import { spawn } from 'node:child_process';
 const require = createRequire(import.meta.url);
 const d = require('../a9-42-real-model-trial.cjs');
 const b = require('../a9-42-office-journey.cjs');
@@ -26,7 +25,7 @@ function config() {
     manifest_file_count: 1000, session_id: 2, task_name: 'A9-DEV-a942r-1234abcd', deadline_utc: '2026-10-29T17:50:00.000Z', real_model_request_limit: 20,
     input_package_root: 'C:\\A9-DEV\\input\\newpkg', zip_path: 'C:\\A9-DEV\\input.zip', run_root: r + '\\run', package_root: r + '\\pkg',
     workspace_root: r + '\\中文 workspace', data_root: r + '\\pkg\\portable-data', cmd_path: r + '\\run\\cmd.exe', source_binding_path: r + '\\run\\source-binding.json',
-    upstream: d.UPSTREAM, model: 'deepseek-v4-flash', idle_seconds: 60, api_key_file: r + '\\run\\secret\\key.txt' };
+    upstream: d.UPSTREAM, model: 'deepseek-v4-flash', idle_seconds: 60, transport: 'direct', credential_source: 'current-user-default-dpapi' };
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function localServer(handler) {
@@ -51,7 +50,7 @@ test('strict config: fixed upstream, limit, secret/layout, profile/run, unknown 
   assert.equal(d.validateConfig(config(), now).idle_seconds, 60);
   for (const change of [{ upstream: 'http://127.0.0.1:1234' },{ upstream: d.UPSTREAM + '/' },{ upstream: 'https://api.deepseek.com.evil' },
     { real_model_request_limit: 0 },{ real_model_request_limit: 41 },{ real_model_request_limit: 1.1 },{ real_model_request_limit: '3' },
-    { api_key_file: config().run_root + '\\key.txt' },{ api_key_file: config().run_root + '\\secret\\..\\key.txt' },{ api_key_file: config().run_root + '\\secret2\\key.txt' },
+    { api_key_file: config().run_root + '\\secret\\key.txt' },{ transport: 'relay' },{ credential_source: 'file' },
     { run_id: 'a942o-1234abcd' },{ profile: 'office-journey' },{ surprise: 1 },{ deadline_utc: null },{ deadline_utc: '2026-10-29T18:00:00.001Z' },
     { deadline_utc: '2026-10-29T16:59:59.000Z' },{ idle_seconds: 29 },{ idle_seconds: 121 },{ model: 'evil/path' },{ run_root: 'C:\\elsewhere' }]) {
     assert.throws(() => d.validateConfig({ ...config(), ...change }, now), JSON.stringify(change));
@@ -142,23 +141,18 @@ test('usage parser ignores text, bad types, malformed JSON and overflow; reads f
 test('secret file is consumed/deleted/confirmed and leakage scans catch raw or sk prefix anywhere', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942r-secret-'));
   try {
+    const legacy = { ...config(), api_key_file: config().run_root + '\\secret\\key.txt' };
     const file = path.join(root, 'key.txt'); const key = 'TEST_ONLY_SECRET_90210'; fs.writeFileSync(file, key);
-    const calls = []; const io = { existsSync: p => p === config().api_key_file ? fs.existsSync(file) : false,
+    const calls = []; const io = { existsSync: p => p === legacy.api_key_file ? fs.existsSync(file) : false,
       lstatSync: () => fs.lstatSync(file), readFileSync: () => fs.readFileSync(file, 'utf8'), unlinkSync: () => { calls.push('delete'); fs.unlinkSync(file); } };
-    assert.deepEqual(d.consumeKey(config(), io), { key, sha256: b.hash(key) }); assert.equal(fs.existsSync(file), false); assert.deepEqual(calls, ['delete']);
+    assert.deepEqual(d.consumeKey(legacy, io), { key, sha256: b.hash(key) }); assert.equal(fs.existsSync(file), false); assert.deepEqual(calls, ['delete']);
     assert.equal(d.scanSecrets({ events: [{ data: key }] }, key), false);
     assert.equal(d.scanSecrets(Buffer.from('sk-TEST_ONLY_NEVER_REAL')), false);
     assert.equal(d.scanSecrets('key=sk-0123456789abcdef0123456789abcdef'), false);
     for (const benign of ['disk-cache', 'a9-task-stream', 'Desk-top', 'risk-free plan', 'ask-user']) assert.equal(d.scanSecrets(benign), true, benign);
     assert.equal(d.scanSecrets({ api_key_sha256: b.hash(key) }, key), true);
-    fs.writeFileSync(file, key); assert.throws(() => d.consumeKey(config(), { ...io, unlinkSync: () => {} }), /SECRET_FILE_DELETE_FAILED/);
+    fs.writeFileSync(file, key); assert.throws(() => d.consumeKey(legacy, { ...io, unlinkSync: () => {} }), /SECRET_FILE_DELETE_FAILED/);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
-});
-test('anonymous pipe carries synthetic key without argv/env or disk', async () => {
-  const script = `require(${JSON.stringify(require.resolve('../a9-42-real-model-trial.cjs'))}).readKeyPipe().then(k=>process.stdout.write(require('crypto').createHash('sha256').update(k).digest('hex')))`;
-  const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore','pipe','pipe','pipe'] });
-  const key = 'TEST_ONLY_PIPE_CREDENTIAL'; child.stdio[3].end(key); let output = ''; child.stdout.on('data', b => output += b);
-  const code = await new Promise(r => child.on('close', r)); assert.equal(code, 0); assert.equal(output, b.hash(key));
 });
 function scenario(id) {
   const values = d.samples(); const originals = Object.fromEntries(Object.entries(values).map(([n, bts]) => [n, b.hash(bts)]));
@@ -207,6 +201,8 @@ test('prepare emits non-executable template, exact support and sample hashes wit
       real_model_request_limit: 20, model: config().model, idle_seconds: 60, target_input_package_root: config().input_package_root, target_zip_path: config().zip_path };
     prep.emitMaterials(spec, { manifestBytes: Buffer.from('{}'), m: { files: Array(101).fill({}) }, products: [], compiled: [], sourceIdentity: {}, compilers: [] });
     const c = JSON.parse(fs.readFileSync(path.join(output, 'config-template.json'))); assert.throws(() => d.validateConfig(c), /CONFIG_DEADLINE/);
+    assert.equal(c.transport, 'direct'); assert.equal(c.credential_source, 'current-user-default-dpapi');
+    assert.equal(Object.hasOwn(c, 'api_key_file'), false);
     assert.equal(d.validateConfig(c, Date.now(), true).deadline_utc, null);
     const bindBytes = fs.readFileSync(path.join(output, 'source-binding.json')), binding = JSON.parse(bindBytes);
     assert.equal(b.hash(bindBytes), c.source_binding_sha256); assert.equal(b.hash(fs.readFileSync(path.join(output, 'driver.cjs'))), c.driver_sha256);
@@ -221,8 +217,9 @@ test('support/sample binding rejects omitted reuse, drift, duplicate names and t
   try {
     const support_files = d.SUPPORT.map(name => { const bytes = fs.readFileSync(path.resolve('scripts/win7-dev', name)); fs.writeFileSync(path.join(root, name), bytes); return { path: name, sha256: b.hash(bytes) }; });
     const samples = Object.entries(d.samples()).map(([name, bytes]) => { fs.writeFileSync(path.join(root, name), bytes); return { path: name, sha256: b.hash(bytes) }; });
-    const binding = { source_tree: '1'.repeat(40), profile: config().profile, support_files, samples };
+    const binding = { source_tree: '1'.repeat(40), profile: config().profile, transport: 'direct', credential_source: config().credential_source, support_files, samples };
     assert.equal(d.verifySupport(binding, config(), fs, root).samples.length, 2);
+    assert.throws(() => d.verifySupport({ ...binding, transport: 'relay' }, config(), fs, root), /BINDING_DIRECT_PROFILE/);
     assert.throws(() => d.verifySupport({ ...binding, support_files: support_files.slice(1) }, config(), fs, root), /BINDING_SUPPORT/);
     assert.throws(() => d.verifySupport({ ...binding, support_files: [support_files[0], support_files[0], ...support_files.slice(2)] }, config(), fs, root), /BINDING_SUPPORT_HASH/);
     fs.appendFileSync(path.join(root, samples[0].path), 'drift'); assert.throws(() => d.verifySupport(binding, config(), fs, root), /BINDING_SAMPLE_HASH/);
@@ -299,27 +296,8 @@ test('key-less network preflight: GET /models without Authorization, 401 only, b
     { subject_cn: 'api.deepseek.com', issuer_cn: 'TrustAsia', valid_to: 'Jan 1 2027', fingerprint256: 'AA' });
   assert.equal(d.certProjection({}), null);
 });
-test('preflight runs before key upload; controller gate needs this run PASS record', async () => {
-  const driverFile = require.resolve('../a9-42-real-model-trial.cjs');
-  const c = { ...config(), driver_sha256: b.hash(fs.readFileSync(driverFile)) };
-  const files = new Map();
-  const io = { existsSync: p => files.has(p), readFileSync: (p, e) => files.has(p) ? files.get(p) : fs.readFileSync(p, e),
-    writeFileSync: (p, v, o) => { if (o && o.flag === 'wx' && files.has(p)) throw new Error('EEXIST'); files.set(p, String(v)); } };
-  const pass = async () => ({ schema_version: 1, upstream: d.UPSTREAM, status: 'PASS', error_code: null, tls: { authorized: true, protocol: 'TLSv1.3' } });
-  const fail = async () => ({ schema_version: 1, upstream: d.UPSTREAM, status: 'FAIL', error_code: 'UPSTREAM_ENOTFOUND', tls: null });
-  const identity = () => ({});
-  const write = process.stdout.write; process.stdout.write = () => true;
-  try {
-    assert.throws(() => d.requirePreflight(c, io), /NETWORK_PREFLIGHT_REQUIRED/);
-    files.set(c.api_key_file, 'k'); await assert.rejects(d.networkPreflight(c, { io, check: pass, identity }), /PREFLIGHT_SECRET_PRESENT/); files.delete(c.api_key_file);
-    await assert.rejects(d.networkPreflight({ ...c, driver_sha256: '0'.repeat(64) }, { io, check: pass, identity }), /DRIVER_HASH/);
-    const failed = await d.networkPreflight(c, { io, check: fail, identity });
-    assert.equal(failed.status, 'FAIL'); assert.equal(process.exitCode, 1); process.exitCode = 0;
-    assert.throws(() => d.requirePreflight(c, io), /NETWORK_PREFLIGHT_REQUIRED/);
-    await assert.rejects(d.networkPreflight(c, { io, check: pass, identity }), /PREFLIGHT_REUSE/);
-    files.clear(); await d.networkPreflight(c, { io, check: pass, identity });
-    assert.equal(d.requirePreflight(c, io).status, 'PASS');
-    assert.throws(() => d.requirePreflight({ ...c, run_id: 'a942r-ffffffff' }, io), /NETWORK_PREFLIGHT_REQUIRED/);
-    assert.throws(() => d.requirePreflight({ ...c, driver_sha256: '0'.repeat(64) }, io), /NETWORK_PREFLIGHT_REQUIRED/);
-  } finally { process.stdout.write = write; process.exitCode = 0; }
+test('direct profile cannot accept the old relay/key-file execution inputs', () => {
+  assert.equal(d.requirePreflight, undefined); assert.equal(d.readKeyPipe, undefined);
+  for (const values of [{ ...config(), transport: 'relay' }, { ...config(), api_key_file: 'C:\\key.txt' }])
+    assert.throws(() => d.validateConfig(values, now));
 });
