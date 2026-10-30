@@ -254,6 +254,23 @@ test('current packaged cleanup refuses unbound root-external descendants before 
   assert.deepEqual(killed, []);
 });
 
+test('issued local account matches the packaged environment assertion without accepting another principal', () => {
+  const smoke = require(path.join(repo, 'release/win7-product-v3/a9-batch2-smoke.cjs'));
+  const observed = { machine_name: 'TEST-ONLY-HOST', account_sid: 'S-1-5-21-1-2-3-1001',
+    integrity_level: 'Medium', session_id: 2, elevated: false, in_job: false };
+  const target = require('../issue-request.cjs').buildTarget(observed, 'agent');
+  const facts = { node: {}, wmic_os: {}, stale_processes: [], free_bytes: null,
+    whoami_user: '"test-only-host\\agent","' + observed.account_sid + '"',
+    whoami_groups: 'S-1-16-8192', session_id: 2, controller_identity: observed };
+  const verdict = target => smoke.evaluateEnvironment(facts, { target }, 'TEST_ONLY_ROOT')
+    .find(row => row.assertion_id === 'B2-G0-ENV-A02').status;
+  assert.equal(verdict(target), 'PASS');
+  for (const patch of [{ account_name: 'agent' }, { account_name: 'OTHER-HOST\\agent' },
+    { account_name: 'TEST-ONLY-HOST\\other' }, { account_sid: 'S-1-5-21-1-2-3-1002' }, { session_id: 3 }]) {
+    assert.equal(verdict({ ...target, ...patch }), 'FAIL');
+  }
+});
+
 test('shared consume preserves request pin, identity, Session, Medium, Job and TTL gates', () => {
   for (const klass of c.CLASSES) {
     const f = fixture(klass), ctx = f.ctx; ctx.prep = temp(); ctx.executionStartedAt = now - 1000;
@@ -269,10 +286,13 @@ test('shared consume preserves request pin, identity, Session, Medium, Job and T
       observed_at_utc: new Date(now).toISOString(), product_user_data: path.win32.join(env.LOCALAPPDATA, 'Win7CodingAgent') };
     const request = { phase: 'p01-env', run_id: f.binding.run_id, request_index: 1,
       candidate_root: ctx.budget.candidate_root, evidence_root: ctx.budget.evidence_root,
-      target: { ...observed, account_name: 'agent' }, bindings: { ...f.binding.candidate, release_authority_sha256: hash(f.bytes) },
+      target: require('../issue-request.cjs').buildTarget(observed, 'agent'), bindings: { ...f.binding.candidate, release_authority_sha256: hash(f.bytes) },
       issued_at: new Date(now - 1000).toISOString(), expires_at: new Date(now + 10000).toISOString() };
     const consume = (r = request, o = observed) => gate.consume(f.bytes, null, ctx, 'FULL', r, [], o, activation, env, now);
     assert.equal(consume().ok, true);
+    for (const account_name of ['agent', 'OTHER-HOST\\agent', observed.machine_name + '\\other']) {
+      assert.throws(() => consume({ ...request, target: { ...request.target, account_name } }), /ACCOUNT_NAME/);
+    }
     for (const patch of [{ account_sid: 'wrong' }, { integrity_level: 'High' }, { elevated: true },
       { session_id: 3, active_console_session_id: 3 }, { in_job: 'UNKNOWN' }]) assert.throws(() => consume(request, { ...observed, ...patch }), /ACTUAL_TARGET|ORDINARY_ACTIVE_CONSOLE|IN_JOB_UNKNOWN/);
     assert.throws(() => consume({ ...request, bindings: { ...request.bindings, release_authority_sha256: hash('tamper') } }), /REQUEST_PIN/);
@@ -608,6 +628,7 @@ test('actual issue-request entry uses projected rehearsal and the same uploaded 
     verifyLedgerFiles(_rows,_root,a){assert.deepEqual(a.rehearsal.phases,phases.PRODUCTS);ledgerChecked=true;},consume:()=>({ok:true})};
   const chainStub={verify:row=>row,waitFile:()=>({task:{pid:100},child:{pid:process.pid,ppid:process.ppid}})};
   const api={externalsNeeded:()=>['package_zip'],createRequest:input=>{
+    assert.equal(input.target.account_name, b.target_machine + '\\agent');
     assert.equal(input.externalFiles.package_zip.path,zip);assert.equal(input.requestIndex,2);requestChecked=true;return input;
   },verifyRequest:()=>({ok:true})};
   const req=name=>name==='fs'?{readFileSync:file=>{assert.ok(files.has(file),file);return files.get(file);},mkdirSync(){},writeFileSync(){}}:

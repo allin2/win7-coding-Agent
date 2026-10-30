@@ -309,7 +309,7 @@ function consume(bytes, _unused, ctx, plan, request, ledger, observed, activatio
   must(Math.abs(now - utc(observed.observed_at_utc, 'OBSERVED')) <= 30000, 'STALE_IDENTITY');
   must(request.target && sameMachine(request.target.machine_name, a.target.machine_name) && request.target.account_sid === a.target.account_sid, 'REQUEST_AUTHORITY_TARGET');
   for (const k of ['machine_name', 'account_sid', 'integrity_level', 'session_id', 'elevated', 'in_job']) must(request.target[k] === observed[k], 'REQUEST_ACTUAL:' + k);
-  must(request.target.account_name === ctx.budget.target_record.account_name, 'ACCOUNT_NAME');
+  must(request.target.account_name === observed.machine_name + '\\' + ctx.budget.target_record.account_name, 'ACCOUNT_NAME');
   for (const [k, value] of Object.entries(expectedEnvironment(a))) must(env[k] === value, 'ENV:' + k);
   must(observed.product_user_data === path.win32.join(env.LOCALAPPDATA, 'Win7CodingAgent'), 'USER_DATA');
   for (const k of ['source_commit', 'package_sha256', 'manifest_sha256', 'kit_sha256']) must(request.bindings[k] === a.candidate[k], 'REQUEST_BINDING:' + k);

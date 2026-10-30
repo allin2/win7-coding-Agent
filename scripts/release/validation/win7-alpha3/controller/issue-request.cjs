@@ -35,7 +35,7 @@ function controllerObservation(parent, probe, phase, now = Date.now(), expected)
     observed_at_utc:probe.observed_at_utc};
 }
 function buildTarget(observed, accountName) {
-  return {machine_name:observed.machine_name, account_name:accountName, account_sid:observed.account_sid,
+  return {machine_name:observed.machine_name, account_name:observed.machine_name + '\\' + accountName, account_sid:observed.account_sid,
     integrity_level:observed.integrity_level, session_id:observed.session_id,
     elevated:observed.elevated, in_job:observed.in_job};
 }

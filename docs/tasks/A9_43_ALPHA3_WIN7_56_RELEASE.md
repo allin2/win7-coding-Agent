@@ -381,3 +381,18 @@ PowerShell 2.0 的容量扫描缺口未修复，未放宽 10 秒限时。
 下一步按当前源码重新准备准确 FULL 材料，再完成后续工具准入与五阶段运行。
 旧开发包及旧准备材料保留，不重绑为本轮工具修复的全阶段结果。
 正式门 A/B、推送与发布均为 NOT_PERFORMED。
+
+### 8.12 首轮 FULL 与本地账号绑定修复（2026-10-30 UTC）
+
+第三个开发窗口已于 `15:55:13.975Z` 开始，共同截止 `18:11:32.708Z`；沿用剩余 8257.920 秒和 60 次真实模型请求，不重置预算。
+干净源码 `bb00bb8576ef8b9372026a557529b08b481aaac1` 的开发包 ZIP 为 `06998f724a483c0e7c8605b9283f31f13809e19731c5590d61f732ac89757a4d`。
+新五阶段材料、包内真实授权校验器检查完成。Win7 PS2/PS5.1 各直接解析 13 项源码通过；PS2 完整 R1 仍未通过。
+FULL run `a1c0c3e8-4d73-4d0a-84eb-d76bc6906cf0` 在 R0～R5 完成后，于 p01 环境断言 `B2-G0-ENV-A02` 失败，原结果保留 HALTED。
+真实解包与 C# 调用、普通 agent InteractiveToken 调度已执行。取证及收尾 R7/R8 PASS：零残留进程、零任务、锁 idle。
+证据为 Win7 DEV_CHANNEL，目录 `outputs/next-version-r1/controller/a1c0c3e8/`。
+
+原因是候选外请求生成器写入短账号名 `agent`，而未变更的产品断言严格比较 `主机名\\agent`。
+实际 SID、Medium、非提权、session 2 和非 Job 事实一致。此次只修正请求生成与消费校验的完整账号名；不放宽身份门，不改产品和原生代码。
+开发机 controller/authority/deny-set 59/59 PASS，0 skipped；新增用例调用真实产品环境断言，覆盖短名、错主机、错账号、SID 与 session 反例。
+保留首次 CLI 测试后缀错误日志；正确入口结果为 `outputs/next-version-r1/p5-integration/local-logs/account-binding-r2.log`。
+本地取证回放只用于定位，不代替新 run 的实机证据。修复后须以新源码、新包和新 run 推进；后续四阶段仍 NOT_PERFORMED。

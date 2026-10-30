@@ -265,13 +265,14 @@
       "role": "shared-or-target-execution",
       "version_changes": [
         "No target receipt; request-bound binding SHA; shared consume and short roots. Live target NOT_PERFORMED.",
-        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
+        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/issue-request.cjs",
       "ctrl_source_sha256": "247649484849617e133433d4e3f302c8d057eb64cc9fad6016d5c71910da52fb",
       "ctrl_run_differs": false,
-      "current_sha256": "6656e2bc366ec0b740d7cf090ab7739173e6ef66544769172eab9410e8c19676",
+      "current_sha256": "2def3a1f77bef6d03308969057b240749894f683212aa4e3bd6c79fd76da4f73",
       "current_bytes": 11911,
       "inventory_disposition_ids": {
         "仅本地授权": [
@@ -486,13 +487,14 @@
       "version_changes": [
         "Remove local signing/static deny history; shared binding, window, Session, activation and ledger guards. R1-R8 caller pending.",
         "Remove now-unused wire require; shared consume/activation/ledger gates retained and exercised in loop tests.",
-        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
+        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs",
       "ctrl_source_sha256": "7320b2500e96183570be24e799b71245fdff57a22c5fe00dda3d5493b1bc3ddd",
       "ctrl_run_differs": false,
-      "current_sha256": "7e8a2ab638815e3f18a418c4cc59df51024f4c2be3a59632f3975577065cbd51",
+      "current_sha256": "5f34a40e042b5324d782cad3d1410105f146f0f2946bad358042f8e90ee8aead",
       "current_bytes": 25733,
       "inventory_disposition_ids": {
         "仅证据标签": [
