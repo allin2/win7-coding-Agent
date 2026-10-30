@@ -115,6 +115,15 @@ function resourceObserver(getObserved, queryRows = () => resources.queryResource
     sample: () => sampler.sampleOnce() };
 }
 
+function processObservationFailure(error, observed, rows, childPid, now = Date.now()) {
+  const related = Array.isArray(rows) ? rows.filter(row => row.pid === childPid
+    || observed.some(parent => row.pid === parent.pid || row.parent === parent.pid)) : [];
+  return { at: now, code: safeError(error), error_type: /^[A-Za-z]{1,32}$/.test(error?.name || '') ? error.name : 'Error',
+    rows_available: Array.isArray(rows), rows_truncated: related.length > 64,
+    related_rows: related.slice(0, 64).map(row => ({ pid: row.pid, parent: row.parent, created: row.created || null,
+      image: typeof row.image === 'string' ? row.image.slice(0, 240) : null, session: row.session ?? null, name: row.name || null })) };
+}
+
 async function postflight(config) {
   currentIdentity(config);
   const file = path.join(config.run_root, 'POSTFLIGHT.json'); need(!fs.existsSync(file), 'POSTFLIGHT_REUSE');
@@ -123,7 +132,7 @@ async function postflight(config) {
   try {
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'POSTFLIGHT_DRIVER_HASH');
     const prior = JSON.parse(fs.readFileSync(path.join(config.run_root, 'RESULT.json'), 'utf8'));
-    need(prior.status === 'TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED' && prior.driver_sha256 === config.driver_sha256
+    need(['TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED','STARTUP_DIAGNOSTIC_COMPLETE_POSTFLIGHT_REQUIRED'].includes(prior.status) && prior.driver_sha256 === config.driver_sha256
       && prior.zip_sha256 === config.zip_sha256, 'POSTFLIGHT_PRIOR_RESULT');
     r.saved_provider_unchanged = directTools.verifyOriginals(prior.credential_seed);
     const rows = queryProcesses();
@@ -136,12 +145,12 @@ async function postflight(config) {
       && !launchers.some(known => known.pid === row.pid && known.created === row.created));
     need(r.processes.blocking_instances.length === 0 && r.unexpected_root_instances.length === 0, 'POSTFLIGHT_PROCESS_REMAINS');
     r.scenarios = prior.ui.scenarios.map(s => ({ name: s.name, status: s.status, reason: s.reason }));
-    r.status = 'TRIAL_DEV_CHANNEL_POSTFLIGHT_COMPLETE';
+    r.status = prior.status.startsWith('STARTUP_') ? 'STARTUP_DIAGNOSTIC_DEV_CHANNEL_COMPLETE' : 'TRIAL_DEV_CHANNEL_POSTFLIGHT_COMPLETE';
   } catch (error) { r.first_failure = safeError(error); process.exitCode = 1; }
   fs.writeFileSync(file, JSON.stringify(r, null, 2) + '\n', { flag: 'wx' });
 }
 
-async function controller(config, injectedQuery) {
+async function controller(config, injectedQuery, { startupDiagnostic = false } = {}) {
   currentIdentity(config); // Never create evidence under an unverified identity.
   const meter = resourceObserver(() => observed);
   const query = injectedQuery || meter.query;
@@ -193,7 +202,8 @@ async function controller(config, injectedQuery) {
     const err = fs.openSync(path.join(config.run_root, 'ui-stderr.bin'), 'wx');
     try {
       result.exit = await new Promise((resolve, reject) => {
-        const child = cp.spawn(runtime.executable, [runtime.app_root, '--ui', '--config', path.join(config.run_root, 'runtime-config.json'), '--portable'],
+        const child = cp.spawn(runtime.executable, [runtime.app_root, '--ui', '--config', path.join(config.run_root, 'runtime-config.json'), '--portable',
+          ...(startupDiagnostic ? ['--startup-diagnostic'] : [])],
           { env, cwd: config.run_root, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] });
         result.product_spawned_at = Date.now(); save(report, result);
         // Buffer bounded chunks with overlap so secrets split across writes cannot reach disk.
@@ -206,26 +216,34 @@ async function controller(config, injectedQuery) {
         let timedOut = false;
         const timer = setTimeout(() => { timedOut = true; child.kill(); }, Math.max(1, Date.parse(config.deadline_utc) - Date.now()));
         observer = setInterval(() => {
+          let rows;
           try {
-            const rows = query();
+            rows = query();
             observed = observed.length ? extendObservedTree(observed, rows, config.session_id) : observedTree(rows, child.pid);
             sample(); result.observed_process_tree = observed; save(report, result);
-          } catch (_) { observationError = 'PROCESS_OBSERVATION_FAILED'; child.kill(); }
+          } catch (error) {
+            observationError = 'PROCESS_OBSERVATION_FAILED';
+            clearInterval(observer);
+            if (!result.observation_failure) result.observation_failure = processObservationFailure(error, observed, rows, child.pid);
+            save(report, result); // Preserve the cause before stopping this exact child.
+            child.kill();
+          }
         }, 1500);
         child.once('error', error => { clearTimeout(timer); clearInterval(observer); reject(error); });
         child.once('exit', () => { result.timeline.push({ name: 'product_exited', at: Date.now() }); });
         child.once('close', (code, signal) => { clearTimeout(timer); clearInterval(observer); resolve({ pid: child.pid, code, signal, timed_out: timedOut }); });
       });
     } finally { fs.closeSync(out); fs.closeSync(err); }
-    need(!result.exit.timed_out && result.exit.code === 0 && result.exit.signal === null, 'UI_EXIT_UNEXPECTED');
     need(!observationError, 'PROCESS_OBSERVATION_FAILED');
+    need(!result.exit.timed_out && result.exit.code === 0 && result.exit.signal === null, 'UI_EXIT_UNEXPECTED');
     const uiResult = JSON.parse(fs.readFileSync(path.join(config.run_root, 'ui-result.json'), 'utf8'));
     need(relayTools.scanSecrets(uiResult), 'SECRET_IN_UI_RESULT'); result.ui = uiResult;
     need(logLeaks.length === 0, logLeaks[0] || 'PROCESS_LOG_FAILURE');
     for (const name of ['ui-stdout.bin','ui-stderr.bin']) need(relayTools.scanSecrets(fs.readFileSync(path.join(config.run_root, name))), 'SECRET_IN_PROCESS_LOG');
     need(relayTools.scanSecrets(result.ui), 'SECRET_IN_UI_RESULT');
     result.real_model_requests = result.ui.real_model_requests;
-    need(result.ui.status === 'CHECKS_COMPLETE' && result.ui.normal_quit === true, 'UI_INCOMPLETE');
+    need(result.ui.status === (startupDiagnostic ? 'STARTUP_DIAGNOSTIC_COMPLETE' : 'CHECKS_COMPLETE') && result.ui.normal_quit === true, 'UI_INCOMPLETE');
+    if (startupDiagnostic) need(result.real_model_requests === 0, 'DIAGNOSTIC_MODEL_REQUEST');
     // UI and controller must have observed the same actual account/session.
     need(result.ui.identity.sid === result.identity.sid && result.ui.identity.session === result.identity.session, 'UI_IDENTITY_DRIFT');
     for (const row of result.ui.process_tree) if (!observed.some(r => r.pid === row.pid && r.created === row.created)) observed.push(row);
@@ -251,7 +269,7 @@ async function controller(config, injectedQuery) {
     result.launcher_tasks = currentTasks(config);
     need(result.launcher_tasks.length === 1, 'LAUNCHER_TASK_IDENTITY');
     result.package_after = verifyPackage(config); result.original_after = verifyPackage(config, config.input_package_root);
-    result.status = 'TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED';
+    result.status = startupDiagnostic ? 'STARTUP_DIAGNOSTIC_COMPLETE_POSTFLIGHT_REQUIRED' : 'TRIAL_OBSERVATION_COMPLETE_POSTFLIGHT_REQUIRED';
   } catch (error) { result.status = 'HALTED'; result.first_failure = safeError(error); process.exitCode = 1; }
   finally {
     clearInterval(observer); result.ended_at = new Date().toISOString();
@@ -273,7 +291,7 @@ async function controller(config, injectedQuery) {
 function lateReplyRejected(reply) {
   return Boolean(reply && reply.ok === false && reply.error && ['A9_QUESTION_REPLY_CONFLICT','A9_QUESTION_STALE'].includes(reply.error.code));
 }
-async function ui(config) {
+async function ui(config, { startupDiagnostic = false } = {}) {
   const { app, BrowserWindow, dialog } = require('electron');
   const report = path.join(config.run_root, 'ui-result.json');
   const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: config.profile, run_id: config.run_id,
@@ -339,6 +357,11 @@ async function ui(config) {
     await wait(() => evaluate('document.getElementById("a9-mode-dialog").open'), 10000, 'MODE_DIALOG');
     await click('input[name="a9-mode-choice"][value="full_access"]'); await click('#a9-mode-apply');
     await wait(async () => (await snapshot()).mode === 'full_access', 10000, 'FULL_ACCESS');
+    if (startupDiagnostic) {
+      need(guard.state.requests === 0 && guard.state.attempts === 0, 'DIAGNOSTIC_MODEL_REQUEST');
+      result.real_model_requests = 0; result.process_tree = observedTree(queryProcesses(), process.pid);
+      result.status = 'STARTUP_DIAGNOSTIC_COMPLETE'; guard.stop(); persist(); close(); return;
+    }
     await click('#a9-provider-open');
     need(await evaluate('document.getElementById("a9-provider-key").type==="password"'), 'SECRET_FIELD_NOT_PASSWORD');
     const restored = (await snapshot()).provider;
@@ -436,7 +459,7 @@ async function ui(config) {
     persist(); close();
   }
 }
-module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, lateReplyRejected, SUPPORT,
+module.exports = { validateConfig, verifyBinding, verifySupport, prepareDriverRuntime, sqlFacts, queryProcesses, resourceObserver, processObservationFailure, lateReplyRejected, SUPPORT,
   controller, ui, postflight, ...relayTools, ...office };
 if (require.main === module) {
   try {
@@ -445,7 +468,8 @@ if (require.main === module) {
     const config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
     need(inside(config.run_root, configFile), 'CONFIG_LOCATION'); noLinks(config.run_root, configFile);
     need(!args.includes('--network-preflight'), 'DIRECT_NO_NETWORK_PREFLIGHT');
-    Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config) : controller(config))
+    const options = { startupDiagnostic: args.includes('--startup-diagnostic') };
+    Promise.resolve(args.includes('--ui') ? ui(config, options) : args.includes('--postflight') ? postflight(config) : controller(config, undefined, options))
       .catch(error => { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; });
   } catch (error) { process.stderr.write(safeError(error) + '\n'); process.exitCode = 1; }
 }

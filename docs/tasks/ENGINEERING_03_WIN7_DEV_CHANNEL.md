@@ -334,3 +334,7 @@ main `6427ef3…`、源 `5143b9cf…`、r4 ZIP `84585361…1dc063`与prepared-r3
 只有当前用户原地址api.deepseek.com的产品HTTPS可发送；不启用中继，不修改系统信任/代理/TLS验证。
 沿用既有主机键、SID/活动桌面、自己的inactive holder、空间与收尾约束；不授权根外终止或close删根。
 结果仅DEV_CHANNEL，不签正式Gate、不推送发布，首失败和全部旧包/run保留。
+
+本轮发现ask_user线级Schema产品bug，负责人又明确“批准在当前窗口复验新包”，
+据A9-42§8.8允许源08e41400…、新ZIP cd4a428b…3987da9在新SHA目录运行。
+已耗6次、新run上限24次、原窗口继续累计；旧r4五项FAIL和原始输入保留，不改变r2其他边界。

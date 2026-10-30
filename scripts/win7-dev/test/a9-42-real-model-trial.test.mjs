@@ -301,3 +301,19 @@ test('direct profile cannot accept the old relay/key-file execution inputs', () 
   for (const values of [{ ...config(), transport: 'relay' }, { ...config(), api_key_file: 'C:\\key.txt' }])
     assert.throws(() => d.validateConfig(values, now));
 });
+test('process observation preserves missing identity and the first cause without relaxing the tree guard', () => {
+  const known = { pid: 10, parent: 1, created: '20261030115321.750000+480', image: 'C:\\A9-DEV\\work\\p\\electron.exe', name: 'electron.exe', session: 2 };
+  const unknown = { pid: 11, parent: 10, created: '20261030115322.750000+480', image: '', name: 'cmd.exe', session: null };
+  const unrelated = { pid: 99, parent: 1, created: known.created, image: 'C:\\elsewhere.exe', name: 'elsewhere.exe', session: 1 };
+  let caught; try { b.extendObservedTree([known], [known, unknown, unrelated], 2); } catch (error) { caught = error; }
+  assert.match(caught.message, /PROCESS_CHILD_IDENTITY_UNKNOWN/);
+  const record = d.processObservationFailure(caught, [known], [known, unknown, unrelated], 10, 42);
+  assert.equal(record.code, 'PROCESS_CHILD_IDENTITY_UNKNOWN'); assert.equal(record.at, 42);
+  assert.equal(record.related_rows.length, 2); assert.equal(record.related_rows[1].image, '');
+  assert.equal(record.related_rows[1].session, null); assert.equal(record.rows_available, true);
+  assert.throws(() => b.extendObservedTree([known], [known, unknown], 2), /PROCESS_CHILD_IDENTITY_UNKNOWN/);
+  const unavailable = d.processObservationFailure(new Error('RESOURCE_QUERY_FAILED'), [known], undefined, 10);
+  assert.equal(unavailable.rows_available, false); assert.deepEqual(unavailable.related_rows, []);
+  const secret = d.processObservationFailure(new Error('arbitrary sensitive text'), [known], [], 10);
+  assert.equal(secret.code, 'DRIVER_OPERATION_FAILED'); assert.equal(JSON.stringify(secret).includes('sensitive'), false);
+});

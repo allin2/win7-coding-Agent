@@ -1121,3 +1121,45 @@ Electron22/Node16真实Gateway+实际ask_user工具表的4项检查见node16-dir
 包含驱动及环境进程，不能分离为正式Shell/Main预算，也不能代表成功办公任务峰值。
 原始证据在outputs/win7-dev/real-model/a942r-8226e8de；本轮准备/诊断在real-model-trial/win7-r3-direct-r1。
 不重跑旧包失败场景。普通产品修复先完成本地验证、新源码与不可变开发包，再判定后继目标输入。
+
+### 8.7 Schema修复包准备（新目标输入待确认）
+
+产品修复本地提交 `08e41400bd24e54de12d9933553a9d742850d43d`。
+Gateway定向与受影响回归21项PASS，实际Electron22/Node16工具Schema及传输4项PASS。
+新开发包 `outputs/a9-42-tools/developer-package-r5-schema/`，ZIP SHA-256
+`cd4a428baeeb0f6fd46d9f65d62deff75f787045d17b160d731927df03987da9`，
+manifest SHA-256 `547fc9624a5af372f2f6d0cf13d12c4bdc14cae150496aa1c7cf95df7c1e4f20`。
+与原r4仅3文件不同：Gateway编译JS、SBOM和开发检查元数据；3253文件同字节，无原生变化或删除。
+原生工件不重编；新包完整性门直接通过，不把旧包整体通过继承给新包。
+
+准确材料 `outputs/a9-42-tools/real-model-trial/prepared-r5-schema/`，run `a942r-f6440f58`；
+source-binding SHA-256 `27c819309f7384c9e4dccd49aa986fea6fadcc7d5d4290ef6b72fb3ac767025e`，
+39产品与117编译文件重新匹配，实际匹配包内Gateway字节通过Electron22/Node16本机HTTP4项。
+新目标包字节已改变，尚未部署；具体提案见材料内EXECUTION_ORDER.md。
+拟沿用本轮剩余窗口、新run最多24次，连同原6次累计最多30次，不增加已批准90分钟/40次上界。
+原5场景FAIL、原r4和所有证据不覆盖。新包Win7/真实模型行为NOT_PERFORMED。
+
+### 8.8 修复包在剩余窗口复验批准
+
+负责人对§8.7准确材料选择“批准在当前窗口复验新包”。
+允许新包cd4a428b…3987da9通过原r2通道部署至新SHA目录，run a942r-f6440f58；
+窗口仍从03:27:28.282Z累计，当前截止04:27:28.282Z、新run最多24次，连同原6次最多30次。
+必要延长仍以负责人先前允许的04:57:28.282Z/40次为硬上界；不重置日额或覆盖旧输入。
+只复验已修复Schema的相同五场景，普通目标/身份/TLS/DPAPI/原件/收尾边界全部保持。
+
+### 8.9 修复包首次启动HALTED与有界最小诊断
+
+新r5已标准cand上传110535024字节、3257文件解包并复算hash，材料逐项匹配。
+run a942r-f6440f58在空闲60秒结束、发模型请求前退出：子进程SIGTERM，deadline尚未到，
+控制器原判UI_EXIT_UNEXPECTED/HALTED，ui-result仍IN_PROGRESS，direct-requests为0/0/0。
+因此累计真实请求仍6次，未取得r5功能结论。原HALTED与零请求事实保留。
+事后status直接确认自身锁inactive、根内零进程/任务、无解包标记；不等于补签异常退出为正常关闭。
+
+旧取证控制器的进程观察异常会终止准确子进程，但只存通用标记且在退出检查后检查它，
+首异常和相关WMI行丢失；本轮具体触发原因仍UNKNOWN，不能凭SIGTERM臆断产品或系统原因。
+普通取证修复仅在候选外：先持久化首异常代码/类型及至多64行相关进程身份，再终止同一子进程；
+先报观察异常，再判UI退出。所有身份/路径/会话硬门与终止边界不变，不忽略短命进程或放宽未知身份。
+新增反例直接证明缺失image/session仍拒绝，诊断保留空值，非相关进程不入报告，任意异常文字不泄漏。
+Node20定向21项及Electron22/Node16语法检查PASS。
+下一步只做0模型请求的启动/选择工作区最小诊断，独立run与driver绑定；产品源和r5包不变，
+沿用既有剩余窗口和累计预算，不整批重试未知原因，不以诊断通过改判旧HALTED。
