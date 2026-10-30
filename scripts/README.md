@@ -69,6 +69,8 @@ Mac原生点击夹具使用已锁定Electron22/Node16执行：
 A9-42真实模型试用驱动为 `scripts/win7-dev/a9-42-real-model-trial.cjs`，资源采样器为 `a9-42-resource-sampler.cjs`；
 范围与窗口以 [A9-42 §8](../docs/tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#8-真实模型小规模试用与轻量资源测量proposed未授权) 为准。
 开发机入口为 `node --test scripts/win7-dev/test/a9-42-real-model-trial.test.mjs` 与同目录 `a9-42-resource-sampler.test.mjs`，只用本机假上游，不访问DeepSeek。
+获准窗口内须先用普通agent入口执行 `--network-preflight --config <配置路径>`；固定GET `/models`，无Authorization，TLS校验成功且401才记PASS。
+控制器核对同run/driver的PASS记录后才读取密钥；材料与顺序见任务书§8.3，未批准前不执行外部检查。
 开发运行只作 DEV_CHANNEL 诊断；正式冻结、双构建、独立审核、门 A/B 只在正式节点执行。
 产品推送/发布、正式签发、新系统权限/配置或超预算仍由负责人决定。
 

@@ -927,7 +927,8 @@ docs:check首轮发现索引已更新但任务书头部仍为NOT_PERFORMED的元
 ## 8. 真实模型小规模试用与轻量资源测量（PROPOSED，未授权）
 
 2026-10-29 负责人要求“使用gpt重置模式推进”，并以“开始吧”确认员工配置。
-本节只登记开发机准备；Win7窗口、真实DeepSeek请求和密钥交付仍待负责人单独批准。
+本节登记已获准的开发机准备。负责人后续选择中继，准确记录见§8.3。
+Win7窗口、真实DeepSeek请求和密钥交付仍待负责人单独批准。
 
 ### 8.1 本地交付（开发机）
 
@@ -968,15 +969,51 @@ config-template deadline=null，已直接验证驱动以 `CONFIG_DEADLINE` 拒�
 
 | 待批准参数 | 提案 |
 |---|---|
-| Win7窗口 | 60分钟DEV_CHANNEL，最后10分钟不开新场景；1个场景run `a942r-334a0917` |
+| Win7窗口 | 60分钟DEV_CHANNEL，最后10分钟不开新场景；1个场景run，当前材料改用§8.3的 `a942r-e903d647` |
 | 模型 | `deepseek-v4-flash`，固定上游，不经代理 |
 | 真实模型请求 | 含probe最多30次，中继硬拒绝第31次；不重试已FAIL场景 |
 | 费用上限 | 由负责人给出金额；本节不推测单价 |
 | 密钥 | 窗口内由主对话经T3密钥请求取得，写入运行根 `secret` 后由驱动读后删除；不用DPAPI |
 | 准入 | 原主机键、DCCS-CHAIZL-PC/7601/SP1/x64、普通agent会话2、自有holder inactive；复用已在目标机的r4候选目录，hash不符即HALTED |
-| 网络前置 | 可选1次无密钥 `https://api.deepseek.com/models` 连通检查，预期401，不保存正文 |
+| 网络前置 | 中继路线已选；获准窗口内先做1次无密钥 `/models` 检查，PASS后才交付密钥；具体门禁见§8.3 |
 
 完成标准：五个场景逐项有结论；原件hash不变；S5取消后无新请求及写入；正常关闭；
 postflight零根内进程/任务、holder inactive；资源阶段数据完整或明确UNKNOWN；证据无密钥原文。
 结果只作DEV_CHANNEL，不签正式Gate A/B、负责人使用验收或发布。保留全部旧包、旧run与首失败；
 不删除本地或目标文件，不安装、不改系统、不根外终止进程。
+
+### 8.3 中继路线已选与无密钥前置检查（开发机）
+
+负责人回复“那就走中继，继续推进”。执行代理按已选路线完成开发机准备。
+该选择不补填费用金额，也不延长已关闭的Win7窗口。目标执行继续以§8.2待批参数为界。
+
+执行代理已本地提交工具 `5579a4e7…`。改动只涉及候选外中继、驱动与测试，产品源和r4 ZIP不变。
+新增检查能在密钥上传前识别目标机的DNS、TLS与固定上游连通失败；原本机HTTP夹具无法证明这些环境条件。
+
+| 改动 | 确切行为与开发机证据 |
+|---|---|
+| 无密钥检查 | `--network-preflight` 固定GET `https://api.deepseek.com/models`；不发Authorization，不保存正文，不跟随重定向 |
+| 网络栈与边界 | 复用中继的Node HTTPS，agent:false、不经代理；保留TLS默认校验；连接≤15秒、总时长≤30秒、响应≤64 KiB |
+| 通过条件 | TLS验证成功且响应401；其他状态、截断、超时、DNS或证书错误记FAIL并保存结构化诊断 |
+| 密钥前置门 | 运行检查时密钥文件必须不存在；控制器要求同run、driver SHA与固定上游的PASS记录，才继续读取密钥 |
+| 开发机定向检查 | 试用驱动21项、资源采样5项PASS；覆盖无Authorization、401/200、总超时、拒绝连接、禁止复用及错误run/driver |
+| 开发机运行时 | Electron22.3.27/Node16.17.1实际执行本机HTTP预检PASS；未连接外部上游 |
+
+首轮新增测试为20 PASS/1 FAIL。夹具将状态值0经 `|| 401` 改成401，未制造超时。
+执行代理修正该表达式后取得上述结果；首失败日志 `/tmp/a942r-trial3.log` 保留，不改判。
+本轮日志位于 `outputs/a9-42-tools/real-model-trial/`。
+Node22初次结果为 `preflight-tests-r2.log`，项目指定Node20.17.0复核为 `preflight-tests-node20-r2.log`，均26项PASS。
+Electron/Node16直接结果为 `node16-preflight-r2.log`。docs:check为394文件/64任务PASS，verify:tools为PASS。
+
+r2当前材料为 `outputs/a9-42-tools/real-model-trial/prepared-r2/`，run为 `a942r-e903d647`。
+r1保持原字节，后续提案使用r2。完整哈希以 `materials-manifest-r2.json` 为准，其SHA-256为
+`80d788c850024c9691d24017265dde52e64d09d5364b4efced223d15a21e14a9`。
+driver SHA-256为 `4b55ae186ad3363c985c7b2d835d949fc15e2e20b1cf7c5acb92ff45f0c5003d`，
+source-binding SHA-256为 `f1ebba1b7b0061672ec8ac1e2620057950ee2ecf3ed13976ef9eb37c9585e829`。
+执行代理重新核对39份产品文件与117份编译文件；模板deadline=null以CONFIG_DEADLINE拒绝执行。
+
+获准后的执行顺序见材料内 `EXECUTION_ORDER.md`：先查网络，再交付密钥，再运行控制器。
+普通agent会话2仍是准备值，执行前须重新核对。网络检查FAIL即停止密钥交付和真实模型请求。
+
+请求数上限不等于金额硬上限。流式usage缺失时，token数及费用保持UNKNOWN。
+网络检查不证明密钥有效、模型工具能力或产品直连公网能力。Win7实机、外部无密钥检查和真实模型均NOT_PERFORMED。
