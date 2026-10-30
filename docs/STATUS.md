@@ -21,10 +21,13 @@
   原包/运行副本完整性已直接核对，组件字节不变；历史失败和中断全部保留。两场景不改写为一次完整Office GUI旅程PASS。
   取证驱动抽屉顺序修复已本地保存为 `9b2e963…`，13项驱动与Electron22/Node16原生交互4项PASS；该修正后单次完整Win7旅程仍NOT_PERFORMED。
   真实模型、正式Gate A/B、长期资源预算、负责人实际使用验收、推送发布仍NOT_PERFORMED。完整release组11项历史FAIL与5项未执行不改判；前序包与全部验证见任务书§4～§7。
-  负责人后继选择产品直连，取代中继线路，见任务书§8.4；原中继提交和r1/r2材料保留。
-  直连驱动保留原HTTPS/TLS路径、发送前请求硬上限，并由产品恢复同普通账户的已存DPAPI密钥；只复制必要密文到独立portable目录。
-  开发机定向32项、七模块编译/静态门及Electron22/Node16本机Gateway传输3项PASS；不证明Win7真DPAPI或公网TLS。
-  新Win7窗口、DeepSeek请求与费用预算仍待批准；本轮Win7实机及真实模型均NOT_PERFORMED。原密钥能否恢复及是否有效为UNKNOWN。
+  负责人已批准产品直连试用及有界延长，原中继材料保留。首run a942r-8226e8de直接证明Win7真实DPAPI恢复、默认TLS1.3和tool_calling探测；原配置三文件hash不变、正常退出及独立postflight完成。
+  实际6次请求，probe200后五任务均400；根因为ask_user内部数组Schema没有转成标准JSON Schema，原5项FAIL保留，见任务书§8.6。
+  Gateway最小修复已提交08e41400…，回归21项及实际Electron22/Node16四项PASS；新开发包r5 ZIP cd4a428b…3987da9，仅GatewayJS和两元数据变化，原生不变。
+  修复包首次a942r-f6440f58在模型请求前HALTED，触发原因UNKNOWN；原记录保留。候选外控制器补首异常持久化，0模型启动诊断及独立postflight完成，身份/进程硬门不变。
+  新r5功能run a942r-542263b5在Win7普通agent真实产品链完成S1 DOCX读取、S2 XLSX转报告、S3修改副本、S4问询回答、S5取消/迟到拒绝，5项直接PASS，见§8.10。
+  该run18次HTTP200/TLS1.3，连同原6次累计24次；正常退出、原件/原配置hash不变、独立postflight及最终根内零进程/任务/锁inactive均已直接证明。最后目标动作04:19:17.910Z，实际约51.8分钟，窗口已关闭。
+  资源取得启动/60秒空闲与任务采样，只作开发基线，不签正式性能预算。原§7单次含UI撤销的完整旅程、正式Gate、负责人使用验收和发布未执行。原失败与旧包不改判。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。

@@ -1163,3 +1163,55 @@ run a942r-f6440f58在空闲60秒结束、发模型请求前退出：子进程SIG
 Node20定向21项及Electron22/Node16语法检查PASS。
 下一步只做0模型请求的启动/选择工作区最小诊断，独立run与driver绑定；产品源和r5包不变，
 沿用既有剩余窗口和累计预算，不整批重试未知原因，不以诊断通过改判旧HALTED。
+
+### 8.10 真实模型五场景完成与窗口收尾（Win7 DEV_CHANNEL）
+
+0模型诊断run `a942r-01f3507d`直接完成普通agent启动、选工作区/Full Access和正常关闭；
+模型传输在加载产品前硬关闭，requests/attempts均0，原配置三文件hash相同。
+独立postflight为STARTUP_DIAGNOSTIC_DEV_CHANNEL_COMPLETE，blocking/unexpected均0。
+上轮异常未复现，原a942r-f6440f58的HALTED/触发原因UNKNOWN保留，不能用后继成功补签它。
+
+为完成同包功能复验，启用负责人已允许的15分钟延长：总75分钟，截止04:42:28.282Z，
+最后10分钟收尾，未使用90分钟或40次上界。原窗口起点、已耗6次和累计请求不重置。
+同r5包新run `a942r-542263b5`使用保留首异常的driver，全部身份/进程硬门不变。
+原r5首次0请求，诊断0请求；功能run实际18次，累计24次，低于30次当前上限。
+功能run全部18次HTTP200，TLS1.3/authorized=true；DPAPI source=dpapi、available/remembered=true。
+
+| 真实模型场景 | 直接结果 | 判据 |
+|---|---|---|
+| S1 读取DOCX | PASS，6.133秒 | document_read绑定原件hash，回答含原样标记，无文件写入 |
+| S2 依据XLSX生成DOCX | PASS，14.254秒 | 原件hash不变，新报告实际PK/CRC/XML包含原表标记、17/23/40 |
+| S3 内容修改副本 | PASS，9.228秒 | 读取原稿、sourceSha256绑定，独占新路径写入，原件hash不变 |
+| S4 问询后回答 | PASS，3.252秒 | 先pending、真实选项回答、SQLite answered事实与最终回答，无写入 |
+| S5 取消与迟到拒绝 | PASS，3.740秒 | 真实取消、SQL cancelled、迟到回答stale/conflict，取消前后请求尝试不增、无写入 |
+
+S2首次把DOCX表格单元格写为数字，工具返回A9_OFFICE_TEXT_LIMIT_OR_INVALID，模型改为字符串后成功；
+同一场景内的自纠正计入18次，不称为全部工具首试无错。产品未放宽DOCX字符串表格合同或覆盖原件。
+SQLite中S2/S3的原始状态为completed_with_warnings；场景PASS仅表示上表文件/事实判据达成，警告与拒绝记录保留。
+真实截图已核对生成报告与取消终态；报告7869字节/SHA256
+23f0fc0b7c2a91d02c413b2551d2cab640fc10cbb6739bcd9e1dba9449d73955，
+修改副本7521字节/SHA256 e89371ad4d33602e2773ac81912d5ff03700d46602110d32aa440de1e7cfb2f2。
+两文件已单文件get并重新绑定产品记录hash；只证明内容和本模块结构，不证明Word页面视觉保真。
+
+真实产品正常退出，SQLite工作区锁释放；原Provider三文件hash在退出后及postflight均不变。
+独立postflight为TRIAL_DEV_CHANNEL_POSTFLIGHT_COMPLETE，零blocking/unexpected根内实例，原启动/取证任务正常移除。
+最终status直接确认DCCS-CHAIZL-PC/7601/agent会话2、根内零进程/任务、自有holder inactive、无未知解包。
+准确SGTool PID5092/creation20261030121238.323000+480按ADR-0297保留，不根外终止。
+最后目标动作UTC `04:19:17.910`结束，实际51.827分钟，早于原60分钟截止；目标动作已关闭，不再使用剩余窗口。
+
+资源为开发基线：工作台就绪3.685秒，60秒空闲观察树工作集均值约290.1 MiB，CPU均值0.0723%；
+五场景采样工作集峰值约444.2 MiB。包含驱动与搜狗环境进程，约1.5秒采样可能遗漏短命线程/瞬时峰值。
+不满足正式冷启动3次、10分钟空闲、角色分组及并发/长期负载合同，PERFORMANCE_BUDGET #1/#2/#3/#10不签达标。
+18个成功响应均附usage，累计prompt112213/completion3481/total115694 tokens；连同首run探测401 tokens，
+本窗口可观测usage为116095 tokens。5个400无usage，费用仍UNKNOWN，不按请求数或缓存token推测实际结算。
+
+当前直接绑定源08e41400…、r5 ZIP cd4a428b…3987da9，完整身份和文件hash见
+outputs/a9-42-tools/real-model-trial/win7-r5-direct-retry-r1/delivery-result.json。
+原始报告、SQLite投影、请求、资源、五张截图和两个DOCX在outputs/win7-dev/real-model/a942r-542263b5。
+既有§7的单次完整Office旅程（含UI撤销）仍未执行；本轮五个真实模型场景不替代其原判定。
+正式Gate A/B、完整Alpha/RC、负责人日常使用验收、长期性能预算和推送发布仍NOT_PERFORMED。
+
+收尾只读盘点见outputs/a9-42-tools/real-model-trial/closeout-inventory-r5-final.json，
+新包、绑定、合成夹具、四个目标run与全部首失败均KEEP，两个原员工工作树仍含未提交交付文件，未移除。
+最终开发根14680360432字节、无根内活动；保留加密portable与历史输入，无close删根或用户文件清理。
+本轮新增派单0，目标串行由主代理完成。全部生成物保留，逻辑字节不作APFS可回收空间承诺。
