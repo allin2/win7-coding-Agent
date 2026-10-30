@@ -6996,6 +6996,7 @@ test('A9-39 ordinary packaged modes derive identity from the candidate fixtures 
 
 describe('ADR-0264 scoped cleanup authority', () => {
   const sid = 'S-1-5-21-1708701742-428676696-1831205153-1001';
+  const cleanupRunId = '01234567-89ab-4cde-8f01-23456789abcd';
   const stamp = (n = 0) => `202610230900${String(n).padStart(2, '0')}.123400+480`;
   const command = fixtures.shellCommand('cmd', { name: 'released-hold' });
   const args = `/d /s /c ${command}`;
@@ -7007,20 +7008,20 @@ describe('ADR-0264 scoped cleanup authority', () => {
   }
   function harness(extras: any[] = [], patch: any = {}) {
     const attemptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a9-cleanup-TEST_ONLY-')); dirs.push(attemptDir);
-    const root = patch.formal ? 'C:\\A9-W46\\run\\f01e\\run' : 'C:\\A9-DEV\\scoped-run';
-    const candidate = patch.formal ? 'C:\\A9-W46\\run\\f01e\\deploy\\candidate' : 'C:\\A9-DEV\\candidate';
+    // Real request layout: sibling candidate (p) and evidence (e) roots inside the run container.
+    const container = 'C:\\A9-DEV\\run\\01234567';
+    const root = patch.runRoot || `${container}\\e`;
+    const candidate = patch.candidate || `${container}\\p`;
     const runtime = { electronPath: `${root}\\driver-electron\\electron.exe` };
     let rows = [row(90, 80, 'C:\\Windows\\System32\\services.exe'), row(100, 90, runtime.electronPath), ...extras];
     const commands = new Map<string, string>(rows.map((r: any) => [r.ProcessId, '']));
     const killed: number[] = []; let listingFailed = false;
-    const ctx: any = { runId: 'test-run', phase: 'p05-session-bg', candidateRoot: candidate, runRoot: root, attemptDir,
-      request: { target: { account_sid: sid, machine_name: 'DCCS-CHAIZL-PC', session_id: 2 } } };
-    if (patch.formal) {
-      ctx.request.expires_at = '2026-10-28T00:00:00.000Z';
-      ctx.request.evidence_root = root;
-      ctx.request.bindings = { source_commit: '9b385246a6fff911162e8effaf15a12de76903a8' };
-    }
+    const ctx: any = { runId: cleanupRunId, phase: 'p05-session-bg', candidateRoot: candidate, runRoot: root, attemptDir,
+      request: { target: { account_sid: sid, machine_name: 'DCCS-CHAIZL-PC', session_id: 2 },
+        expires_at: patch.expiresAt || '2030-01-01T00:00:00.000Z', evidence_root: root, candidate_root: candidate,
+        bindings: { source_commit: '9b385246a6fff911162e8effaf15a12de76903a8' } } };
     if (patch.target) Object.assign(ctx.request.target, patch.target);
+    if (patch.request) Object.assign(ctx.request, patch.request);
     const exec = (name: string) => {
       if (name === 'wmic_processes' && patch.onList) rows = patch.onList(rows);
       if (listingFailed) return { status: 1, stdout: '', error: 'TEST_ONLY' };
@@ -7052,7 +7053,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
   }
   afterAll(() => { for (const dir of dirs) fs.rmSync(dir, { recursive: true, force: true }); });
   test('terminates bound root instances individually, leaves directly identified environment processes alive', () => {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(400, 100, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 1)]);
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(400, 100, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 1)]);
     h.scope.bind(100); h.scope.terminate(100, true); expect(h.killed).toEqual([200, 100]); expect(h.rows().map((r: any) => r.ProcessId)).toEqual(['90', '400']);
   });
   test.each([
@@ -7060,7 +7061,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
     ['unbound system shell', row(300, 100, image, 1), 'TARGET_NOT_AUTHORIZED'],
     ['job closure would reclaim an environment process', row(400, 200, 'C:\\Program Files (x86)\\SogouInput\\16.7.0.4673\\SGTool.exe', 2), 'JOB_SCOPE_UNKNOWN'],
   ])('%s rejects the whole termination before any attempt', (_label, extra, error) => {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), extra]);
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), extra]);
     h.scope.bind(100); expect(() => h.scope.terminate(100, true)).toThrow(error); expect(h.killed).toEqual([]);
   });
   test.each([{ account_sid: 'wrong' }, { session_id: 3 }, { session_id: '2' }, { machine_name: 'other' }])('wrong target refuses admission %j', (target) => {
@@ -7074,7 +7075,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
     expect(smoke.cleanupIdentity({ ...row(100, 90, exe), ImagePath: exe, ImageSource: 'executable_path' })).toBeNull();
   });
   function released() {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2), row(301, 300, 'C:\\Windows\\System32\\PING.EXE', 3)]);
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 200, image, 2), row(301, 300, 'C:\\Windows\\System32\\PING.EXE', 3)]);
     h.commands.set('300', `${image} ${args}`); h.commands.set('301', 'ping -n 2 127.0.0.1'); h.scope.bind(100); h.writeBinding(); return h;
   }
   test('release binding is checked before dialog, then the exact released root and child can be removed after driver exit', () => {
@@ -7099,7 +7100,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
   });
   test.each([0, 1])('orphan PING first observed %i samples after CMD termination is bound and removed', (delay) => {
     let parentGone = false; let samples = 0;
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
       afterTerminate: (pid: number, rows: any[]) => { if (pid === 300) parentGone = true; return rows; },
       onList: (rows: any[]) => parentGone && samples++ === delay ? [...rows, row(302, 300, 'C:\\Windows\\System32\\PING.EXE', 4)] : rows,
     });
@@ -7107,14 +7108,14 @@ describe('ADR-0264 scoped cleanup authority', () => {
     h.scope.terminate(300, false); expect(h.killed).toEqual([300, 302]);
   });
   test('unknown orphan after command exit blocks instead of becoming a clean round', () => {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
       afterTerminate: (pid: number, rows: any[]) => pid === 300 ? [...rows, row(399, 300, 'C:\\Windows\\System32\\calc.exe', 4)] : rows,
     });
     h.commands.set('300', `${image} ${args}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
     expect(() => h.scope.terminate(300, false)).toThrow('PING_NOT_BOUND'); expect(h.killed).toEqual([300]);
   });
   test('helper is never closed with a newly observed unknown job descendant', () => {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 200, image, 2)], {
       afterTerminate: (pid: number, rows: any[]) => pid === 300 ? [...rows, row(399, 200, 'C:\\Windows\\System32\\calc.exe', 4)] : rows,
     });
     h.commands.set('300', `${image} ${args}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
@@ -7133,7 +7134,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
   });
   function crashCase(extra: any = {}, children: any[] = []) {
     const ps = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, ps, 2), ...children], {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, ps, 2), ...children], {
       mode: 'continue_unknown_interrupt', phase: 'p06-continue', fixture: 'long-running', kind: 'powershell',
       afterTerminate: (pid: number, rows: any[]) => pid === 100 ? rows.filter((r: any) => !['200', '300'].includes(r.ProcessId)) : rows, ...extra,
     });
@@ -7166,7 +7167,7 @@ describe('ADR-0264 scoped cleanup authority', () => {
     expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_IDENTITY_CHANGED'); expect(h.killed).toEqual([100]);
   });
   test('dynamic CMD crash interruption stays closed even when a fixed command is otherwise bound', () => {
-    const h = harness([row(200, 100, 'C:\\A9-DEV\\candidate\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, image, 2)],
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\resources\\native\\runner\\spike02_helper.exe', 1), row(300, 200, image, 2)],
       { mode: 'continue_unknown_interrupt', phase: 'p06-continue', fixture: 'long-running', kind: 'cmd' });
     h.commands.set('300', `${image} ${h.fixedArgs}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
     expect(() => h.scope.terminate(100, true, 'marker')).toThrow('CRASH_PROFILE_NOT_CLOSED'); expect(h.killed).toEqual([]);
@@ -7187,14 +7188,44 @@ describe('ADR-0264 scoped cleanup authority', () => {
       expect(raw).not.toHaveBeenCalled(); expect(child.unref).toHaveBeenCalled();
     } finally { raw.mockRestore(); jest.useRealTimers(); }
   });
-  test.each(['release_exit', 'continue_unknown_interrupt'])('formal root admits %s and terminates only the bound fixture instances', (mode) => {
-    const h = harness([row(200, 100, 'C:\\A9-W46\\run\\f01e\\deploy\\candidate\\spike02_helper.exe', 1), row(300, 200, image, 2)], { formal: true, mode });
+  test.each(['DEV_CHANNEL', 'FORMAL_GATE_A_EXECUTION'])('%s uses the same bound fixture cleanup behavior', (evidenceClass) => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 200, image, 2)], { mode: 'release_exit' });
+    (h.ctx as any).evidenceClass = evidenceClass;
     h.commands.set('300', `${image} ${h.fixedArgs}`); h.scope.bind(100); h.writeBinding(); h.scope.observeBinding();
     h.scope.terminate(300, false); expect(h.killed).toEqual([300]);
   });
-  test.each(['release_exit', 'continue_unknown_interrupt'])('formal root %s refuses an unbound system shell even when the driver is bound', (mode) => {
-    const h = harness([row(200, 100, 'C:\\A9-W46\\run\\f01e\\deploy\\candidate\\spike02_helper.exe', 1), row(300, 100, image, 1)], { formal: true, mode });
+  test.each(['DEV_CHANNEL', 'FORMAL_GATE_A_EXECUTION'])('%s refuses an unbound system shell even when the driver is bound', (evidenceClass) => {
+    const h = harness([row(200, 100, 'C:\\A9-DEV\\run\\01234567\\p\\spike02_helper.exe', 1), row(300, 100, image, 1)], { mode: 'release_exit' });
+    (h.ctx as any).evidenceClass = evidenceClass;
     h.commands.set('300', `${image} /d /s /c echo unrelated`); h.scope.bind(100); h.writeBinding();
     expect(() => h.scope.observeBinding()).toThrow('BOUND_PROCESS_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test('expired request authority refuses before any cleanup', () => {
+    const h = harness([], { expiresAt: '2020-01-01T00:00:00.000Z' });
+    expect(() => h.scope.bind(100)).toThrow('AUTHORITY_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test.each([
+    ['wrong run root', { runRoot: 'C:\\A9-DEV\\run\\89abcdef\\e' }],
+    ['prefix-similar run container', { runRoot: 'C:\\A9-DEV\\run\\012345678\\e' }],
+    ['evidence root equal to the container', { runRoot: 'C:\\A9-DEV\\run\\01234567' }],
+    ['candidate nested in evidence', { candidate: 'C:\\A9-DEV\\run\\01234567\\e\\p' }],
+    ['wrong evidence root', { request: { evidence_root: 'C:\\A9-DEV\\run\\89abcdef\\e' } }],
+    ['wrong candidate root', { request: { candidate_root: 'C:\\A9-DEV\\run\\01234567\\other' } }],
+  ])('%s refuses before any cleanup', (_label, patch) => {
+    const h = harness([], patch);
+    expect(() => h.scope.bind(100)).toThrow('AUTHORITY_MISMATCH'); expect(h.killed).toEqual([]);
+  });
+  test('the cleanup fixture layout satisfies the real request evidence-external rule', () => {
+    // The request module uses the host path flavour; mirror the same p/e sibling shape on this host.
+    const base = path.join(os.tmpdir(), 'run', '01234567');
+    const problems = requests.structuralProblems({ candidate_root: path.join(base, 'p'), evidence_root: path.join(base, 'e') });
+    expect(problems).not.toContain('EVIDENCE_ROOT_NOT_EXTERNAL');
+    const nested = requests.structuralProblems({ candidate_root: path.join(base, 'e', 'p'), evidence_root: path.join(base, 'e') });
+    expect(nested).toContain('EVIDENCE_ROOT_NOT_EXTERNAL');
+  });
+  test('the candidate no longer infers a run category from the root string', () => {
+    const source = fs.readFileSync(path.join(releaseDir, 'a9-batch2-smoke.cjs'), 'utf8');
+    expect(source).not.toContain('CLEANUP_ROOT');
+    expect(source).not.toContain('const dev =');
   });
 });

@@ -745,8 +745,7 @@ function killTree(pid, scope, reason) {
   return reason === undefined ? scope.terminate(pid, true) : scope.terminate(pid, true, reason);
 }
 
-// ADR-0264. These are instance-bound fixture exceptions, never a general system-image allowlist.
-const CLEANUP_ROOT = 'c:\\a9-dev\\';
+// ADR-0264/0305. These are instance-bound fixture exceptions, never a general system-image allowlist.
 const CLEANUP_SID = 'S-1-5-21-1708701742-428676696-1831205153-1001';
 const FIXTURE_IMAGES = Object.freeze({ cmd: 'C:\\Windows\\System32\\cmd.exe',
   powershell: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', ping: 'C:\\Windows\\System32\\PING.EXE' });
@@ -776,6 +775,24 @@ function cleanupEnvironment(item) {
   const image = item.image.toLowerCase();
   return (item.name.toLowerCase() === 'sgtool.exe' && /^c:\\program files \(x86\)\\sogouinput\\[^\x00-\x1f]+\\sgtool\.exe$(?![\s\S])/.test(image))
     || (item.name.toLowerCase() === 'sogouexe.exe' && image === 'c:\\program files (x86)\\sogouinput\\sogouexe\\sogouexe.exe');
+}
+function cleanupCanonicalPath(value) {
+  if (typeof value !== 'string' || !/^[A-Za-z]:\\/.test(value) || /[\x00-\x1f|]/.test(value)) return null;
+  const withoutTrailing = value.replace(/\\+$/, '');
+  const normalized = path.win32.normalize(withoutTrailing);
+  if (!/^[A-Za-z]:\\/.test(normalized) || /[:*?"<>]/.test(normalized.slice(2))
+    || normalized.split('\\').some((part) => /[. ]$/.test(part))) return null;
+  return normalized;
+}
+function cleanupPathEqual(a, b) {
+  const left = cleanupCanonicalPath(a); const right = cleanupCanonicalPath(b);
+  return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
+}
+function cleanupPathUnder(root, candidate) {
+  const parent = cleanupCanonicalPath(root); const child = cleanupCanonicalPath(candidate);
+  if (!parent || !child) return false;
+  const prefix = `${parent.toLowerCase().replace(/\\+$/, '')}\\`;
+  return `${child.toLowerCase()}\\`.startsWith(prefix);
 }
 function cleanupPsString(value) { return `'${String(value).replace(/'/g, "''")}'`; }
 // WMI recheck -> Terminate is not atomic. The receipt records that limit; no PID-only fallback is permitted.
@@ -850,19 +867,24 @@ function createCleanupScope(ctx, runtime, mode, hooks = {}) {
   const bindingFile = path.join(ctx.attemptDir, `${mode}-cleanup-binding.json`);
   const tracked = new Map(); let driver = null; let bindingDigest = null; let boundFixture = null; let events = 0;
   const pause = hooks.pause || (() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500));
-  const dev = String(ctx.runRoot).toLowerCase().startsWith(CLEANUP_ROOT);
-  const imageUnder = (image, root) => image.toLowerCase().startsWith(`${String(root).toLowerCase().replace(/\\+$/, '')}\\`);
-  const rootImage = (image) => dev ? image.toLowerCase().startsWith(CLEANUP_ROOT)
-    : imageUnder(image, ctx.candidateRoot) || imageUnder(image, path.win32.dirname(runtime.electronPath));
+  const rootImage = (image) => cleanupPathUnder(ctx.candidateRoot, image) || cleanupPathUnder(path.win32.dirname(runtime.electronPath), image);
   const invocationFor = hooks.invocation || fixtureCommandInvocation;
   const log = (event) => { if (++events > 64) throw new Error('A9_BATCH2_CLEANUP_EVIDENCE_LIMIT'); fs.appendFileSync(receipt, `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`, 'utf8'); };
   const admission = () => {
+    const expires = Date.parse(ctx.request && ctx.request.expires_at);
+    // ADR-0304/0305: one container per run; candidate (p) and evidence (e) are sibling roots inside it.
+    const container = path.win32.join('C:\\A9-DEV\\run', String(ctx.runId || '').toLowerCase().slice(0, 8));
     if (!ctx.request || !ctx.request.target || ctx.request.target.account_sid !== CLEANUP_SID
       || ctx.request.target.session_id !== 2 || String(ctx.request.target.machine_name).toLowerCase() !== 'dccs-chaizl-pc'
       || String((hooks.hostname || os.hostname)()).toLowerCase() !== 'dccs-chaizl-pc'
-      || (dev ? Date.now() >= Date.parse(ctx.request.expires_at) || !String(ctx.candidateRoot).toLowerCase().startsWith(CLEANUP_ROOT)
-        : String(ctx.request.evidence_root).toLowerCase() !== String(ctx.runRoot).toLowerCase()
-          || !ctx.request.bindings || !/^[a-f0-9]{40}$/.test(ctx.request.bindings.source_commit || ''))) throw new Error('A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH');
+      || !Number.isFinite(expires) || Date.now() >= expires
+      || !ctx.request.bindings || !/^[a-f0-9]{40}$/.test(ctx.request.bindings.source_commit || '')
+      || !cleanupPathEqual(ctx.request.evidence_root, ctx.runRoot)
+      || !cleanupPathEqual(ctx.request.candidate_root, ctx.candidateRoot)
+      || cleanupPathEqual(container, ctx.runRoot) || !cleanupPathUnder(container, ctx.runRoot)
+      || cleanupPathEqual(container, ctx.candidateRoot) || !cleanupPathUnder(container, ctx.candidateRoot)
+      || cleanupPathUnder(ctx.runRoot, ctx.candidateRoot) || cleanupPathUnder(ctx.candidateRoot, ctx.runRoot)
+      || !cleanupPathUnder(ctx.runRoot, path.win32.dirname(runtime.electronPath))) throw new Error('A9_BATCH2_CLEANUP_AUTHORITY_MISMATCH');
   };
   const snapshot = () => { const found = listProcesses(exec); if (found.failed || !usableProcessListing(found)) throw new Error('A9_BATCH2_CLEANUP_LISTING_UNKNOWN'); return found.rows; };
   const rememberBinding = () => {
