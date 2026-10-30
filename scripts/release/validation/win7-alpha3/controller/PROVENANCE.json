@@ -33,13 +33,14 @@
       "role": "shared-or-target-execution",
       "version_changes": [
         "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
-        "Bound ZIP data; p/w/d/e/t; fixed XML compare; one validated root Run parameter; exact task cleanup; unique readback evidence. PS/COM NOT_PERFORMED."
+        "Bound ZIP data; p/w/d/e/t; fixed XML compare; one validated root Run parameter; exact task cleanup; unique readback evidence. PS/COM NOT_PERFORMED.",
+        "Preserve the bound ZIP top-level release name plus .zip across upload, expansion and request; the packaged verifier still rejects renamed archives."
       ],
       "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-materials.ps1",
       "ctrl_source_sha256": "655ce14b29f922199286febbece52687e8fcad9c2bce391ec22ae4e276148f4e",
       "ctrl_run_differs": false,
-      "current_sha256": "c186db98d531b0cddc406ad671f81a3f5a8b67866a8e1e7625ff0e23e58c2cf4",
+      "current_sha256": "2af7bd5d58d1b603d06bf617584307bbcbd4f134ed47801071560cb5fd90a72d",
       "current_bytes": 10389,
       "inventory_disposition_ids": {
         "BINDING_OR_LABEL": [
@@ -266,13 +267,14 @@
       "version_changes": [
         "No target receipt; request-bound binding SHA; shared consume and short roots. Live target NOT_PERFORMED.",
         "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
-        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals."
+        "Qualify the ordinary local account with the bound machine name so generated requests match the unchanged packaged identity assertion; reject short or foreign principals.",
+        "Preserve the bound ZIP top-level release name plus .zip across upload, expansion and request; the packaged verifier still rejects renamed archives."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/issue-request.cjs",
       "ctrl_source_sha256": "247649484849617e133433d4e3f302c8d057eb64cc9fad6016d5c71910da52fb",
       "ctrl_run_differs": false,
-      "current_sha256": "2def3a1f77bef6d03308969057b240749894f683212aa4e3bd6c79fd76da4f73",
+      "current_sha256": "139e5ddc686d0c273b68c0fc97bdabc79a47fc221e71673467373f348d7d8d98",
       "current_bytes": 11911,
       "inventory_disposition_ids": {
         "仅本地授权": [
@@ -808,13 +810,14 @@
       "version_changes": [
         "Run first statement throws before spawn; original orchestration remains for continuation; Node16 hasOwn replacement. Old branches/receipt transfer remain unreachable and pending.",
         "Shared local prepare/admission/R1-R8 injected-executor loop; fixed source bootstrap and separate stdin JSON; one transport counter; no presign/run-set/receipt upload. CLI remains blocked.",
-        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW.",
+        "Preserve the bound ZIP top-level release name plus .zip across upload, expansion and request; the packaged verifier still rejects renamed archives."
       ],
       "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs",
       "ctrl_source_sha256": "beb20e18488c076f9fba10471531efc7ebaf03364e9c2fe6c2cc7b5b21ccaccd",
       "ctrl_run_differs": false,
-      "current_sha256": "38c8652ea1eafa2c699e59142842430e67ccc367caeeed32e615fcd94b190f47",
+      "current_sha256": "545e188d2a3d7847831eaa0d99343441e90911132001458ab9f4cf3f596d148d",
       "current_bytes": 37169,
       "inventory_disposition_ids": {
         "统一": [

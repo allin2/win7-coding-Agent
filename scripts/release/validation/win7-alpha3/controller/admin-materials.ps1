@@ -75,7 +75,7 @@ try {
     Add-Type -Path (Join-Path $prep 'tools\admin-zip.cs')
     if ($Action -ceq 'Expand') {
       if ((Hash-AdminFile (Join-Path $prep 'ZIP_ENTRIES.tsv')) -cne $packageMatch.Groups['inventory'].Value) { throw 'ZIP_INVENTORY_HASH' }
-      [RehearsalZip]::Expand((Join-Path $work 'package\candidate.zip'),(Join-Path $root 'p'),(Join-Path $prep 'ZIP_ENTRIES.tsv'),$packageMatch.Groups['zip'].Value,$packageMatch.Groups['top'].Value,[int]$packageMatch.Groups['count'].Value)
+      [RehearsalZip]::Expand((Join-Path (Join-Path $work 'package') ($packageMatch.Groups['top'].Value + '.zip')),(Join-Path $root 'p'),(Join-Path $prep 'ZIP_ENTRIES.tsv'),$packageMatch.Groups['zip'].Value,$packageMatch.Groups['top'].Value,[int]$packageMatch.Groups['count'].Value)
       Write-Output ('EXPANDED_BOUND_ENTRIES_HASH_VERIFIED')
     } else {
       $left = [int][Math]::Floor($TreeSeconds - $treeClock.Elapsed.TotalSeconds)

@@ -626,6 +626,8 @@ test('administrator source keeps R2 exclusive admission, partial failure cleanup
 
 test('actual issue-request entry uses projected rehearsal and the same uploaded package path',()=>{
   const vm=require('vm'),f=fixture(),b=f.ctx.budget,prep=b.tools_root,phase='p02-integrity',timestamp=new Date().toISOString();
+  const packagedIntegrity=require(path.join(repo,'release/win7-product-v3/a9-batch2-package-integrity.cjs'));
+  f.ctx.facts.builds[0].zip_top=packagedIntegrity.PACKAGE_NAME.slice(0,-4);
   f.ctx.prep=prep;
   const modulePath=path.win32.join(b.candidate_root,'validation/a9-batch2-desktop-request.cjs');
   const fixturePath=path.win32.join(b.candidate_root,'validation/a9-batch2-fixtures.cjs');
@@ -634,7 +636,7 @@ test('actual issue-request entry uses projected rehearsal and the same uploaded 
   files.set(path.win32.join(b.candidate_root,'release-manifest.json'),manifest);
   f.binding.candidate.manifest_sha256=hash(manifest);f.bytes=c.encode(f.binding);
   files.set(path.win32.join(prep,'external/release-authority.json'),f.bytes);
-  const zip=path.win32.join(b.work_root,'package/candidate.zip');files.set(zip,Buffer.from('TEST_ONLY_ZIP'));
+  const zip=path.win32.join(b.work_root,'package',f.ctx.facts.builds[0].zip_top+'.zip');files.set(zip,Buffer.from('TEST_ONLY_ZIP'));
   const parent={machine_name:b.target_machine,account_sid:b.target_sid,integrity_level:'Medium',session_id:2,elevated:false,
     process_id:100,in_job:false,active_console_session_id:2,observed_at_utc:timestamp};
   const probeRow={...parent,schema_version:2,kind:'A9_39_CONTROLLER_LAUNCH_PROBE',launcher:'launcher-chain-v2',phase,query_ok:true,
@@ -648,6 +650,8 @@ test('actual issue-request entry uses projected rehearsal and the same uploaded 
   const chainStub={verify:row=>row,waitFile:()=>({task:{pid:100},child:{pid:process.pid,ppid:process.ppid}})};
   const api={externalsNeeded:()=>['package_zip'],createRequest:input=>{
     assert.equal(input.target.account_name, b.target_machine + '\\agent');
+    const originalName=path.win32.basename(input.externalFiles.package_zip.path);
+    assert.throws(()=>packagedIntegrity.verifyZip(originalName,{},Buffer.alloc(0),[],{readFileSync(){throw Error('ZIP_READER_REACHED');}},[]),/^Error: ZIP_READER_REACHED$/);
     assert.equal(input.externalFiles.package_zip.path,zip);assert.equal(input.requestIndex,2);requestChecked=true;return input;
   },verifyRequest:()=>({ok:true})};
   const req=name=>name==='fs'?{readFileSync:file=>{assert.ok(files.has(file),file);return files.get(file);},mkdirSync(){},writeFileSync(){}}:

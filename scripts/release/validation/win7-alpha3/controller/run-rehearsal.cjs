@@ -151,7 +151,7 @@ function verifyStock(ctx) {
  }
  const zip=path.resolve(where.repo,build.zip);
  need(Number.isSafeInteger(build.bytes)&&fs.statSync(zip).size===build.bytes,'ZIP_BYTES');
- add(zip,path.win32.join(ctx.budget.work_root,'package','candidate.zip'),build.sha256);
+ add(zip,path.win32.join(ctx.budget.work_root,'package',build.zip_top+'.zip'),build.sha256);
  add(path.join(ctx.prep,'external/a9-batch2-input-lock.json'),path.win32.join(ctx.budget.tools_root,'external/a9-batch2-input-lock.json'),ctx.facts.formal_input_lock_sha256);
  add(path.join(ctx.prep,'external/a9-v26-approved-build-kits.json'),path.win32.join(ctx.budget.tools_root,'external/a9-v26-approved-build-kits.json'),ctx.facts.approval_registry.sha256);
  add(path.join(ctx.prep,'ZIP_ENTRIES.tsv'),path.win32.join(ctx.budget.tools_root,'ZIP_ENTRIES.tsv'),build.zip_entries_sha256);

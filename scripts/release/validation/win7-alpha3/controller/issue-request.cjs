@@ -64,7 +64,7 @@ function run(prep, phase, observedFile) {
   const ledger = gate.readLedger(b.evidence_root);
   gate.requireGpuGate(ctx, phase, b.evidence_root);
   gate.verifyLedgerFiles(ledger, b.evidence_root, a);
-  const externalPaths = { package_zip: path.win32.join(b.work_root, 'package/candidate.zip'),
+  const externalPaths = { package_zip: path.win32.join(b.work_root, 'package', ctx.facts.builds[0].zip_top + '.zip'),
     formal_input_lock: path.win32.join(ext, 'a9-batch2-input-lock.json'), approval_registry: path.win32.join(ext, 'a9-v26-approved-build-kits.json'), release_authority: authorityFile };
   const externalFiles = Object.fromEntries(api.externalsNeeded(fixtures.phaseById(phase)).map(key => [key,
     { path: externalPaths[key], sha256: gate.sha(fs.readFileSync(externalPaths[key])) }]));

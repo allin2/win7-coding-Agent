@@ -404,3 +404,10 @@ R0～R5 完成；目标请求签入前在 `ACTIVATION_DEADLINE` 停止，未重�
 不扩展窗口、不增加容差。开发机 60/60 PASS；真实 consume 反例模拟独立目标进程丢失内存状态和延迟激活。
 日志 `local-logs/activation-clock-r2.log`；首次 run 证据仍在 `outputs/next-version-r1/controller/44fda738/`。
 该轮 R7/R8 PASS，零任务/进程、锁 idle；真实模型请求仍为 0。继续以新不可变源码、包及 run 复验。
+
+第三轮 run `2273b7b4-011e-4a21-9f86-05c803ff135a` 绑定 `1b96a6a…`、ZIP `1ae7634e…`。
+p01 环境阶段直接 PASS，验证前两项修复；p02 模块加载 PASS，但完整性校验因 `A9_BATCH2_ZIP_FILENAME_INVALID` 停止。
+总控迁移把上传包改名为 `candidate.zip`，违反未改变的包内原发布文件名合同。
+本次统一上传、解包和请求使用绑定的 `zip_top + '.zip'`，不修改产品完整性判据。真实请求入口反例直接调用包内 ZIP 校验器的文件名守卫。
+开发机 60/60 PASS，0 skipped，日志 `local-logs/zip-name-r1.log`。R7/R8 已直接通过，第三轮零任务/进程、锁 idle。
+所有三轮失败保留，未将 p01 与旧包证据拼成完整通过；第四轮需新源码/包/run。
