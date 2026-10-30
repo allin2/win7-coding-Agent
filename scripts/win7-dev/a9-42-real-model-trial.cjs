@@ -341,6 +341,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
     app.setPath('crashDumps', path.join(config.run_root, 'environment/temp'));
     guard = directTools.installDirectGuard({ limit: config.real_model_request_limit, deadline: Date.parse(config.deadline_utc),
       log: () => save(path.join(config.run_root, 'direct-requests.json'), guard.state) });
+    if (startupDiagnostic) guard.stop(); // Refuse transport even if startup unexpectedly probes.
     save(path.join(config.run_root, 'direct-requests.json'), guard.state);
     const spawnedAt = JSON.parse(fs.readFileSync(path.join(config.run_root, 'RESULT.json'), 'utf8')).product_spawned_at;
     need(Number.isSafeInteger(spawnedAt), 'PRODUCT_SPAWN_TIME'); mark('product_spawned', spawnedAt);
