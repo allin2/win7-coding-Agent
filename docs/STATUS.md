@@ -21,6 +21,8 @@
   原包/运行副本完整性已直接核对，组件字节不变；历史失败和中断全部保留。两场景不改写为一次完整Office GUI旅程PASS。
   取证驱动抽屉顺序修复已本地保存为 `9b2e963…`，13项驱动与Electron22/Node16原生交互4项PASS；该修正后单次完整Win7旅程仍NOT_PERFORMED。
   真实模型、正式Gate A/B、长期资源预算、负责人实际使用验收、推送发布仍NOT_PERFORMED。完整release组11项历史FAIL与5项未执行不改判；前序包与全部验证见任务书§4～§7。
+  真实模型小规模试用与轻量资源测量的候选外工具已本地提交 `674ee54e…`，开发机定向测试PASS；同r4包材料已备、deadline=null。
+  Win7窗口、DeepSeek请求上限、费用上限与密钥交付待负责人批准，见任务书§8；Win7与真实模型仍NOT_PERFORMED。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。

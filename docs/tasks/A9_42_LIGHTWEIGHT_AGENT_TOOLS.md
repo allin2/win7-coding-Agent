@@ -923,3 +923,60 @@ root_bytes=12248077913、free_bytes=881235542016。搜狗环境实例PID10900/�
 未对已通过且输入不变的产品代码重复全量构建/测试。
 docs:check首轮发现索引已更新但任务书头部仍为NOT_PERFORMED的元数据不一致；
 统一为范围限定DEV_CHANNEL后，394文件/64任务检查PASS，git diff --check PASS，原失败日志保留。
+
+## 8. 真实模型小规模试用与轻量资源测量（PROPOSED，未授权）
+
+2026-10-29 负责人要求“使用gpt重置模式推进”，并以“开始吧”确认员工配置。
+本节只登记开发机准备；Win7窗口、真实DeepSeek请求和密钥交付仍待负责人单独批准。
+
+### 8.1 本地交付（开发机）
+
+候选外取证工具已本地提交为 `674ee54e7c8b3d0e16c382d7b2cb083003c9b4cd`，产品src、依赖与打包不变。
+执行代理1（Codex Sol/xhigh/default）实现真实模型试用驱动、计数中继、样本与prepare；
+执行代理2（Codex Terra/xhigh/default）实现Win7 WMIC资源采样器。主对话复核、整合并修复：
+
+- 密钥形态扫描改为带边界及长度，避免 `disk-cache`、`task-stream` 等普通词使付费试用中止。
+- 场景等待改为每秒只读回合状态；驱动与产品同进程，原每250毫秒全事件扫描会抬高被测CPU。
+- Win7 WMIC空计数或空SessionId只记空值，不再丢弃整次采样；身份列仍严格。
+- 采样与进程树观察共用每拍一次WMIC查询，失败计数且不复用旧结果；接入逻辑可单独测试。
+
+| 内容 | 结果 |
+|---|---|
+| 场景 | S1读取DOCX标记；S2按XLSX生成DOCX报告；S3修改DOCX另存副本；S4问询后回答；S5问询后取消及迟到回复拒绝 |
+| 判定 | 逐场景核对实际文件、原件hash、SQLite事实与问询事件；模型不按要求调用工具或提问记FAIL，不自动重试，不合成完整旅程PASS |
+| 中继 | 产品Base URL为本机随机端口；固定上游 `https://api.deepseek.com`；含probe硬上限1～40；只记序号、状态码、耗时、字节与usage token数 |
+| 密钥 | 运行根 `secret` 下文件读后即删，经匿名管道交给界面进程；DPAPI记住保持关闭；全部证据扫描原文及密钥形态 |
+| 资源 | 阶段为启动、空闲60秒、各场景、关闭至进程树结束；记录工作集、私有字节、CPU%、句柄、进程数与查询开销 |
+| 开发机检查 | 真实模型驱动19、原Office驱动13、采样器5项PASS；Electron22.3.27/Node16.17.1加载PASS |
+
+员工1另报告Electron22运行时下真实Office引擎读取与副本回读PASS、Mac原生点击夹具4项PASS，
+作为员工证据保留，日志未入库。完整产品GUI/SQLite场景、Win7与真实DeepSeek均NOT_PERFORMED。
+
+已知限制：中继增加本机HTTP与Node HTTPS一跳，不覆盖产品直连公网的TLS与代理行为。
+产品请求为流式，DeepSeek流式响应是否附usage为UNKNOWN；无usage时token数记UNKNOWN。
+驱动运行在产品主进程内，其轮询开销计入主进程CPU。采样间隔约1.5秒，短命进程和采样间峰值可能遗漏。
+WMIC查询自身开销在Win7的实测值为UNKNOWN；关闭后无残留仍以postflight为准。
+
+### 8.2 试用材料与提案
+
+材料位于 `outputs/a9-42-tools/real-model-trial/prepared-r1/`，清单
+`materials-manifest-r1.json` SHA-256 `50ff1b1cf5426b968e6504af4f48175b108eab023bb19d5e350100098d80c739`。
+产品源 `5143b9cf…`、r4 ZIP `84585361…1dc063` 与§7.13相同，driver SHA-256
+`6a9f660a84175eb7cf7f6abdc4e8bbea0750c9880f59568d680ed367046fa7e0`，source-binding SHA-256
+`516cf98bdff957e70278d6d67f8074e37ab2a8c9d41ecdb96c309a4c11cac438`；39个产品文件与117个编译文件正向绑定。
+config-template deadline=null，已直接验证驱动以 `CONFIG_DEADLINE` 拒绝执行。
+
+| 待批准参数 | 提案 |
+|---|---|
+| Win7窗口 | 60分钟DEV_CHANNEL，最后10分钟不开新场景；1个场景run `a942r-334a0917` |
+| 模型 | `deepseek-v4-flash`，固定上游，不经代理 |
+| 真实模型请求 | 含probe最多30次，中继硬拒绝第31次；不重试已FAIL场景 |
+| 费用上限 | 由负责人给出金额；本节不推测单价 |
+| 密钥 | 窗口内由主对话经T3密钥请求取得，写入运行根 `secret` 后由驱动读后删除；不用DPAPI |
+| 准入 | 原主机键、DCCS-CHAIZL-PC/7601/SP1/x64、普通agent会话2、自有holder inactive；复用已在目标机的r4候选目录，hash不符即HALTED |
+| 网络前置 | 可选1次无密钥 `https://api.deepseek.com/models` 连通检查，预期401，不保存正文 |
+
+完成标准：五个场景逐项有结论；原件hash不变；S5取消后无新请求及写入；正常关闭；
+postflight零根内进程/任务、holder inactive；资源阶段数据完整或明确UNKNOWN；证据无密钥原文。
+结果只作DEV_CHANNEL，不签正式Gate A/B、负责人使用验收或发布。保留全部旧包、旧run与首失败；
+不删除本地或目标文件，不安装、不改系统、不根外终止进程。
