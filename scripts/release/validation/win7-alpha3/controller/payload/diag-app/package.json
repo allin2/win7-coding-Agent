@@ -1,0 +1,7 @@
+{
+  "name": "a9-39-diagnostic-3-app",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "description": "Candidate-external FORMAL_GATE_A_EXECUTION diagnostic only"
+}

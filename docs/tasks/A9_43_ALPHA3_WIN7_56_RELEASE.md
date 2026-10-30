@@ -195,3 +195,19 @@ GPT 6.1 Sol 关键审核：P0 零项，P1 一项。新准入把证据根当成 r
 
 日志在 `outputs/next-version-r1/p2-review/logs/`。总控迁移（P2 第二步）为 `NOT_PERFORMED`。
 
+### 8.7 P2 第二步：总控迁入 Git 跟踪源码（2026-10-30）
+
+GPT 6.1 Sol 执行代理分三轮把 WIN7-55 正式总控迁到 `scripts/release/validation/win7-alpha3/controller/`，来源与原 SHA 见同目录 `PROVENANCE.json`。补充组按 ADR-0305 未迁移。
+两类别目标侧代码同字节，类别只作标签；目标侧不读回执和拒绝集。可变 run 数据走外部 JSON，生成的 PowerShell 与 XML 不随 run 数据变化。准入按 ADR-0305 四条件两类别同跑，close 不在准入与正常收尾路径。
+P1 正式载荷按主会话裁决增加四个绑定字段：执行工具清单 SHA、RUN_CONTEXT SHA、PHASE_PLAN SHA 与目标 Session。材料生产入口要求 Git 工作树对闭包干净，否则拒绝。
+
+GLM 独立审核：P0 零项，P1 一项。产品阶段探针仍把观测写到旧 `work\observed\`，新布局为 `w`，真实运行时全部产品阶段会失败。主会话已改为 `w\observed\`，补回归测试，并更新 `PROVENANCE.json`。
+
+| 检查（开发机） | 结果 |
+|---|---|
+| controller 与 P1 测试，Node 20，主树 | 58/58 PASS |
+| controller 同步测试体，Electron 22 / Node 16，员工工作树 | 56/56 PASS |
+| PowerShell 2.0/5.1 解析、C# 编译、真实解包、计划任务 | `NOT_PERFORMED`，开发机无对应解释器 |
+
+PowerShell 与 C# 项在 §6 批准的首个 Win7 开发级运行窗口先做最短准入验证。审核报告与日志在 `outputs/next-version-r1/p2-review/`。
+

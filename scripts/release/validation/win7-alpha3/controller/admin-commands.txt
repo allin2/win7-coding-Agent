@@ -1,0 +1,12 @@
+A9-43 shared administrator entry; no action executed by this text.
+R1: fixed admin-input.ps1 + run-admin.ps1 execution body, canonical stdin JSON, read-only.
+R2: the same Read-Admission four conditions, then create only missing C:\A9-DEV and C:\A9-DEV\run parents.
+No close. No parent ACL mutation. Grant/verify only the exact new run root for the bound SID.
+R3: unified upload/size/SHA readback, no authority receipt or deny set projected to target.
+R4: bound ZIP data, product at p; tools at t, evidence e, data d, workspace w.
+R5/R6: compare fixed task XML, pass one validated run-root parameter, wait/observe/delete only bound task.
+R7: retain first failure; bounded writer quiescence, secret scans and tree hashes before download.
+R8: read/compare/delete only this run's registered task names. No directory deletion or unknown process termination.
+PowerShell executable text never contains run data. stdin JSON is accepted by one anchored PS2-compatible schema.
+SSH uses StrictHostKeyChecking=yes. No presign-only probe or extra formal transport session.
+CLI run-rehearsal remains migration-blocked pending the complete local R1-R8 contract.

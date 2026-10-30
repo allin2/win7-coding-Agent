@@ -53,13 +53,27 @@ const receipt = (payloadSha, overrides = {}) => ({
   expires_at_utc: '2026-10-30T14:00:00.000Z', confirmation_utc: '2026-10-30T11:05:00.000Z', ...overrides,
 });
 
+const inputs = () => {
+  const executionToolsManifestBytes=bytes({files:{test:'SYNTHETIC_ONLY'}});
+  const runContextBytes=bytes({budget:{p1:{target_session_id:2}}});
+  const phasePlanBytes=bytes({plan:'TEST_ONLY_FULL'});
+  return {executionToolsManifestBytes,runContextBytes,phasePlanBytes,inputBindings:{
+    execution_tools_manifest_sha256:H(executionToolsManifestBytes),run_context_sha256:H(runContextBytes),
+    phase_plan_sha256:H(phasePlanBytes),target:{session_id:2}}};
+};
+const formal = options => authority.validateFormal({...inputs(),...options});
+const development = options => authority.validateDevelopment({...inputs(),...options});
+const reserve = options => authority.validateAndReserve({...inputs(),...options});
+
 function formalFixture(root) {
   const bindingFile = write(root, 'execution-binding.json', binding('FORMAL_GATE_A_EXECUTION'));
   const denyFile = write(root, 'deny-set.json', denyValue());
   const payload = {
     schema_version: 1, kind: 'WIN7_56_GATE_A_PAYLOAD', run_id: RUN_ID, execution_layout: layout(),
     evidence_class: 'FORMAL_GATE_A_EXECUTION', formal_input_lock_sha256: H('lock'), approval_registry: registry(),
-    candidate: candidate(), target: target(),
+    candidate: candidate(), target: {...target(),session_id:2},
+    execution_tools_manifest_sha256:inputs().inputBindings.execution_tools_manifest_sha256,
+    run_context_sha256:inputs().inputBindings.run_context_sha256,phase_plan_sha256:inputs().inputBindings.phase_plan_sha256,
     execution_binding: { path: bindingFile.file, sha256: bindingFile.sha256 },
     deny_set: { path: denyFile.file, bytes: denyFile.bytes.length, sha256: denyFile.sha256, revision: 1,
       trusted_previous_sha256: null, initial_baseline_sha256: denyFile.sha256 },
@@ -74,20 +88,20 @@ function formalFixture(root) {
 test('development entry checks DEV_CHANNEL and run id without reading receipt or deny set', () => {
   const root = tmp();
   const bindingFile = write(root, 'binding.json', binding());
-  const result = authority.validateDevelopment({ executionBindingBytes: bindingFile.bytes, runId: RUN_ID });
+  const result = development({ executionBindingBytes: bindingFile.bytes, runId: RUN_ID });
   assert.equal(result.mode, 'DEV_CHANNEL');
   assert.equal(result.evidence_class, 'DEV_CHANNEL');
   // No receipt or deny-set path is required or read.
   assert.equal(fs.existsSync(path.join(root, 'receipt.json')), false);
   assert.equal(fs.existsSync(path.join(root, 'deny-set.json')), false);
-  expectCode(() => authority.validateDevelopment({ executionBindingBytes: write(root, 'formal.json', binding('FORMAL_GATE_A_EXECUTION')).bytes, runId: RUN_ID }), 'DEV_EXECUTION_BINDING_CLASS');
-  expectCode(() => authority.validateDevelopment({ executionBindingBytes: bindingFile.bytes, runId: '00000000-0000-4000-8000-000000000000' }), 'DEV_RUN_ID_MISMATCH');
+  expectCode(() => development({ executionBindingBytes: write(root, 'formal.json', binding('FORMAL_GATE_A_EXECUTION')).bytes, runId: RUN_ID }), 'DEV_EXECUTION_BINDING_CLASS');
+  expectCode(() => development({ executionBindingBytes: bindingFile.bytes, runId: '00000000-0000-4000-8000-000000000000' }), 'DEV_RUN_ID_MISMATCH');
 });
 
 test('formal entry accepts a complete payload, receipt, pin, window, binding and deny set', () => {
   const root = tmp();
   const f = formalFixture(root);
-  const result = authority.validateFormal({
+  const result = formal({
     payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256, receiptPath: f.receiptFile.file,
     executionBindingPath: f.bindingFile.file, denySetPath: f.denyFile.file, now: NOW,
   });
@@ -99,18 +113,18 @@ test('formal entry accepts a complete payload, receipt, pin, window, binding and
 test('formal entry refuses missing receipt, mismatched pin, expired window and wrong evidence class', () => {
   const root = tmp();
   const f = formalFixture(root);
-  expectCode(() => authority.validateFormal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
     receiptPath: path.join(root, 'missing-receipt.json'), executionBindingPath: f.bindingFile.file, denySetPath: f.denyFile.file, now: NOW }), 'GATE_A_RECEIPT_MISSING');
   const wrongPin = write(root, 'wrong-pin.json', receipt(f.payloadFile.sha256, { independent_pin: H('other') }));
-  expectCode(() => authority.validateFormal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
     receiptPath: wrongPin.file, executionBindingPath: f.bindingFile.file, denySetPath: f.denyFile.file, now: NOW }), 'GATE_A_RECEIPT_PIN_MISMATCH');
-  expectCode(() => authority.validateFormal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
     receiptPath: f.receiptFile.file, executionBindingPath: f.bindingFile.file, denySetPath: f.denyFile.file, now: Date.parse('2026-10-30T14:00:00.000Z') }), 'GATE_A_OUTSIDE_WINDOW');
   const devBinding = write(root, 'dev-binding.json', binding('DEV_CHANNEL'));
   const payload = { ...f.payload, execution_binding: { path: devBinding.file, sha256: devBinding.sha256 } };
   const payloadFile = write(root, 'dev-payload.json', payload);
   const receiptFile = write(root, 'dev-receipt.json', receipt(payloadFile.sha256));
-  expectCode(() => authority.validateFormal({ payloadPath: payloadFile.file, payloadSha256: payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: payloadFile.file, payloadSha256: payloadFile.sha256,
     receiptPath: receiptFile.file, executionBindingPath: devBinding.file, denySetPath: f.denyFile.file, now: NOW }), 'FORMAL_EXECUTION_BINDING_CLASS');
 });
 
@@ -120,14 +134,14 @@ test('formal entry refuses a receipt text that does not contain the payload SHA'
   const noSha = write(root, 'no-sha.json', receipt(f.payloadFile.sha256, {
     owner_reply_verbatim: '批准本次正式执行，但未写载荷摘要；此文本仅用于测试长度边界，不构成真实负责人回执。',
   }));
-  expectCode(() => authority.validateFormal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
     receiptPath: noSha.file, executionBindingPath: f.bindingFile.file, denySetPath: f.denyFile.file, now: NOW }), 'GATE_A_RECEIPT_MISSING_PAYLOAD_SHA');
 });
 
 test('formal entry refuses missing, tampered, reduced and hit deny sets; equal set is accepted', () => {
   const root = tmp();
   const f = formalFixture(root);
-  expectCode(() => authority.validateFormal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: f.payloadFile.file, payloadSha256: f.payloadFile.sha256,
     receiptPath: f.receiptFile.file, executionBindingPath: f.bindingFile.file, denySetPath: path.join(root, 'missing.json'), now: NOW }), 'DENY_SET_MISSING');
   const tampered = write(root, 'tampered.json', denyValue());
   const tamperedBytes = Buffer.concat([tampered.bytes, Buffer.from(' ')]);
@@ -135,7 +149,7 @@ test('formal entry refuses missing, tampered, reduced and hit deny sets; equal s
   const tamperedPayload = { ...f.payload, deny_set: { ...f.payload.deny_set, path: tampered.file, bytes: tamperedBytes.length } };
   const tamperedPayloadFile = write(root, 'tampered-payload.json', tamperedPayload);
   const tamperedReceipt = write(root, 'tampered-receipt.json', receipt(tamperedPayloadFile.sha256));
-  expectCode(() => authority.validateFormal({ payloadPath: tamperedPayloadFile.file, payloadSha256: tamperedPayloadFile.sha256,
+  expectCode(() => formal({ payloadPath: tamperedPayloadFile.file, payloadSha256: tamperedPayloadFile.sha256,
     receiptPath: tamperedReceipt.file, executionBindingPath: f.bindingFile.file, denySetPath: tampered.file, now: NOW }), 'GATE_A_DENY_SET_SHA256_MISMATCH');
   const oldValue = denyValue({ denied_prefix_sha256: [OTHER] });
   const oldFile = write(root, 'old.json', oldValue);
@@ -143,14 +157,14 @@ test('formal entry refuses missing, tampered, reduced and hit deny sets; equal s
   const payload = { ...f.payload, deny_set: { ...f.payload.deny_set, path: reduced.file, bytes: reduced.bytes.length, sha256: reduced.sha256, revision: 2, trusted_previous_sha256: oldFile.sha256 } };
   const payloadFile = write(root, 'reduced-payload.json', payload);
   const receiptFile = write(root, 'reduced-receipt.json', receipt(payloadFile.sha256));
-  expectCode(() => authority.validateFormal({ payloadPath: payloadFile.file, payloadSha256: payloadFile.sha256,
+  expectCode(() => formal({ payloadPath: payloadFile.file, payloadSha256: payloadFile.sha256,
     receiptPath: receiptFile.file, executionBindingPath: f.bindingFile.file, denySetPath: reduced.file,
     trustedPreviousBytes: oldFile.bytes, trustedPreviousSha256: oldFile.sha256, now: NOW }), 'DENY_SET_REDUCED');
   const equal = write(root, 'equal.json', denyValue({ revision: 2, previous: { sha256: oldFile.sha256, revision: 1, locator: 'old.json' }, denied_prefix_sha256: [OTHER] }));
   const equalPayload = { ...f.payload, deny_set: { ...f.payload.deny_set, path: equal.file, bytes: equal.bytes.length, sha256: equal.sha256, revision: 2, trusted_previous_sha256: oldFile.sha256 } };
   const equalPayloadFile = write(root, 'equal-payload.json', equalPayload);
   const equalReceipt = write(root, 'equal-receipt.json', receipt(equalPayloadFile.sha256));
-  assert.equal(authority.validateFormal({ payloadPath: equalPayloadFile.file, payloadSha256: equalPayloadFile.sha256,
+  assert.equal(formal({ payloadPath: equalPayloadFile.file, payloadSha256: equalPayloadFile.sha256,
     receiptPath: equalReceipt.file, executionBindingPath: f.bindingFile.file, denySetPath: equal.file,
     trustedPreviousBytes: oldFile.bytes, trustedPreviousSha256: oldFile.sha256, now: NOW }).deny_set.revision, 2);
 });
@@ -158,10 +172,10 @@ test('formal entry refuses missing, tampered, reduced and hit deny sets; equal s
 test('development and formal entries reserve the same run prefix only once', () => {
   const root = tmp();
   const bindingFile = write(root, 'binding.json', binding());
-  const first = authority.validateAndReserve({ mode: 'DEV_CHANNEL', executionBindingBytes: bindingFile.bytes, runId: RUN_ID,
+  const first = reserve({ mode: 'DEV_CHANNEL', executionBindingBytes: bindingFile.bytes, runId: RUN_ID,
     ledgerDir: path.join(root, 'ledger') });
   assert.ok(first.reservation.path);
-  expectCode(() => authority.validateAndReserve({ mode: 'DEV_CHANNEL', executionBindingBytes: bindingFile.bytes, runId: RUN_ID,
+  expectCode(() => reserve({ mode: 'DEV_CHANNEL', executionBindingBytes: bindingFile.bytes, runId: RUN_ID,
     ledgerDir: path.join(root, 'ledger') }), 'RUN_ALREADY_RESERVED');
 });
 
@@ -170,7 +184,26 @@ test('run data and deny-set changes do not alter authority tool bytes', () => {
   const tool = path.join(path.dirname(fileURLToPath(import.meta.url)), '../authority.cjs');
   const before = H(fs.readFileSync(tool));
   const bindingFile = write(root, 'binding.json', binding());
-  authority.validateDevelopment({ executionBindingBytes: bindingFile.bytes, runId: RUN_ID });
+  development({ executionBindingBytes: bindingFile.bytes, runId: RUN_ID });
   write(root, 'deny.json', denyValue({ denied_prefix_sha256: [OTHER] }));
   assert.equal(H(fs.readFileSync(tool)), before);
+});
+
+test('input hashes bind raw bytes and exact Session in both local entries', () => {
+  const f=formalFixture(tmp()), common={payloadBytes:f.payloadFile.bytes,receiptBytes:f.receiptFile.bytes,
+    executionBindingBytes:f.bindingFile.bytes,denySetBytes:f.denyFile.bytes,now:NOW};
+  for(const key of ['executionToolsManifestBytes','runContextBytes','phasePlanBytes']) {
+    expectCode(()=>formal({...common,[key]:Buffer.concat([inputs()[key],Buffer.from(' ')])}),'EXECUTION_INPUT_BYTES_MISMATCH');
+    expectCode(()=>development({executionBindingBytes:bytes(binding()),runId:RUN_ID,[key]:Buffer.concat([inputs()[key],Buffer.from(' ')])}),'EXECUTION_INPUT_BYTES_MISMATCH');
+  }
+  expectCode(()=>development({executionBindingBytes:bytes(binding()),runId:RUN_ID,
+    inputBindings:{...inputs().inputBindings,target:{session_id:3}}}),'EXECUTION_INPUT_SESSION_MISMATCH');
+  for(const field of ['execution_tools_manifest_sha256','run_context_sha256','phase_plan_sha256']) {
+    const payload={...f.payload};delete payload[field];
+    expectCode(()=>authority.validatePayload(payload),'GATE_A_PAYLOAD_SCHEMA');
+  }
+  expectCode(()=>authority.validatePayload({...f.payload,target:{...f.payload.target,session_id:0}}),'GATE_A_TARGET_SESSION');
+  const rawContext=bytes({budget:{p1:{target_session_id:3}}});
+  const payloadBytes=bytes({...f.payload,run_context_sha256:H(rawContext)});
+  expectCode(()=>formal({...common,payloadBytes,receiptBytes:bytes(receipt(H(payloadBytes))),runContextBytes:rawContext}),'EXECUTION_INPUT_SESSION_MISMATCH');
 });

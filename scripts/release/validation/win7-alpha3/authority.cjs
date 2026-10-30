@@ -18,6 +18,7 @@ const PAYLOAD_FIELDS = Object.freeze([
   'schema_version', 'kind', 'run_id', 'execution_layout', 'evidence_class',
   'formal_input_lock_sha256', 'approval_registry', 'candidate', 'target',
   'execution_binding', 'deny_set', 'window', 'budget',
+  'execution_tools_manifest_sha256', 'run_context_sha256', 'phase_plan_sha256',
 ]);
 const RECEIPT_FIELDS = Object.freeze([
   'schema_version', 'status', 'signed', 'run_id', 'owner_reply_verbatim', 'independent_pin',
@@ -164,7 +165,9 @@ function validatePayload(value) {
   if (!HEX40.test(value.approval_registry.commit || '')) reject('GATE_A_REGISTRY_COMMIT');
   exactHash(value.approval_registry.sha256, 'GATE_A_REGISTRY_SHA256');
   validateCandidate(value.candidate);
-  exactKeys(value.target, TARGET_FIELDS, 'GATE_A_TARGET_SCHEMA');
+  exactKeys(value.target, TARGET_FIELDS.concat(['session_id']), 'GATE_A_TARGET_SCHEMA');
+  if (!Number.isSafeInteger(value.target.session_id) || value.target.session_id < 1) reject('GATE_A_TARGET_SESSION');
+  for (const key of ['execution_tools_manifest_sha256', 'run_context_sha256', 'phase_plan_sha256']) exactHash(value[key], 'GATE_A_INPUT_SHA256');
   if (typeof value.target.machine_name !== 'string' || !value.target.machine_name) reject('GATE_A_TARGET_MACHINE');
   if (typeof value.target.account_sid !== 'string' || !/^S-1-5-21-[0-9-]+$/.test(value.target.account_sid)) reject('GATE_A_TARGET_SID');
   exactKeys(value.execution_binding, ['path', 'sha256'], 'GATE_A_EXECUTION_BINDING_SCHEMA');
@@ -202,13 +205,40 @@ function validateReceipt(value) {
   return { value, received, expires, confirmed };
 }
 
+// Exact raw-byte binding shared by the two local entries. Owner-only semantics stay in validateFormal.
+function validateInputs(options, expected) {
+  if (!plain(expected)) reject('EXECUTION_INPUT_BINDINGS_REQUIRED');
+  const names = [
+    ['execution_tools_manifest_sha256', 'executionToolsManifestBytes', 'executionToolsManifestPath'],
+    ['run_context_sha256', 'runContextBytes', 'runContextPath'],
+    ['phase_plan_sha256', 'phasePlanBytes', 'phasePlanPath'],
+  ];
+  const actual = {};
+  for (const [field, bytesKey, pathKey] of names) {
+    exactHash(expected[field], 'EXECUTION_INPUT_SHA256');
+    const raw = readBytes(options, bytesKey, pathKey, field.toUpperCase());
+    if (sha256(raw) !== expected[field]) reject('EXECUTION_INPUT_BYTES_MISMATCH', field);
+    actual[field] = sha256(raw);
+    if (field === 'run_context_sha256') {
+      const context = parseJson(raw, 'RUN_CONTEXT_JSON_INVALID');
+      const session = context && context.budget && context.budget.p1 && context.budget.p1.target_session_id;
+      if (!expected.target || !Number.isSafeInteger(expected.target.session_id) || expected.target.session_id < 1
+        || session !== expected.target.session_id) reject('EXECUTION_INPUT_SESSION_MISMATCH');
+      actual.target_session_id = session;
+    }
+  }
+  return actual;
+}
+
 function validateDevelopment(options) {
   const bindingBytes = readBytes(options, 'executionBindingBytes', 'executionBindingPath', 'EXECUTION_BINDING');
   const binding = validateExecutionBinding(parseJson(bindingBytes, 'EXECUTION_BINDING_JSON_INVALID'));
   if (binding.evidence_class !== EVIDENCE_CLASSES.DEV_CHANNEL) reject('DEV_EXECUTION_BINDING_CLASS');
   const runId = validateRunId(options.runId);
   if (binding.run_id !== runId) reject('DEV_RUN_ID_MISMATCH');
+  const executionInputs = validateInputs(options, options.inputBindings);
   return {
+    execution_inputs: executionInputs,
     mode: 'DEV_CHANNEL',
     evidence_class: EVIDENCE_CLASSES.DEV_CHANNEL,
     run_id: runId,
@@ -251,8 +281,10 @@ function validateFormal(options) {
   if (binding.formal_input_lock_sha256 !== payload.formal_input_lock_sha256
     || JSON.stringify(binding.approval_registry) !== JSON.stringify(payload.approval_registry)
     || JSON.stringify(binding.candidate) !== JSON.stringify(payload.candidate)
-    || JSON.stringify(binding.target) !== JSON.stringify(payload.target)) reject('FORMAL_EXECUTION_BINDING_FIELDS');
+    || binding.target.machine_name !== payload.target.machine_name
+    || binding.target.account_sid !== payload.target.account_sid) reject('FORMAL_EXECUTION_BINDING_FIELDS');
 
+  const executionInputs = validateInputs(options, payload);
   const denySetBytes = readBytes(options, 'denySetBytes', 'denySetPath', 'DENY_SET');
   assertBoundPath(options.denySetPath, payload.deny_set.path, 'GATE_A_DENY_SET_PATH_MISMATCH');
   if (denySetBytes.length !== payload.deny_set.bytes) reject('GATE_A_DENY_SET_BYTES_MISMATCH');
@@ -274,6 +306,7 @@ function validateFormal(options) {
   if (payload.deny_set.initial_baseline_sha256 !== null && !HEX64.test(payload.deny_set.initial_baseline_sha256)) reject('GATE_A_DENY_SET_INITIAL_BASELINE');
 
   return {
+    execution_inputs: executionInputs,
     mode: 'FORMAL_GATE_A_EXECUTION',
     evidence_class: EVIDENCE_CLASSES.FORMAL_GATE_A_EXECUTION,
     run_id: payload.run_id,
@@ -310,6 +343,7 @@ module.exports = {
   validateLayout,
   validatePayload,
   validateReceipt,
+  validateInputs,
   validateDevelopment,
   validateFormal,
   validateAndReserve,

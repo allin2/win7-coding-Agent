@@ -1,0 +1,1488 @@
+{
+  "schema_version": 1,
+  "task": "A9-43-P2-step2",
+  "baseline_head": "f6792d09d34aed5215ab7792cc81ac00c563a594",
+  "source_selection": "CTRL-RUN actual transferred bytes preferred; CTRL for local-only/not-transferred closure. No archived code executed.",
+  "status": "LOCAL_CLI_CONNECTED_TARGET_ADMISSION_NOT_PERFORMED",
+  "files": [
+    {
+      "file": "admin-commands.txt",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-commands.txt",
+      "source_sha256": "55902e0b0c8a48c7a00be2e3d48dd9d5e08cd4475f9fdf116c9da795b07f1f83",
+      "source_bytes": 4816,
+      "role": "local-entry",
+      "version_changes": [
+        "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
+        "Replace historical executable R2 material with current shared protocol and ownership rules; no historical dispatch block."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-commands.txt",
+      "ctrl_source_sha256": "55902e0b0c8a48c7a00be2e3d48dd9d5e08cd4475f9fdf116c9da795b07f1f83",
+      "ctrl_run_differs": false,
+      "current_sha256": "aec18e1c2a0c0363ab966e4fa0e2b4d89d805e0c06c3887999c28fd2f3f6825f",
+      "current_bytes": 1147,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "admin-materials.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/admin-materials.ps1",
+      "source_sha256": "655ce14b29f922199286febbece52687e8fcad9c2bce391ec22ae4e276148f4e",
+      "source_bytes": 8822,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
+        "Bound ZIP data; p/w/d/e/t; fixed XML compare; one validated root Run parameter; exact task cleanup; unique readback evidence. PS/COM NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-materials.ps1",
+      "ctrl_source_sha256": "655ce14b29f922199286febbece52687e8fcad9c2bce391ec22ae4e276148f4e",
+      "ctrl_run_differs": false,
+      "current_sha256": "c186db98d531b0cddc406ad671f81a3f5a8b67866a8e1e7625ff0e23e58c2cf4",
+      "current_bytes": 10389,
+      "inventory_disposition_ids": {
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-materials.ps1:18"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "admin-zip.cs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/admin-zip.cs",
+      "source_sha256": "85948653a77fc05c332ea7f57cb21e15add2b1a34c8a87b111ab36502c89a18e",
+      "source_bytes": 7178,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
+        "Exact bound ZIP SHA/top/count; strip only bound top into p; preserve original hard gates and bounded tree; central-end check. Actual compile/unzip NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-zip.cs",
+      "ctrl_source_sha256": "85948653a77fc05c332ea7f57cb21e15add2b1a34c8a87b111ab36502c89a18e",
+      "ctrl_run_differs": false,
+      "current_sha256": "c35e137124a4d961076d8500ca8b462cc3b8f07da2d6206eb231a47b662e64c0",
+      "current_bytes": 7775,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0248"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "controller-injob-probe.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/controller-injob-probe.ps1",
+      "source_sha256": "8c189db950e5aef62a9bc1518b9034ac8d65609edfddca5676ef28eaa59fb0af",
+      "source_bytes": 4770,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Short p/t/e/d/w layout; original identity/Job/audit/lifecycle guards retained; shared Session where applicable. Target NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/controller-injob-probe.ps1",
+      "ctrl_source_sha256": "8c189db950e5aef62a9bc1518b9034ac8d65609edfddca5676ef28eaa59fb0af",
+      "ctrl_run_differs": false,
+      "current_sha256": "a3b96e41033eb60653d82b6c02e55218b61e1f141f540a272f6fe2a34c97a49a",
+      "current_bytes": 4755,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "developer-json-contract.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/developer-json-contract.cjs",
+      "source_sha256": "34870e3636a4c0d1cdd99a691ad706c5e92efae860f4d799bffd3acda6e96d1d",
+      "source_bytes": 1715,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED.",
+        "No longer required by actual controller/target closure; file retained without deletion."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/developer-json-contract.cjs",
+      "ctrl_source_sha256": "34870e3636a4c0d1cdd99a691ad706c5e92efae860f4d799bffd3acda6e96d1d",
+      "ctrl_run_differs": false,
+      "current_sha256": "34870e3636a4c0d1cdd99a691ad706c5e92efae860f4d799bffd3acda6e96d1d",
+      "current_bytes": 1715,
+      "inventory_disposition_ids": {
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/developer-json-contract.cjs:7"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "environment-process.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/environment-process.ps1",
+      "source_sha256": "f77a260381f8451eec43ef8780a71a3681924ca3f4a383c35c0bb822b24935cd",
+      "source_bytes": 918,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/environment-process.ps1",
+      "ctrl_source_sha256": "f77a260381f8451eec43ef8780a71a3681924ca3f4a383c35c0bb822b24935cd",
+      "ctrl_run_differs": false,
+      "current_sha256": "f77a260381f8451eec43ef8780a71a3681924ca3f4a383c35c0bb822b24935cd",
+      "current_bytes": 918,
+      "inventory_disposition_ids": {
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/a9-39/w55-formal-supplement-r1/package/tools/environment-process.ps1:5"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "finalize-signing.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/finalize-signing.cjs",
+      "source_sha256": "fe0381587fe75e1c7a0d1342b54f298b50164c6d88dfcb026c48257486621d7e",
+      "source_bytes": 14039,
+      "role": "local-entry",
+      "version_changes": [
+        "Forward to local-entry/P1 only; old signer and formal-only preflight retired."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/finalize-signing.cjs",
+      "ctrl_source_sha256": "fe0381587fe75e1c7a0d1342b54f298b50164c6d88dfcb026c48257486621d7e",
+      "ctrl_run_differs": false,
+      "current_sha256": "b75a58f3ff98e9753c5d2289772386f32acd089ebf91e8bac80c21ac1cce6269",
+      "current_bytes": 230,
+      "inventory_disposition_ids": {
+        "仅本地授权": [
+          "D-0357",
+          "D-0358",
+          "D-0359",
+          "D-0360",
+          "D-0361",
+          "D-0362",
+          "D-0363",
+          "D-0364",
+          "D-0365",
+          "D-0366",
+          "X-0323",
+          "X-0324",
+          "X-0325",
+          "X-0326",
+          "X-0327",
+          "X-0328",
+          "X-0329",
+          "X-0330"
+        ],
+        "路径安全": [
+          "D-0367"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "gpu-cleanup.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/gpu-cleanup.ps1",
+      "source_sha256": "85e5cd409636ba6aa20775b14806bb37de9edc8e1a353031d06a4eb47375db33",
+      "source_bytes": 4575,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Short roots; current run image and Session before termination; instance/owner/handle/recheck retained. PS execution NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/gpu-cleanup.ps1",
+      "ctrl_source_sha256": "85e5cd409636ba6aa20775b14806bb37de9edc8e1a353031d06a4eb47375db33",
+      "ctrl_run_differs": false,
+      "current_sha256": "656b548c85d6604628f4c9db90829d92c80533b2dbca18b18773f17da8c419db",
+      "current_bytes": 4794,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "gpu-contract.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/gpu-contract.cjs",
+      "source_sha256": "0b04f1f29210ca434e2256760b74316116c995636a160a4093d3cb37e546cdf6",
+      "source_bytes": 7612,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Same Session guard for both labels; no receipt; Node16 hasOwn compatibility; live GPU NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/gpu-contract.cjs",
+      "ctrl_source_sha256": "0b04f1f29210ca434e2256760b74316116c995636a160a4093d3cb37e546cdf6",
+      "ctrl_run_differs": false,
+      "current_sha256": "a3404c8f3cb64b406ca017b14710964e50dde593aba8c7c3040bf9fef6caded9",
+      "current_bytes": 7499,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0259"
+        ],
+        "仅本地授权": [
+          "D-0260"
+        ],
+        "仅证据标签": [
+          "D-0261"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "gpu-entry-gate.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/gpu-entry-gate.ps1",
+      "source_sha256": "ae2790c67ea4e39181182affade123b9966a00e1f75a26e943f3f0b4cb0c6b6c",
+      "source_bytes": 6494,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Short p/t/e/d/w layout; original identity/Job/audit/lifecycle guards retained; shared Session where applicable. Target NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/gpu-entry-gate.ps1",
+      "ctrl_source_sha256": "ae2790c67ea4e39181182affade123b9966a00e1f75a26e943f3f0b4cb0c6b6c",
+      "ctrl_run_differs": false,
+      "current_sha256": "4338acba99819c3e1f85db459797680c45faa7f0b5e52a95e47883833a503441",
+      "current_bytes": 6128,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0262"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/gpu-entry-gate.ps1:52",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/gpu-entry-gate.ps1:53"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "issue-request.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/issue-request.cjs",
+      "source_sha256": "247649484849617e133433d4e3f302c8d057eb64cc9fad6016d5c71910da52fb",
+      "source_bytes": 12049,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No target receipt; request-bound binding SHA; shared consume and short roots. Live target NOT_PERFORMED.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/issue-request.cjs",
+      "ctrl_source_sha256": "247649484849617e133433d4e3f302c8d057eb64cc9fad6016d5c71910da52fb",
+      "ctrl_run_differs": false,
+      "current_sha256": "6656e2bc366ec0b740d7cf090ab7739173e6ef66544769172eab9410e8c19676",
+      "current_bytes": 11911,
+      "inventory_disposition_ids": {
+        "仅本地授权": [
+          "D-0263",
+          "X-0133"
+        ],
+        "路径安全": [
+          "D-0264",
+          "D-0265",
+          "D-0266",
+          "X-0135",
+          "X-0136",
+          "X-0137",
+          "X-0138",
+          "X-0139",
+          "X-0140"
+        ],
+        "统一": [
+          "X-0132",
+          "X-0134"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/issue-request.cjs:125",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/issue-request.cjs:131"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "de7496bcad02a81b879fb74f51acb8a6f0412c0cd054f422beb79fd44321a9d1"
+    },
+    {
+      "file": "launcher-common.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/launcher-common.ps1",
+      "source_sha256": "6d1436e1481cef86b34e6c4630672bce0bfc64f61a8c5e7124fa40e5a7807941",
+      "source_bytes": 11388,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/launcher-common.ps1",
+      "ctrl_source_sha256": "6d1436e1481cef86b34e6c4630672bce0bfc64f61a8c5e7124fa40e5a7807941",
+      "ctrl_run_differs": false,
+      "current_sha256": "6d1436e1481cef86b34e6c4630672bce0bfc64f61a8c5e7124fa40e5a7807941",
+      "current_bytes": 11388,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "launcher-contract.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/launcher-contract.cjs",
+      "source_sha256": "f06e47bc0e764c49a10d891c8528cceb31f7a261180588f258eef832afe71341",
+      "source_bytes": 4113,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Node16 hasOwnProperty.call; original chain/exit checks retained."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/launcher-contract.cjs",
+      "ctrl_source_sha256": "f06e47bc0e764c49a10d891c8528cceb31f7a261180588f258eef832afe71341",
+      "ctrl_run_differs": false,
+      "current_sha256": "fe2894c5301d0267476dea2d66d6c0ae6978c7fd0aa5f24f927d3b7ef8ff55cb",
+      "current_bytes": 4136,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0267",
+          "X-0141",
+          "X-0142",
+          "X-0143"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "make-run.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/make-run.cjs",
+      "source_sha256": "c96180af044090130338ddb0bd9507d8be8463664c4c7f3217d46efabb548d43",
+      "source_bytes": 3690,
+      "role": "local-entry",
+      "version_changes": [
+        "Assemble data/source only; output PREPARED_NOT_AUTHORIZED; no synthetic formal approval.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/make-run.cjs",
+      "ctrl_source_sha256": "c96180af044090130338ddb0bd9507d8be8463664c4c7f3217d46efabb548d43",
+      "ctrl_run_differs": false,
+      "current_sha256": "30f79ffb4487b1f86893c8741809b118d0831db927fe360307a191c201563ebd",
+      "current_bytes": 6995,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0368"
+        ],
+        "仅本地授权": [
+          "X-0333"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/make-run.cjs:13",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/make-run.cjs:7"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "e0df33964aa7ef164b8c61229fa2a7c896a8efed91db8eaad1c66e644d4ebe09"
+    },
+    {
+      "file": "mark-rehearsal.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/mark-rehearsal.cjs",
+      "source_sha256": "643056ef3bd2eee1e0690da8cb5aef4bfdb5483ebed2f5e8b30ec192ce81d9fc",
+      "source_bytes": 4015,
+      "role": "local-entry",
+      "version_changes": [
+        "Remove run-list lookup; P1 reservation handles replay; evidence classification only."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/mark-rehearsal.cjs",
+      "ctrl_source_sha256": "643056ef3bd2eee1e0690da8cb5aef4bfdb5483ebed2f5e8b30ec192ce81d9fc",
+      "ctrl_run_differs": false,
+      "current_sha256": "de939b4e2ee435b5e2628697fe2ff73ab1daed802a914bb23b79b5555954c00d",
+      "current_bytes": 3960,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0269"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:27",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:29",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:35",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:42",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:43",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/mark-rehearsal.cjs:48"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "phase-plan.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/phase-plan.cjs",
+      "source_sha256": "c81b5f9d99bdaff43a2f65d2c37500e683edaae3d6ed0989b590726dfb5ab02b",
+      "source_bytes": 3079,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Preserve FULL product/GPU order and Scheduler ceilings; budgets read from JSON; invariant PS/XML."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/phase-plan.cjs",
+      "ctrl_source_sha256": "c81b5f9d99bdaff43a2f65d2c37500e683edaae3d6ed0989b590726dfb5ab02b",
+      "ctrl_run_differs": false,
+      "current_sha256": "a8c4e6a8ea5ecdbd752c24f4b4e7fc2d49ed2b718a1a004846ba4414bec138c2",
+      "current_bytes": 2798,
+      "inventory_disposition_ids": {
+        "统一": [
+          "X-0145"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "presign-preflight.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/presign-preflight.ps1",
+      "source_sha256": "5bfc04a1c8c35f5d60a38d321662b2fdf96988f18323069cfa31b7fde79f8707",
+      "source_bytes": 3907,
+      "role": "local-entry",
+      "version_changes": [
+        "Fixed refusal; excluded from target closure. Shared R1 still pending.",
+        "Fixed refusal retained; excluded from actual closure. Shared R1 is now implemented in local loop."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/presign-preflight.ps1",
+      "ctrl_source_sha256": "5bfc04a1c8c35f5d60a38d321662b2fdf96988f18323069cfa31b7fde79f8707",
+      "ctrl_run_differs": false,
+      "current_sha256": "d31a8716f6c4fd7483bfed5302cdedd5b18e6b99a665b5c47d0022805ef1e041",
+      "current_bytes": 211,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "recovery-download.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/recovery-download.cjs",
+      "source_sha256": "dfb2aeb77c824d98c16950329ca1337bd41ae8e8925484cb273e46dfaa4c5623",
+      "source_bytes": 14430,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED.",
+        "Use same e/w short layout and supplied candidate ZIP/top; preserve scans, resume, bounded verification and exclusions."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/recovery-download.cjs",
+      "ctrl_source_sha256": "dfb2aeb77c824d98c16950329ca1337bd41ae8e8925484cb273e46dfaa4c5623",
+      "ctrl_run_differs": false,
+      "current_sha256": "0e3a19fe785da2915bf35ab9d834d3358fcaeb0ef02004a699536c5f7e788b4a",
+      "current_bytes": 14363,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0369"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "rehearsal-gate.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/rehearsal-gate.cjs",
+      "source_sha256": "7320b2500e96183570be24e799b71245fdff57a22c5fe00dda3d5493b1bc3ddd",
+      "source_bytes": 45331,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Remove local signing/static deny history; shared binding, window, Session, activation and ledger guards. R1-R8 caller pending.",
+        "Remove now-unused wire require; shared consume/activation/ledger gates retained and exercised in loop tests.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs",
+      "ctrl_source_sha256": "7320b2500e96183570be24e799b71245fdff57a22c5fe00dda3d5493b1bc3ddd",
+      "ctrl_run_differs": false,
+      "current_sha256": "7e8a2ab638815e3f18a418c4cc59df51024f4c2be3a59632f3975577065cbd51",
+      "current_bytes": 25733,
+      "inventory_disposition_ids": {
+        "仅证据标签": [
+          "D-0370",
+          "D-0387"
+        ],
+        "路径安全": [
+          "D-0371",
+          "D-0372",
+          "D-0373",
+          "D-0379",
+          "D-0380",
+          "D-0381",
+          "D-0385",
+          "D-0388",
+          "X-0337",
+          "X-0403",
+          "X-0407",
+          "X-0438",
+          "X-0439",
+          "X-0441",
+          "X-0442"
+        ],
+        "仅本地授权": [
+          "D-0374",
+          "D-0375",
+          "D-0376",
+          "D-0377",
+          "D-0378",
+          "D-0382",
+          "X-0334",
+          "X-0335",
+          "X-0338",
+          "X-0339",
+          "X-0340",
+          "X-0341",
+          "X-0342",
+          "X-0343",
+          "X-0344",
+          "X-0345",
+          "X-0346",
+          "X-0347",
+          "X-0348",
+          "X-0349",
+          "X-0350",
+          "X-0351",
+          "X-0352",
+          "X-0353",
+          "X-0354",
+          "X-0355",
+          "X-0356",
+          "X-0357",
+          "X-0358",
+          "X-0359",
+          "X-0360",
+          "X-0361",
+          "X-0362",
+          "X-0363",
+          "X-0364",
+          "X-0365",
+          "X-0366",
+          "X-0367",
+          "X-0368",
+          "X-0369",
+          "X-0370",
+          "X-0371",
+          "X-0372",
+          "X-0373",
+          "X-0381",
+          "X-0382",
+          "X-0383",
+          "X-0384",
+          "X-0385",
+          "X-0386",
+          "X-0387",
+          "X-0388",
+          "X-0389",
+          "X-0390",
+          "X-0391",
+          "X-0392",
+          "X-0393",
+          "X-0394",
+          "X-0395",
+          "X-0396",
+          "X-0397",
+          "X-0398",
+          "X-0399",
+          "X-0409",
+          "X-0428",
+          "X-0440"
+        ],
+        "统一": [
+          "D-0383",
+          "D-0384",
+          "D-0386",
+          "X-0374",
+          "X-0375",
+          "X-0376",
+          "X-0377",
+          "X-0378",
+          "X-0379",
+          "X-0380",
+          "X-0400",
+          "X-0401",
+          "X-0402",
+          "X-0404",
+          "X-0405",
+          "X-0406",
+          "X-0408",
+          "X-0410",
+          "X-0411",
+          "X-0412",
+          "X-0413",
+          "X-0414",
+          "X-0415",
+          "X-0416",
+          "X-0417",
+          "X-0418",
+          "X-0419",
+          "X-0420",
+          "X-0421",
+          "X-0422",
+          "X-0423",
+          "X-0424",
+          "X-0425",
+          "X-0426",
+          "X-0427",
+          "X-0429",
+          "X-0430",
+          "X-0431",
+          "X-0432",
+          "X-0433",
+          "X-0434",
+          "X-0435",
+          "X-0436"
+        ],
+        "NOT_A_MODE_OR_ROOT_BRANCH": [
+          "X-0336"
+        ],
+        "产品或用例模式": [
+          "X-0437"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:198",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:226",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:317",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:436",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:454",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:506",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-gate.cjs:82"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "b4d9b43705073e4fe57569bd03441e266517bdc983ee9d6847cbb041fd91f577"
+    },
+    {
+      "file": "rehearsal-task.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/rehearsal-task.ps1",
+      "source_sha256": "f5b36652086a15c770873d021c3410b1b6dd8e078441ed8dcc4965a775b525f0",
+      "source_bytes": 9905,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Short p/t/e/d/w layout; original identity/Job/audit/lifecycle guards retained; shared Session where applicable. Target NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/rehearsal-task.ps1",
+      "ctrl_source_sha256": "f5b36652086a15c770873d021c3410b1b6dd8e078441ed8dcc4965a775b525f0",
+      "ctrl_run_differs": false,
+      "current_sha256": "66c7d21ddbe9a172bdcf13eb3229c1c1ad5212ec47accfafbd00e71d8aaad41a",
+      "current_bytes": 9842,
+      "inventory_disposition_ids": {
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/rehearsal-task.ps1:150",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-dev-controller-package-r4/tools/rehearsal-task.ps1:58"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "remote-inputs.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/remote-inputs.cjs",
+      "source_sha256": "a0fac4af26ed51b88527ca9a5f50cffb25eae40c23ebaf031ddc58530c690341",
+      "source_bytes": 4713,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Separate closed source bytes and JSON hashes; no receipt or deny projection; source includes pending PS/C#.",
+        "Bound package projection and preserved raw context bytes; remove unused developer-json dependency from actual target closure."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/remote-inputs.cjs",
+      "ctrl_source_sha256": "a0fac4af26ed51b88527ca9a5f50cffb25eae40c23ebaf031ddc58530c690341",
+      "ctrl_run_differs": false,
+      "current_sha256": "69623cfe6344bdab0b00524b1d018172570cb7515c812ab18327e1ace3f9107c",
+      "current_bytes": 5681,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0289",
+          "D-0290",
+          "D-0291",
+          "X-0258"
+        ],
+        "路径安全": [
+          "X-0251",
+          "X-0253",
+          "X-0255",
+          "X-0256",
+          "X-0257"
+        ],
+        "NOT_A_MODE_OR_ROOT_BRANCH": [
+          "X-0252",
+          "X-0254"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "run-admin.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1",
+      "source_sha256": "659ee436dc367aec4c2c9a94ea6bb6274e441ed497afe1d02fb107c0067a9d46",
+      "source_bytes": 37517,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Historical source copy for continuing R1/R2/ZIP/task migration; old run/source/hash/count/layout remain. No dispatch via blocked run entry.",
+        "Shared R1/R2 four-condition admission and exact Session; whole channel process/task checks; existing v1 lock current run token; allowed parents only; root-only ACL; bound task cleanup and lock release. PS runtime NOT_PERFORMED.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1",
+      "ctrl_source_sha256": "659ee436dc367aec4c2c9a94ea6bb6274e441ed497afe1d02fb107c0067a9d46",
+      "ctrl_run_differs": false,
+      "current_sha256": "f51d6eb4b5ddde27ab2ddea3bd4e001e729ba21ae5ed86093a7f4e03051558ed",
+      "current_bytes": 42240,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0389",
+          "D-0394",
+          "D-0395"
+        ],
+        "统一": [
+          "D-0390",
+          "D-0391",
+          "D-0392",
+          "D-0393"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:259",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:260",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:301",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:302",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:308",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:324",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:358",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1:6"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED",
+      "prior_round_current_sha256": "b05af51dd2ddff9ad83f5644922053ed1ccbf1a128874070d1ef462bef30d84a"
+    },
+    {
+      "file": "run-context.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/run-context.cjs",
+      "source_sha256": "bbd09a8835cb2703013dd9ee4420dad4f68bded4aac00789e3542934847956b0",
+      "source_bytes": 5200,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "External versioned data; exact p/t/e/d/w; LAN only; no history or run interpolation; fixed runtimePS.",
+        "Validate and project package top/count/ZIP/inventory/SID data without code rendering."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-context.cjs",
+      "ctrl_source_sha256": "bbd09a8835cb2703013dd9ee4420dad4f68bded4aac00789e3542934847956b0",
+      "ctrl_run_differs": false,
+      "current_sha256": "1a29397aaa3d93dfa69ac279d729963e16473637533ae09c49a578ba3eea8ca8",
+      "current_bytes": 8213,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0396",
+          "D-0398",
+          "D-0399",
+          "D-0400",
+          "D-0401",
+          "D-0402",
+          "X-0443",
+          "X-0444",
+          "X-0445",
+          "X-0447",
+          "X-0448"
+        ],
+        "仅证据标签": [
+          "D-0397"
+        ],
+        "仅本地授权": [
+          "D-0403",
+          "X-0446"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "run-rehearsal.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs",
+      "source_sha256": "beb20e18488c076f9fba10471531efc7ebaf03364e9c2fe6c2cc7b5b21ccaccd",
+      "source_bytes": 43317,
+      "role": "local-entry",
+      "version_changes": [
+        "Run first statement throws before spawn; original orchestration remains for continuation; Node16 hasOwn replacement. Old branches/receipt transfer remain unreachable and pending.",
+        "Shared local prepare/admission/R1-R8 injected-executor loop; fixed source bootstrap and separate stdin JSON; one transport counter; no presign/run-set/receipt upload. CLI remains blocked.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs",
+      "ctrl_source_sha256": "beb20e18488c076f9fba10471531efc7ebaf03364e9c2fe6c2cc7b5b21ccaccd",
+      "ctrl_run_differs": false,
+      "current_sha256": "38c8652ea1eafa2c699e59142842430e67ccc367caeeed32e615fcd94b190f47",
+      "current_bytes": 37169,
+      "inventory_disposition_ids": {
+        "统一": [
+          "D-0404",
+          "D-0405",
+          "D-0406",
+          "D-0407",
+          "D-0408",
+          "D-0411",
+          "D-0413",
+          "D-0415",
+          "D-0417",
+          "D-0440",
+          "D-0441",
+          "D-0442",
+          "D-0443",
+          "D-0444",
+          "D-0445",
+          "D-0446",
+          "D-0447",
+          "D-0449",
+          "X-0449",
+          "X-0455",
+          "X-0456",
+          "X-0457",
+          "X-0458",
+          "X-0459",
+          "X-0460",
+          "X-0461",
+          "X-0462",
+          "X-0463",
+          "X-0469",
+          "X-0470",
+          "X-0471",
+          "X-0472",
+          "X-0473",
+          "X-0474",
+          "X-0478",
+          "X-0479",
+          "X-0480",
+          "X-0481",
+          "X-0482",
+          "X-0483",
+          "X-0484",
+          "X-0485",
+          "X-0486",
+          "X-0500",
+          "X-0501",
+          "X-0502",
+          "X-0503",
+          "X-0504",
+          "X-0505",
+          "X-0506",
+          "X-0507",
+          "X-0508"
+        ],
+        "仅证据标签": [
+          "D-0409",
+          "D-0410",
+          "D-0416",
+          "D-0419",
+          "D-0431",
+          "D-0436",
+          "D-0437",
+          "D-0438",
+          "D-0448"
+        ],
+        "路径安全": [
+          "D-0412",
+          "D-0418",
+          "D-0420",
+          "D-0421",
+          "D-0422",
+          "D-0423",
+          "D-0424",
+          "D-0425",
+          "D-0429",
+          "X-0450",
+          "X-0451",
+          "X-0452",
+          "X-0453",
+          "X-0454",
+          "X-0475",
+          "X-0476",
+          "X-0477",
+          "X-0498"
+        ],
+        "仅本地授权": [
+          "D-0414",
+          "D-0426",
+          "D-0427",
+          "D-0428",
+          "D-0430",
+          "D-0432",
+          "D-0433",
+          "D-0434",
+          "D-0435",
+          "D-0439",
+          "D-0450",
+          "X-0464",
+          "X-0465",
+          "X-0466",
+          "X-0467",
+          "X-0487",
+          "X-0488",
+          "X-0490",
+          "X-0491",
+          "X-0492",
+          "X-0493",
+          "X-0494",
+          "X-0495",
+          "X-0496",
+          "X-0497",
+          "X-0499"
+        ],
+        "NOT_A_MODE_OR_ROOT_BRANCH": [
+          "X-0468",
+          "X-0489"
+        ],
+        "BINDING_OR_LABEL": [
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs:180",
+          "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs:368"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "c9342cd44b488e4965d8f0f8ca401fe028737ccb80e6ede0231960cd9fc2bce4"
+    },
+    {
+      "file": "trace-contract.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/trace-contract.cjs",
+      "source_sha256": "8ef6981eb52dc92b6cfde780532d44f6c314e2313ed741a83608c01c0bd98a4c",
+      "source_bytes": 2855,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/trace-contract.cjs",
+      "ctrl_source_sha256": "8ef6981eb52dc92b6cfde780532d44f6c314e2313ed741a83608c01c0bd98a4c",
+      "ctrl_run_differs": false,
+      "current_sha256": "8ef6981eb52dc92b6cfde780532d44f6c314e2313ed741a83608c01c0bd98a4c",
+      "current_bytes": 2855,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "trace-seal.cjs",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/trace-seal.cjs",
+      "source_sha256": "2dc185933f1c377ba4deca3dca7865b3e36bc57ddfc40ab5713b27f6a2331cda",
+      "source_bytes": 2991,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Load explicit preparation context; original raw scanning/lifecycle gates retained."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/trace-seal.cjs",
+      "ctrl_source_sha256": "2dc185933f1c377ba4deca3dca7865b3e36bc57ddfc40ab5713b27f6a2331cda",
+      "ctrl_run_differs": false,
+      "current_sha256": "aeea69b80c6dff1e6212999a5a0ead98e74390d6ec24fd6010b5de3d964bd796",
+      "current_bytes": 2995,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "writer-registry.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tools/writer-registry.ps1",
+      "source_sha256": "09ee1740beb0f2b2d0ae8c06b19c8dcf2a29ef54d36011146442f14a11f06d6d",
+      "source_bytes": 27382,
+      "role": "shared-or-target-execution",
+      "version_changes": [
+        "Short p/t/e/d/w layout; original identity/Job/audit/lifecycle guards retained; shared Session where applicable. Target NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/writer-registry.ps1",
+      "ctrl_source_sha256": "09ee1740beb0f2b2d0ae8c06b19c8dcf2a29ef54d36011146442f14a11f06d6d",
+      "ctrl_run_differs": false,
+      "current_sha256": "f4d721bbfe3b68cffff3ea4fccbe109943ce94cc957bb3609780656229433f53",
+      "current_bytes": 27368,
+      "inventory_disposition_ids": {
+        "路径安全": [
+          "D-0356"
+        ]
+      },
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "payload/capturer.js",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/payload/capturer.js",
+      "source_sha256": "923c50603f8e1296811ef443f6261a30b04d8caebd640121b60624229d2543a4",
+      "source_bytes": 5388,
+      "role": "target-gpu-payload",
+      "version_changes": [
+        "Short roots and validated evidence label; output/event/identity/lifecycle bounds retained."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "current_sha256": "d0413c71d56c7971838bde4eb6d83a00a3e83d95a2bf07521d05dd97b24d1952",
+      "current_bytes": 5370,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "payload/event-log.js",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/payload/event-log.js",
+      "source_sha256": "5073ff994fe23e55d7efdeb2c1f25a4a1adf30d60acd8287b938a84d47001e48",
+      "source_bytes": 2811,
+      "role": "target-gpu-payload",
+      "version_changes": [
+        "Short roots and validated evidence label; output/event/identity/lifecycle bounds retained."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "current_sha256": "8d955926dad965f203ac94cf7d7b163d9ae786528564a70d50edad75b8b05dbc",
+      "current_bytes": 2745,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "payload/diag-app/main.js",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/payload/diag-app/main.js",
+      "source_sha256": "7a55a20d651f1a29186e73afa3b52e8e29712f77f46fd8101bf1567f67e85408",
+      "source_bytes": 2660,
+      "role": "target-gpu-payload",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "current_sha256": "7a55a20d651f1a29186e73afa3b52e8e29712f77f46fd8101bf1567f67e85408",
+      "current_bytes": 2660,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "payload/diag-app/package.json",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/payload/diag-app/package.json",
+      "source_sha256": "49645351c2f4ffb745936ac28b892dc22bd0f916120849cad547de2e6a035cb7",
+      "source_bytes": 180,
+      "role": "target-gpu-payload",
+      "version_changes": [
+        "No byte changes; actual require/dot-source/GPU closure source; runtime NOT_PERFORMED."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "current_sha256": "49645351c2f4ffb745936ac28b892dc22bd0f916120849cad547de2e6a035cb7",
+      "current_bytes": 180,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "tasks/gpu-entry-gate.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/gpu-entry-gate.xml",
+      "source_sha256": "095c681ba362a8514a08c86b529ea0562eba5d29652e81eb818b9db6c9dc89af",
+      "source_bytes": 1580,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "7deeb16704ba531f314cd45b617e2d86b8349b18f117f98905a241385386c591",
+      "current_bytes": 1353,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p01-env.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p01-env.xml",
+      "source_sha256": "c0dfea02763e5ee1bd8d62dfb25c2e6d78dfb850720cb051457827845808e8ae",
+      "source_bytes": 1566,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "ed8cf5b5b1eeab4fb95755d03617de2564c3779828fb867ce56f851d395291ef",
+      "current_bytes": 1339,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p02-integrity.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p02-integrity.xml",
+      "source_sha256": "9a782f7a1f38e81ca7c48fdcaede957bfd7041bb0d22024b4dc161e539ad3d4d",
+      "source_bytes": 1578,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "e228a4325b2b74c3de56db7557d0b926087c9fe42643da13ab8f6a4c99917129",
+      "current_bytes": 1351,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p03-chain.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p03-chain.xml",
+      "source_sha256": "6bb322ce44545102b0b0dd89d7820417da18b36294ed5e0c6717c2dbe1e2c0d5",
+      "source_bytes": 1571,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "0a8948beee489a8cf6fcc95e4296e7cc403963ddda772a7b1618b33a7762446c",
+      "current_bytes": 1344,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p04-streaming.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p04-streaming.xml",
+      "source_sha256": "e87cf2ed5b591fa71048863424a2bb688c057c45ad1d28a8b07211f7cd7facd8",
+      "source_bytes": 1579,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "10c4b4db3848f532b58587b647bbafdfe329f155a5366c1a926b625b9950cf30",
+      "current_bytes": 1352,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p05-session-bg.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p05-session-bg.xml",
+      "source_sha256": "942a6d6327c032d91a539c1e6e776575fbdea51b1646d7e38a34f89d4d6812ab",
+      "source_bytes": 1580,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "f76ed02955a6ba463a7109d931e7639f4b68a3944fb16ee853dada259c098d0d",
+      "current_bytes": 1353,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p06-continue.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p06-continue.xml",
+      "source_sha256": "2b55f03a1b83b3bdcad22342b9a970b952986bcbab584aa560a1f6854a702bfc",
+      "source_bytes": 1576,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "2d3af5a514ad67d8190a467c77bd14a26438ca88cdf7baf03d72fac740d5075e",
+      "current_bytes": 1349,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p07-safe.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p07-safe.xml",
+      "source_sha256": "65795ecf4804d25b6a0f7397d479fa72aa80df264a66c0ab2d7713e40cddf295",
+      "source_bytes": 1570,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "40612cc9a434f6d64e76f83544b20bccff71d1e46c532eede3db4cfa1f6e5cdd",
+      "current_bytes": 1343,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p08-ui.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p08-ui.xml",
+      "source_sha256": "f775f311d7e8e038ef1d214785144177093c480a2190c11905b3c974318ee13a",
+      "source_bytes": 1564,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "89aec837d0b25ae8e73bab0a433d805032627a2c01eed2d10132e3a02c093ec7",
+      "current_bytes": 1337,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p09-report.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p09-report.xml",
+      "source_sha256": "9bf57a73fdeaec983de71657ed45c59996354927a83473362796778cf2a31a5c",
+      "source_bytes": 1572,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "ec3bfe19088c9c21f584f54f81f5e03dbfd61baa47255f73874e68d511371360",
+      "current_bytes": 1345,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "tasks/p10-postflight.xml",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/tasks/p10-postflight.xml",
+      "source_sha256": "c4fe789e414b40126da642192894792c24c491eb64269ea789c23201b88390b7",
+      "source_bytes": 1580,
+      "role": "target-task-template",
+      "version_changes": [
+        "No run/class/source/package metadata in XML; fixed $(Arg0) root parameter; original identity/settings/ceilings; Run adapter and target readback pending."
+      ],
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "current_sha256": "b97d7ab568afffe7479da15bd32771f3979d080aad62337ce90060c6bf0bd545",
+      "current_bytes": 1353,
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "runtime.ps1",
+      "source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/outputs/a9-39-w54-formal-packages/gate-a/formal/f9ae2982/remote-inputs/external/runtime.ps1",
+      "source_sha256": "236b53cfd0d49a3d9f04ddab4abf457d77fc38b412c55d7d278b9259a76c5bf7",
+      "source_bytes": 986,
+      "role": "target-runtime-reader",
+      "current_sha256": "e042d143a45151acbc5e855cd51e8ff2dd69eb7d7ce9ca516bc5b50a1252e4c5",
+      "current_bytes": 3872,
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED",
+      "version_changes": [
+        "Replace generated run variables with fixed PS2-style JSON reader; no eval; actual PS parser/runtime NOT_PERFORMED."
+      ],
+      "inventory_disposition_ids": {},
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "NOT_PERFORMED"
+    },
+    {
+      "file": "../authority.cjs",
+      "source_path": "git:HEAD:scripts/release/validation/win7-alpha3/authority.cjs",
+      "source_sha256": "62e9d23dd27852af1565db1009a4f30edb24ce91c7afb6614b109003772b2f61",
+      "source_bytes": 17027,
+      "source_ref": "f6792d09d34aed5215ab7792cc81ac00c563a594",
+      "role": "local-P1-authority",
+      "version_changes": [
+        "User-authorized minimal P1 payload raw manifest/context/phase-plan SHA and target.session_id extension; both local entries verify actual inputs."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "inventory_disposition_ids": {},
+      "current_sha256": "8ea1ddfae7aa1852c17b45c4ec3a86fe4d3f555074031653fc778460add8a3a5",
+      "current_bytes": 18981,
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "../test/authority.test.mjs",
+      "source_path": "git:HEAD:scripts/release/validation/win7-alpha3/test/authority.test.mjs",
+      "source_sha256": "106f7277fae43c24e0042f5a8022063c7b8e0f4ba5fd6cde0107b228e5a648c8",
+      "source_bytes": 12116,
+      "source_ref": "f6792d09d34aed5215ab7792cc81ac00c563a594",
+      "role": "node-test",
+      "version_changes": [
+        "User-authorized minimal P1 payload raw manifest/context/phase-plan SHA and target.session_id extension; both local entries verify actual inputs."
+      ],
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "inventory_disposition_ids": {},
+      "current_sha256": "377d1e1a30d6fb7ef239b2bd42e13639c0ec6f96be2a71afec6a51283a10665b",
+      "current_bytes": 14323,
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "runtime_evidence": "DEVELOPER_ONLY"
+    }
+  ],
+  "new_files": [
+    {
+      "file": "admission.cjs",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2",
+      "role": "shared-admission",
+      "version_changes": [
+        "ADR-0305 facts checker; caller wiring pending.",
+        "Shared four-condition guard; machine comparison follows existing case-insensitive target binding."
+      ],
+      "current_sha256": "d00276e5a998de47e04380311f785ea34149366e1073157024cf468465049598",
+      "current_bytes": 1318,
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY"
+    },
+    {
+      "file": "target-binding.cjs",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2",
+      "role": "target-binding",
+      "version_changes": [
+        "Pure shared SHA/schema/candidate/identity/window checks; no local authority dependency."
+      ],
+      "current_sha256": "73e7747bc5cd9bac089078dd2b5d069a42821244b1ce179fae84285aa32e193d",
+      "current_bytes": 3029,
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE"
+    },
+    {
+      "file": "local-entry.cjs",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2",
+      "role": "local-authority",
+      "version_changes": [
+        "Use existing P1; scope/budget validation then reservation; no target effects.",
+        "Check exact manifest/context/FULL-plan bytes before reservation; both P1 entries bind actual raw hashes and Session; retain dev scope and formal-only approval.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "current_sha256": "cdc47958b19ff29de7ba3cebaaaaa30c449b2380a1311c24993e4cc64a04143d",
+      "current_bytes": 4957,
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "e46ee3643c86824462cdd9dd68d3057375080a1c4c9e5d8afaf544e9032223af"
+    },
+    {
+      "file": "test/controller.test.cjs",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2",
+      "role": "node-test",
+      "version_changes": [
+        "19 development tests; scratch retained; target NOT_PERFORMED.",
+        "27 controller tests including explicit fake SSH/SFTP R1-R8 loop and failure stopping; total with P1 42 tests. Node16 uses a synchronous registration adapter.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "current_sha256": "0dc23d16ceab7948b9ca472fe302746cf1dbf608270fb457e1946ada4a0efcbb",
+      "current_bytes": 49180,
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE",
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "ab24a84dd042c9f2cb3bc144531ded51b5b873e7468aab06da6a80d5514d5960"
+    },
+    {
+      "file": "HANDOFF.md",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2",
+      "role": "handoff",
+      "version_changes": [
+        "Actual scope, baseline, evidence and exact continuation steps.",
+        "Current continuation evidence, exact remaining gates and recoverable blocked checkpoint.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "current_sha256": "72013bc94e83670eacb585002627a2be3e2e01ea023288cfa7500ff4d526d063",
+      "current_bytes": 9851,
+      "migration_status": "HANDOFF_UPDATED",
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "7effc84d7ddf0d0dc9b0789960f29fd6b648f596c2e1b39330c2d0d1cddfb254"
+    },
+    {
+      "file": "admin-input.ps1",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2_CONTINUATION",
+      "role": "fixed-local-ssh-input-reader",
+      "version_changes": [
+        "Shared fixed data reader or closure verification; no target action performed."
+      ],
+      "current_sha256": "0ce92fe7069e1cf334adafd908bcd940b9cde2ad62e3bdcf3149653461b6c314",
+      "current_bytes": 2736,
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "NOT_PERFORMED",
+      "migration_status": "SOURCE_REVIEWED_RUNTIME_NOT_PERFORMED"
+    },
+    {
+      "file": "execution-tools.cjs",
+      "source_path": null,
+      "source_sha256": null,
+      "origin": "NEW_FOR_A9_43_P2_CONTINUATION",
+      "role": "local-execution-closure-verifier",
+      "version_changes": [
+        "Shared fixed data reader or closure verification; no target action performed.",
+        "Third continuation: inventory point reconciliation, Git/raw material producer and local CLI integration; runtime admission remains NOT_PERFORMED. See HANDOFF and INVENTORY_REVIEW."
+      ],
+      "current_sha256": "406ab241f649d8d81db96500c3723d222d1068355b48caf7ac386ae73280f72b",
+      "current_bytes": 3328,
+      "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
+      "inventory_disposition_ids": {},
+      "runtime_evidence": "DEVELOPER_ONLY",
+      "prior_round_current_sha256": "36af2a9d4071ac8cb1376d7f9b98ca669873bdbc8f89391e9d8abd9163a8dc28",
+      "migration_status": "SOURCE_REVIEWED_LOCAL_VALIDATION_COMPLETE"
+    }
+  ],
+  "excluded": [
+    "supplement/M1-M6 (ADR-0305)",
+    "historical tests, previous run data, receipts, deny sets, binaries, evidence"
+  ],
+  "target_validation": "NOT_PERFORMED",
+  "implementation_complete": true,
+  "local_entry": "run -> runMigration; main parses descriptor/authorization; real spawn only provided by explicit CLI branch; all programmatic calls require an injected executor",
+  "context_handoff": "HANDOFF.md; recoverable stage checkpoint; exact context percentage unavailable",
+  "evidence": {
+    "level": "DEVELOPER",
+    "node": "v20.17.0",
+    "tests": "57/57 Node20 native node:test; 56/56 synchronous controller/P1 test bodies in Electron22/Node16 adapter; 1 async body NOT_PERFORMED on Node16 and PASS on Node20",
+    "log": "outputs/next-version-r1/p2-controller-migration-r1/logs/third-node-test-final-r4.log",
+    "node16_runtime": "Electron22.3.27 Node16.17.1, developer macOS only; controller/Git/target boundary executors injected",
+    "powershell_parser": "NOT_PERFORMED",
+    "target_execution": "NOT_PERFORMED",
+    "csharp_compiler": "NOT_PERFORMED",
+    "node16_log": "outputs/next-version-r1/p2-controller-migration-r1/logs/third-node16-all-sync-final-r2.log",
+    "git_dirty_refusal_log": "outputs/next-version-r1/p2-controller-migration-r1/logs/third-real-git-dirty-refusal-r2.log"
+  },
+  "pending_files": [
+    "run-admin.ps1 / admin-input.ps1 / admin-materials.ps1 / runtime.ps1 / task scripts: actual PS2/5.1 admission NOT_PERFORMED",
+    "admin-zip.cs: C# compilation and actual bound ZIP expansion NOT_PERFORMED",
+    "tasks/*.xml: actual Scheduler argument expansion/readback/deletion binding NOT_PERFORMED"
+  ],
+  "authority_envelope_gap": "Local production/attachment is implemented. Real clean Git manifest, final signed payload/seed and target runtime admission remain NOT_PERFORMED; no synthetic approval is issued.",
+  "observed_current_branch": "t3/win7-55-controller-migration",
+  "branch_note": "Initial branch t3/7d37bd8b; final name changed externally while HEAD remained identical; no checkout/rename by this implementation agent.",
+  "continuation_authorization": {
+    "source": "current user task",
+    "p1_exact_payload_additions": [
+      "execution_tools_manifest_sha256",
+      "run_context_sha256",
+      "phase_plan_sha256",
+      "target.session_id"
+    ],
+    "delegation": "NOT_PERFORMED",
+    "network": "NOT_PERFORMED",
+    "commits_pushes_deletions": "NOT_PERFORMED"
+  },
+  "completion_scope": "HANDOFF shortest chain items 1-3 local implementation; item 4 actual PS/C#/ZIP/Scheduler admission NOT_PERFORMED",
+  "inventory_review": {
+    "file": "INVENTORY_REVIEW.json",
+    "sha256": "45383c54078cec0144bae243da6c302d9c5b2e41ee4b07a7da4dbef7947c521b",
+    "migration_files": 52,
+    "point_records": 348,
+    "evidence": "DEVELOPER_STATIC_ONLY"
+  },
+  "third_continuation": {
+    "authorization": "current user task, shortest chain items 1-3 only; no target execution",
+    "changed_files": [
+      "issue-request.cjs",
+      "make-run.cjs",
+      "rehearsal-gate.cjs",
+      "run-admin.ps1",
+      "run-rehearsal.cjs",
+      "local-entry.cjs",
+      "test/controller.test.cjs",
+      "HANDOFF.md",
+      "execution-tools.cjs"
+    ],
+    "git_material_current_worktree": "REFUSED_GIT_CLOSURE_UNTRACKED",
+    "formal_expected_sha_source": "SIGNED_PAYLOAD_ONLY",
+    "runtime_next": "A9-43 section 6 authorized Win7 developer first window: shortest PS2/5.1, C#, actual ZIP and Scheduler admission before FULL dispatch",
+    "delegation": "NOT_PERFORMED",
+    "commits_pushes_deletions": "NOT_PERFORMED"
+  }
+}

@@ -1,0 +1,7 @@
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>A9-43 shared FULL controller phase=p06-continue; execution binding and common deadline required</Description></RegistrationInfo>
+  <Triggers />
+  <Principals><Principal id="Agent"><UserId>S-1-5-21-1708701742-428676696-1831205153-1001</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>false</StartWhenAvailable><RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT600S</ExecutionTimeLimit><Priority>7</Priority></Settings>
+  <Actions Context="Agent"><Exec><Command>C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Command><Arguments>-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(Arg0)\t\tools\rehearsal-task.ps1" -Phase p06-continue</Arguments><WorkingDirectory>$(Arg0)\w</WorkingDirectory></Exec></Actions>
+</Task>
