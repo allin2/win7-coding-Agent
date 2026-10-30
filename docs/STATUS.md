@@ -1,6 +1,6 @@
 # 当前项目状态
 
-更新：2026-10-29 America/Los_Angeles。当前开发工作区 main；A9-34 基线 `f374e3783eb6e863a84c97b0a28c94f52a2169c9`，A9-40 联合验证的源码身份与本地保存记录见任务书 §4.5、§5.1。
+更新：2026-10-30 America/Los_Angeles。当前开发工作区 main；A9-34 基线 `f374e3783eb6e863a84c97b0a28c94f52a2169c9`，A9-40 联合验证的源码身份与本地保存记录见任务书 §4.5、§5.1。
 
 ## 产品与可试用结果
 
@@ -15,6 +15,9 @@
 - [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：2026-10-29 负责人批准合并 A9-34、A9-40、A9-41、A9-42。目标版本 `v0.3.0-alpha.3`（候选 WIN7-56），走正式流程到发布。
   main 源码已推送到 `63e173fc…`；标签与发布 NOT_PERFORMED。冻结前缺口、D1～D6 裁决和开发级运行预算见任务书 §3～§6；执行目录与拒绝集见 ADR-0304。
   Win7 正式验收 NOT_PERFORMED；负责人试用材料在 `outputs/next-version-r1/owner-trial/`。试用结果 NOT_PERFORMED。
+  五阶段材料与 `a2ac37fd…` 开发包已准备；P4 收尾与本地接线见任务书 §8.8–§8.9。
+  Win7 只读容量准入已修复；总控原始 stdin 入口仍阻塞，全阶段 NOT_PERFORMED，见 §8.10。
+  首个只读窗口保守计账 1791.582 秒，0 真实模型请求；剩余 9008.418 秒、2 个窗口、60 次请求。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
   当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。

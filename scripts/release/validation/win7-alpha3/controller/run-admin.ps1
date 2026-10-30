@@ -337,15 +337,17 @@ function Trace([string]$event,[string]$data) {
       $lockRows = [IO.File]::ReadAllLines($lockFile.FullName,$Utf8)
       if ($lockRows.Length -ne 4 -or $lockRows[0] -cne '1' -or $lockRows[1] -cne $script:BoundHolder -or $lockRows[3] -cne '') { throw 'LOCK_NOT_IDLE_OR_NOT_HELD' }
       }
-      [long]$devUsed = 0; $devFiles = 0; $devDirs = @('C:\A9-DEV'); $devCursor = 0
+      [long]$devUsed = 0; $devFiles = 0; $devDirs = New-Object 'Collections.Generic.List[string]'; $devDirs.Add('C:\A9-DEV'); $devCursor = 0
       $devSizeEnd = (Ticks) + [long](10 * $Frequency)
       while ($devCursor -lt $devDirs.Count) {
         if ((Ticks) -ge $devSizeEnd -or $devDirs.Count -gt 65536) { throw 'CHANNEL_CAPACITY_UNKNOWN' }
         $devDir = $devDirs[$devCursor]; $devCursor++; Safe $devDir
-        foreach ($item in @(Get-ChildItem -LiteralPath $devDir -Force -ErrorAction Stop)) {
+        $devDirectory = [IO.DirectoryInfo]$devDir
+        foreach ($item in @($devDirectory.GetFileSystemInfos())) {
           if ((Ticks) -ge $devSizeEnd) { throw 'CHANNEL_CAPACITY_UNKNOWN' }
-          Safe $item.FullName
-          if ($item.PSIsContainer) { $devDirs += $item.FullName }
+          # Safe checked this directory and its ancestors above; inspect every child's own attributes.
+          if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'REPARSE_POINT' }
+          if ($item -is [IO.DirectoryInfo]) { $devDirs.Add($item.FullName) }
           else { $devFiles++; if ($devFiles -gt 262144) { throw 'CHANNEL_CAPACITY_UNKNOWN' }; $devUsed += $item.Length }
           if ($devUsed -gt 20000000000) { throw 'CHANNEL_CAPACITY_LIMIT' }
         }
