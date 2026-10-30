@@ -7,13 +7,15 @@
 // Transfer only after separate target approval. No plaintext key file is used.
 // deadline_utc=null templates are deliberately NOT executable.
 // spec: {source_root, zip_path, output_root, source_commit, run_id, session_id,
-//        target_input_package_root, target_zip_path}. No target connection or launch.
+//        execution_binding_path, target_tools_root}. No target connection or launch.
 const fs = require('fs');
 const path = require('path');
 const cp = require('child_process');
 const { pathToFileURL } = require('url');
 const { createRequire } = require('module');
 const driver = require('./a9-42-real-model-trial.cjs');
+const base = require('./a9-42-office-journey.cjs');
+const { verifyExecutionSource } = require('./a9-42-office-prepare.cjs');
 const { hash, safeError } = require('./a9-42-office-journey.cjs');
 const need = (v, code) => { if (!v) throw new Error(code); };
 function verifySourceIdentity(s) {
@@ -26,17 +28,24 @@ function verifySourceIdentity(s) {
   return { source_tree: packageTree, binding_tool_commit: git(['rev-parse','HEAD']).toString().trim() };
 }
 async function prepare(s) {
-  need(s && Object.keys(s).sort().join(',') === ['source_root','zip_path','output_root','source_commit','run_id','session_id','target_input_package_root','target_zip_path','real_model_request_limit','model','idle_seconds'].sort().join(','), 'PREPARE_FIELDS');
+  need(s && Object.keys(s).sort().join(',') === ['source_root','zip_path','output_root','source_commit','run_id','session_id','execution_binding_path','target_tools_root','real_model_request_limit','model','idle_seconds'].sort().join(','), 'PREPARE_FIELDS');
   for (const k of ['source_root','zip_path','output_root']) need(path.isAbsolute(s[k]), 'PREPARE_LOCAL_PATH');
+  need(path.isAbsolute(s.execution_binding_path), 'PREPARE_LOCAL_PATH');
   need(!fs.existsSync(s.output_root), 'PREPARE_OUTPUT_EXISTS');
+  const execution = base.loadExecutionBinding({ executionBindingPath: s.execution_binding_path });
+  need(execution.run_id === s.run_id && execution.source_commit === s.source_commit, 'PREPARE_EXECUTION_BINDING');
+  need(s.target_tools_root === execution.layout.tools_root, 'PREPARE_TARGET_LAYOUT');
   const git = args => cp.execFileSync('git', ['-C', s.source_root, ...args], { maxBuffer: 8 * 1024 * 1024 });
   const sourceIdentity = verifySourceIdentity(s);
+  verifyExecutionSource(s, 'a9-42-real-model-trial.cjs');
   const zip = await import(pathToFileURL(path.join(__dirname, '../release/zip-utils.mjs')).href);
   const entries = zip.readZipEntries(s.zip_path).filter(e => !e.directory);
   const manifests = entries.filter(e => e.name.endsWith('/release-manifest.json'));
   need(manifests.length === 1, 'PREPARE_ZIP_MANIFEST');
   const manifestBytes = zip.readZipEntry(manifests[0]); const m = JSON.parse(manifestBytes);
-  need(m.source_commit === s.source_commit && m.source_dirty === false && m.external_acceptance_eligible === false, 'PREPARE_PACKAGE_SOURCE');
+  need(m.source_commit === s.source_commit && m.source_dirty === false && m.external_acceptance_eligible === true
+    && hash(manifestBytes) === execution.manifest_sha256
+    && hash(fs.readFileSync(s.zip_path)) === execution.package_sha256, 'PREPARE_PACKAGE_SOURCE');
   const prefix = manifests[0].name.slice(0, -'release-manifest.json'.length);
   need(entries.length === m.files.length + 1, 'PREPARE_ZIP_EXTRA');
   need(new Set(entries.map(e => e.name.toLowerCase())).size === entries.length, 'PREPARE_ZIP_DUPLICATE');
@@ -80,41 +89,51 @@ async function prepare(s) {
     }
   }
   need(products.length > 10 && compiled.length > 10, 'PREPARE_PRODUCT_CLOSURE');
-  return emitMaterials(s, { manifestBytes, m, products, compiled, sourceIdentity, compilers: [...compilers.values()] });
+  return emitMaterials(s, { manifestBytes, m, products, compiled, sourceIdentity, compilers: [...compilers.values()], execution });
 }
-function emitMaterials(s, { manifestBytes, m, products, compiled, sourceIdentity, compilers }) {
+function emitMaterials(s, { manifestBytes, m, products, compiled, sourceIdentity, compilers, execution: providedExecution }) {
+  const execution = providedExecution || require('./a9-42-office-journey.cjs').loadExecutionBinding({ executionBindingPath: s.execution_binding_path });
+  need(execution.run_id === s.run_id && execution.source_commit === s.source_commit, 'PREPARE_EXECUTION_BINDING');
+  need(s.target_tools_root === execution.layout.tools_root, 'PREPARE_TARGET_LAYOUT');
   const driverBytes = fs.readFileSync(path.join(__dirname, 'a9-42-real-model-trial.cjs'));
   const support = driver.SUPPORT.map(name => ({ path: name, sha256: hash(fs.readFileSync(path.join(__dirname, name))) }));
   const samples = driver.samples();
   const sampleFiles = Object.entries(samples).map(([name, bytes]) => ({ path: name, sha256: hash(bytes), size: bytes.length }));
-  const trial = `C:\\A9-DEV\\work\\${s.run_id}`;
-  const c = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'office-real-model', run_id: s.run_id,
-    source_commit: s.source_commit, zip_sha256: hash(fs.readFileSync(s.zip_path)),
-    manifest_sha256: hash(manifestBytes), driver_sha256: hash(driverBytes),
+  const layout = execution.layout;
+  const c = { schema_version: 1, evidence_class: execution.evidence_class, profile: 'office-real-model', run_id: execution.run_id,
+    source_commit: execution.source_commit, zip_sha256: execution.package_sha256,
+    manifest_sha256: execution.manifest_sha256, driver_sha256: hash(driverBytes),
     source_binding_sha256: '0'.repeat(64), manifest_file_count: m.files.length, session_id: s.session_id,
-    task_name: `A9-DEV-${s.run_id}`, deadline_utc: null, real_model_request_limit: s.real_model_request_limit,
-    input_package_root: s.target_input_package_root, zip_path: s.target_zip_path,
-    run_root: trial + '\\run', package_root: trial + '\\pkg', workspace_root: trial + '\\中文 workspace',
-    data_root: trial + '\\pkg\\portable-data', cmd_path: trial + '\\run\\cmd.exe', source_binding_path: trial + '\\run\\source-binding.json',
+    task_name: require('./a9-42-office-journey.cjs').taskNameFor(execution, 'office-real-model'), deadline_utc: null, real_model_request_limit: s.real_model_request_limit,
+    input_package_root: layout.input_package_root, zip_path: layout.zip_path,
+    run_root: layout.run_root, package_root: layout.package_root, workspace_root: layout.workspace_root,
+    data_root: layout.data_root, cmd_path: layout.cmd_path, source_binding_path: layout.source_binding_path,
+    execution_binding_path: layout.execution_binding_path, execution_binding_sha256: execution.sha256,
+    helper_sha256: execution.helper_sha256,
     upstream: driver.UPSTREAM, model: s.model, idle_seconds: s.idle_seconds,
     transport: 'direct', credential_source: 'current-user-default-dpapi' };
-  const binding = { schema_version: 1, source_commit: c.source_commit,
+  const executionFiles = verifyExecutionSource(s, 'a9-42-real-model-trial.cjs');
+  const binding = { execution_files: executionFiles, schema_version: 1, source_commit: c.source_commit,
     ...sourceIdentity,
     zip_sha256: c.zip_sha256, manifest_sha256: c.manifest_sha256, driver_sha256: c.driver_sha256,
+    execution_binding_sha256: c.execution_binding_sha256,
     profile: c.profile, transport: c.transport, credential_source: c.credential_source, support_files: support, samples: sampleFiles,
     sample_generation: 'Deterministic developer-generated minimal OOXML; original bytes frozen before model access; no target engine pre-generation.',
     product_files: products, compiled_files: compiled,
     compilers,
     source_build_boundary: 'Current committed source recompiled with product declaration/map/sourceMap flags disabled; output bytes matched the package. Native inputs are not rebuilt.' };
   const bindingBytes = Buffer.from(JSON.stringify(binding, null, 2) + '\n', 'utf8');
-  c.source_binding_sha256 = hash(bindingBytes); driver.validateConfig(c, Date.now(), true);
+  c.source_binding_sha256 = hash(bindingBytes);
+  driver.validateConfig(c, Date.now(), true, { executionBindingBytes: execution.bytes });
   fs.mkdirSync(s.output_root, { recursive: true });
   const write = (name, bytes) => fs.writeFileSync(path.join(s.output_root, name), bytes, { flag: 'wx' });
-  write('source-binding.json', bindingBytes); write('driver.cjs', driverBytes);
-  for (const e of support) write(e.path, fs.readFileSync(path.join(__dirname, e.path)));
-  for (const [name, bytes] of Object.entries(samples)) write(name, bytes);
+  write('source-binding.json', bindingBytes);
+  base.copyDriverClosure(s.output_root, 'a9-42-real-model-trial.cjs');
+  base.verifyDriverClosure(executionFiles, 'a9-42-real-model-trial.cjs', fs, s.output_root);
+  write('execution-binding.json', execution.bytes);
+  for (const [name, bytes] of Object.entries(samples)) write('scripts/win7-dev/' + name, bytes);
   write('config-template.json', JSON.stringify(c, null, 2) + '\n');
-  write('launch-template.cmd', `@echo off\r\nsetlocal\r\nset NODE_OPTIONS=\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${c.cmd_path}" /d /s /c "\"${c.input_package_root}\\electron.exe\" \"${c.run_root}\\driver.cjs\" --config \"${c.run_root}\\config.json\""\r\nexit /b %errorlevel%\r\n`);
+  write('launch-template.cmd', '@echo off\r\nsetlocal\r\nset NODE_OPTIONS=\r\nset ELECTRON_RUN_AS_NODE=1\r\n"%~dp0package\\electron.exe" "%~dp0scripts\\win7-dev\\a9-42-real-model-trial.cjs" --config "%~dp0..\\e\\config.json"\r\nexit /b %errorlevel%\r\n');
   return { status: 'LOCAL_PREPARATION_ONLY', output_root: s.output_root, source_commit: c.source_commit,
     driver_sha256: c.driver_sha256, zip_sha256: c.zip_sha256, support_files: support, samples: sampleFiles, deadline_utc: null, target_execution: 'NOT_PERFORMED' };
 }

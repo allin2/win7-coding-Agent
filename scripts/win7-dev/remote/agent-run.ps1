@@ -8,7 +8,7 @@ $session = Console-Session
 [void](Safe $D['executable'])
 if (-not [IO.File]::Exists($D['executable'])) { throw 'AGENT_EXECUTABLE_MISSING' }
 Make-Dir $run
-$stop = Safe ($Root + '\.channel\stop')
+$stop = Stop-Marker $name
 if ([IO.File]::Exists($stop)) { [IO.File]::Delete($stop) }
 $wrapper = $Utf8.GetString([Convert]::FromBase64String($D['wrapper']))
 $wrapper = $wrapper.Replace('@@SESSION@@',[string]$session)

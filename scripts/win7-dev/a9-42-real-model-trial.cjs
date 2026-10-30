@@ -1,5 +1,5 @@
 'use strict';
-// Candidate-external DEV_CHANNEL ONLY. Target execution needs a separately approved window.
+// Candidate-external bound execution driver. Target execution needs a separately approved window.
 // Direct product HTTPS, bounded by candidate-external instrumentation; no relay is started.
 const fs = require('fs');
 const path = require('path');
@@ -18,8 +18,8 @@ const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null,
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const SUPPORT = ['a9-42-office-journey.cjs','a9-42-real-model-relay.cjs','a9-42-real-model-direct.cjs','a9-42-real-model-samples.cjs','a9-42-resource-sampler.cjs'];
 const EXTRA_KEYS = ['upstream','model','idle_seconds','transport','credential_source'];
-function validateConfig(c, now = Date.now(), template = false) {
-  need(c && c.profile === 'office-real-model' && /^a942r-[a-f0-9]{8}$/.test(c.run_id), 'CONFIG_PROFILE_RUN_ID');
+function validateConfig(c, now = Date.now(), template = false, options = {}) {
+  need(c && c.profile === 'office-real-model', 'CONFIG_PROFILE_RUN_ID');
   need(EXTRA_KEYS.every(k => Object.prototype.hasOwnProperty.call(c, k)), 'CONFIG_FIELDS');
   need(c.transport === 'direct' && c.credential_source === 'current-user-default-dpapi', 'CONFIG_DIRECT_CREDENTIAL_SOURCE');
   need(c.upstream === relayTools.UPSTREAM, 'CONFIG_UPSTREAM');
@@ -28,13 +28,22 @@ function validateConfig(c, now = Date.now(), template = false) {
   need(typeof c.model === 'string' && /^deepseek-[a-z0-9-]{1,50}$/.test(c.model), 'CONFIG_MODEL');
   const old = Object.fromEntries(Object.entries(c).filter(([k]) => !EXTRA_KEYS.includes(k)));
   // Reuse the original strict identity/layout contract without reopening that profile.
-  const oldId = c.run_id.replace('a942r-', 'a942o-');
-  for (const k of ['run_id','task_name','run_root','package_root','workspace_root','data_root','cmd_path','source_binding_path']) {
-    if (typeof old[k] === 'string') old[k] = old[k].split(c.run_id).join(oldId);
-  }
   old.profile = 'office-journey'; old.real_model_request_limit = 0;
-  base.validateConfig(old, now, template);
-  need(c.task_name === 'A9-DEV-' + c.run_id, 'CONFIG_TASK_NAME');
+  const bindingOptions = options.executionBindingBytes
+    ? { executionBindingBytes: options.executionBindingBytes }
+    : { executionBindingPath: options.executionBindingPath || base.executionBindingPathFor(c) };
+  const execution = base.loadExecutionBinding(bindingOptions);
+  old.task_name = base.taskNameFor(execution, 'office-journey');
+  base.validateConfig(old, now, template, {
+    ...bindingOptions,
+    argv: options.argv,
+    env: options.env,
+  });
+  need(c.evidence_class === execution.evidence_class && c.run_id === execution.run_id
+    && c.source_commit === execution.source_commit && c.zip_sha256 === execution.package_sha256
+    && c.manifest_sha256 === execution.manifest_sha256 && c.helper_sha256 === execution.helper_sha256
+    && c.execution_binding_sha256 === execution.sha256, 'CONFIG_PACKAGE_IDENTITY');
+  need(c.task_name === base.taskNameFor(execution, c.profile), 'CONFIG_TASK_NAME');
   return c;
 }
 function verifyBinding(c, io = fs, root = __dirname) {
@@ -70,13 +79,14 @@ function prepareDriverRuntime(c, io = require('original-fs')) {
     need(hash(io.readFileSync(file)) === e.sha256, 'DRIVER_RUNTIME_COPY_HASH');
   }
   io.mkdirSync(app);
-  const names = ['driver.cjs', ...SUPPORT, office.FILES.doc, office.FILES.book];
-  for (const name of names) {
-    const source = name === 'driver.cjs' ? __filename : path.join(__dirname, name);
-    io.writeFileSync(path.join(app, name), io.readFileSync(source), { flag: 'wx' });
+  base.copyDriverClosure(app, 'a9-42-real-model-trial.cjs', io);
+  const code = path.join(app, 'scripts/win7-dev');
+  for (const name of [office.FILES.doc, office.FILES.book]) {
+    io.writeFileSync(path.join(code, name), io.readFileSync(path.join(__dirname, name)), { flag: 'wx' });
   }
-  need(hash(io.readFileSync(path.join(app, 'driver.cjs'))) === c.driver_sha256, 'DRIVER_SOURCE_HASH');
-  io.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'a942-real-model-dev-trial', version: '1.0.0', private: true, main: 'driver.cjs' }) + '\n', { flag: 'wx' });
+  need(hash(io.readFileSync(path.join(code, 'a9-42-real-model-trial.cjs'))) === c.driver_sha256, 'DRIVER_SOURCE_HASH');
+  io.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'a942-real-model-dev-trial', version: '1.0.0', private: true,
+    main: 'scripts/win7-dev/a9-42-real-model-trial.cjs' }) + '\n', { flag: 'wx' });
   return { executable: path.join(runtime, 'electron.exe'), app_root: app, files: entries.length };
 }
 function sqlFacts(c, key, turnIds) {
@@ -118,7 +128,7 @@ function resourceObserver(getObserved, queryRows = () => resources.queryResource
 function processObservationFailure(error, observed, rows, childPid, now = Date.now()) {
   const related = Array.isArray(rows) ? rows.filter(row => row.pid === childPid
     || observed.some(parent => row.pid === parent.pid || row.parent === parent.pid)) : [];
-  return { at: now, code: safeError(error), error_type: /^[A-Za-z]{1,32}$/.test(error?.name || '') ? error.name : 'Error',
+  return { at: now, code: safeError(error), error_type: /^[A-Za-z]{1,32}$/.test(error && error.name || '') ? error.name : 'Error',
     rows_available: Array.isArray(rows), rows_truncated: related.length > 64,
     related_rows: related.slice(0, 64).map(row => ({ pid: row.pid, parent: row.parent, created: row.created || null,
       image: typeof row.image === 'string' ? row.image.slice(0, 240) : null, session: row.session ?? null, name: row.name || null })) };
@@ -127,7 +137,7 @@ function processObservationFailure(error, observed, rows, childPid, now = Date.n
 async function postflight(config) {
   currentIdentity(config);
   const file = path.join(config.run_root, 'POSTFLIGHT.json'); need(!fs.existsSync(file), 'POSTFLIGHT_REUSE');
-  const r = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'HALTED', source_commit: config.source_commit,
+  const r = { schema_version: 1, evidence_class: config.evidence_class, status: 'HALTED', source_commit: config.source_commit,
     zip_sha256: config.zip_sha256, driver_sha256: config.driver_sha256 };
   try {
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'POSTFLIGHT_DRIVER_HASH');
@@ -161,7 +171,7 @@ async function controller(config, injectedQuery, { startupDiagnostic = false } =
   for (const target of [config.package_root, config.workspace_root, path.join(config.run_root, 'RESULT.json')]) need(!fs.existsSync(target), 'OUTPUT_REUSE');
   const report = path.join(config.run_root, 'RESULT.json');
   fs.writeFileSync(report, '{}\n', { flag: 'wx' });
-  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'IN_PROGRESS',
+  const result = { schema_version: 1, evidence_class: config.evidence_class, status: 'IN_PROGRESS',
     source_commit: config.source_commit, zip_sha256: config.zip_sha256, manifest_sha256: config.manifest_sha256,
     driver_sha256: config.driver_sha256, source_binding_sha256: config.source_binding_sha256,
     transport: 'direct', credential_source: config.credential_source,
@@ -282,7 +292,7 @@ async function controller(config, injectedQuery, { startupDiagnostic = false } =
       result.resources = { summary: resources.summarizeResources(samples, timeline, { logicalCpus: os.cpus().length }),
         errors: sampler.errors(), sample_count: samples.length, logical_cpus: os.cpus().length };
     } catch (_) { result.resources = 'UNKNOWN'; }
-    const safe = relayTools.scanSecrets(result) ? result : { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'HALTED', first_failure: 'SECRET_IN_RESULT' };
+    const safe = relayTools.scanSecrets(result) ? result : { schema_version: 1, evidence_class: config.evidence_class, status: 'HALTED', first_failure: 'SECRET_IN_RESULT' };
     if (safe !== result) process.exitCode = 1; save(report, safe);
     process.stdout.write(JSON.stringify({ status: safe.status, first_failure: safe.first_failure || null }) + '\n');
   }
@@ -294,7 +304,7 @@ function lateReplyRejected(reply) {
 async function ui(config, { startupDiagnostic = false } = {}) {
   const { app, BrowserWindow, dialog } = require('electron');
   const report = path.join(config.run_root, 'ui-result.json');
-  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: config.profile, run_id: config.run_id,
+  const result = { schema_version: 1, evidence_class: config.evidence_class, profile: config.profile, run_id: config.run_id,
     status: 'IN_PROGRESS', normal_quit: false, timeline: [], scenarios: [], source_commit: config.source_commit, zip_sha256: config.zip_sha256 };
   let win, guard, timer, cancelGuard, cancelWatcher;
   const scan = value => guard ? guard.scanSecrets(value) : relayTools.scanSecrets(value);
@@ -466,7 +476,9 @@ if (require.main === module) {
   try {
     const args = process.argv.slice(2), at = args.indexOf('--config'); need(at >= 0, 'CONFIG_ARGUMENT');
     const configFile = path.resolve(args[at + 1]);
-    const config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
+    base.rejectDriverOverrides(args);
+    const raw = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    const config = validateConfig(raw, Date.now(), false, { executionBindingPath: raw.execution_binding_path });
     need(inside(config.run_root, configFile), 'CONFIG_LOCATION'); noLinks(config.run_root, configFile);
     need(!args.includes('--network-preflight'), 'DIRECT_NO_NETWORK_PREFLIGHT');
     const options = { startupDiagnostic: args.includes('--startup-diagnostic') };

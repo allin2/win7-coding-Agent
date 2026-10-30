@@ -83,12 +83,13 @@ function fixtureZip(filename, entry = 'a.txt', content = 'hello', { localName = 
 }
 
 test('eight commands parse, options retain one command-line argument', () => {
-  for (const argv of [['status'], ['put', 'file', 'a/b'], ['get', 'a', 'b/c'], ['ps', 's.ps1'], ['cand', 'a.zip'], ['stop'], ['close'], ['agent-run', 'smoke', '"C:\\A9-DEV\\中文 空格\\p.exe" "a b"', '--wait', '15', '--steal']]) assert.equal(parseArgs(argv).command, argv[0]);
+  for (const argv of [['status'], ['put', 'file', 'a/b'], ['get', 'a', 'b/c'], ['ps', 's.ps1'], ['cand', 'a.zip'], ['close'], ['agent-run', 'smoke', '"C:\\A9-DEV\\中文 空格\\p.exe" "a b"', '--wait', '15', '--steal']]) assert.equal(parseArgs(argv).command, argv[0]);
+  assert.equal(parseArgs(['stop', '--run', '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44']).command, 'stop');
   assert.deepEqual(parseArgs(['agent-run', 'n', 'C:\\A9-DEV\\p.exe', '--wait', '15', '--steal']).wait, 15);
 });
 test('invalid CLI counts, options, run names and wait values fail before spawning', async () => {
   const { channel, calls } = controller();
-  for (const argv of [[], ['status', 'x'], ['get', 'x'], ['status', '--steal'], ['stop', '--steal', '--steal'], ['ps', 'x', '--wait', '1'], ['agent-run', '../x', 'C:\\A9-DEV\\a.exe'], ['agent-run', 'n', 'C:\\A9-DEV\\a.exe', '--wait', '0'], ['agent-run', 'n', 'C:\\A9-DEV\\a.exe', '--wait', '90000'], ['cand', 'x', '--unknown']]) await assert.rejects(() => channel.execute(argv));
+  for (const argv of [[], ['status', 'x'], ['get', 'x'], ['status', '--steal'], ['stop'], ['stop', '--run', 'not-a-run'], ['stop', '--run', '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44', '--steal', '--steal'], ['ps', 'x', '--wait', '1'], ['agent-run', '../x', 'C:\\A9-DEV\\a.exe'], ['agent-run', 'n', 'C:\\A9-DEV\\a.exe', '--wait', '0'], ['agent-run', 'n', 'C:\\A9-DEV\\a.exe', '--wait', '90000'], ['cand', 'x', '--unknown']]) await assert.rejects(() => channel.execute(argv));
   assert.equal(calls.length, 0);
 });
 test('remote paths support Chinese, spaces, percent, hash and both separators', () => {
@@ -270,17 +271,30 @@ test('agent-run recovers three streams and identity, with nonzero exit still col
     assert.equal(c.options.timeout, 80000);
   }
 });
-test('stop releases lock; successful close does not reconnect to a deleted root', async () => {
-  for (const command of ['stop', 'close']) {
-    const { channel, calls } = controller(); await channel.execute([command]);
-    assert.deepEqual(calls.map((c) => c.d.operation), command === 'stop' ? ['acquire', 'stop', 'release'] : ['acquire', 'close']);
-  }
+test('run-scoped stop releases lock; successful close does not reconnect to a deleted root', async () => {
+  const run = '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44';
+  const stopped = controller(); await stopped.channel.execute(['stop', '--run', run]);
+  assert.deepEqual(stopped.calls.map((c) => c.d.operation), ['acquire', 'stop', 'release']);
+  assert.equal(stopped.calls[1].d.run_root, 'C:\\A9-DEV\\run\\3f1c2a52');
+  assert.equal(stopped.calls[1].d.task_prefix, 'A9-DEV-3f1c2a52-');
+  const closed = controller(); await closed.channel.execute(['close']);
+  assert.deepEqual(closed.calls.map((c) => c.d.operation), ['acquire', 'close']);
 });
-test('expired authority rejects writing before a connection, allows read-only status and cleanup', async () => {
-  const { spawn, calls } = fakeTransport(); const out = dir(); const c = new DevChannel({ env: { WIN7_DEV_IDENTITY: path.join(out, 'mock-identity') }, spawn, out, now: () => new Date('2026-11-28T00:00:00Z') });
+test('expired authority rejects writing before a connection, allows read-only status and scoped cleanup', async () => {
+  const expiry = new Date('2026-11-28T00:00:00Z');
+  const before = new DevChannel({ env: { WIN7_DEV_IDENTITY: path.join(dir(), 'mock-identity') }, spawn: fakeTransport().spawn,
+    out: dir(), now: () => new Date(expiry.getTime() - 1) });
+  const beforeFile = path.join(before.out, 'before.ps1'); fs.writeFileSync(beforeFile, "Write-Output 'hello'");
+  assert.equal((await before.execute(['ps', beforeFile])).ok, true);
+  const { spawn, calls } = fakeTransport(); const out = dir(); const c = new DevChannel({ env: { WIN7_DEV_IDENTITY: path.join(out, 'mock-identity') }, spawn, out, now: () => expiry });
   const file = path.join(out, 'script.ps1'); fs.writeFileSync(file, "Write-Output 'hello'");
   await assert.rejects(() => c.execute(['ps', file]), /AUTHORIZATION_EXPIRED/); assert.equal(calls.length, 0);
-  await c.execute(['status']); await c.execute(['close']);
+  await c.execute(['status']);
+  await c.execute(['stop', '--run', '3f1c2a52-6b0e-4c1e-9f5e-0d7b8a1c2e44']);
+  const stop = calls.find((call) => call.d.operation === 'stop');
+  assert.equal(stop.d.run_prefix8, '3f1c2a52');
+  assert.equal(stop.d.task_prefix, 'A9-DEV-3f1c2a52-');
+  assert.ok(!calls.some((call) => call.d.operation === 'close'));
 });
 test('main errors always use DEV_CHANNEL and never expose runtime exception text', async () => {
   const result = await main(['status'], { env: {}, out: dir(), now, spawn: () => { throw Error('private'); } });
@@ -300,3 +314,21 @@ for (const file of fs.readdirSync(path.resolve(here, '../remote')).filter((s) =>
     assert.equal(code.match(forbidden), null, file); assert.ok(!script.includes('\r')); assert.ok(!script.startsWith('\ufeff'));
   });
 }
+test('stop scope is current run only while the channel close command remains available', () => {
+  const script = fs.readFileSync(path.resolve(here, '../remote/stop.ps1'), 'utf8');
+  const wrapper = fs.readFileSync(path.resolve(here, '../remote/agent-wrapper.ps1'), 'utf8');
+  const runner = fs.readFileSync(path.resolve(here, '../remote/agent-run.ps1'), 'utf8');
+  assert.match(script, /Name\.StartsWith\(\$D\['task_prefix'\]/);
+  assert.match(script, /ExecutablePath\.StartsWith\(\(\$scope \+ '\\'\)/);
+  assert.match(script, /if \(\$D\['operation'\] -eq 'close'\)/);
+  assert.match(script, /\[IO\.Directory\]::Delete\(\$Root,\$true\)/);
+  assert.match(script, /\.channel\\stop-' \+ \$D\['run_prefix8'\]/);
+  assert.ok(script.indexOf('RUN_SCOPE_INVALID') < script.indexOf('Write-Text $stop'));
+  const common = fs.readFileSync(path.resolve(here, '../remote/common.ps1'), 'utf8');
+  assert.match(common, /\^A9-DEV-\(\[a-f0-9\]\{8\}\)-/);
+  assert.match(common, /'\\\.channel\\stop-' \+ \$prefix/);
+  assert.match(wrapper, /Stop-Marker \$D\['name'\]/);
+  assert.match(runner, /Stop-Marker \$name/);
+  const docs = fs.readFileSync(path.resolve(here, '../README.md'), 'utf8');
+  assert.match(docs, /stop --run <UUID>/);
+});

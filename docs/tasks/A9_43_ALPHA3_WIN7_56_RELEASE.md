@@ -211,3 +211,48 @@ GLM 独立审核：P0 零项，P1 一项。产品阶段探针仍把观测写到�
 
 PowerShell 与 C# 项在 §6 批准的首个 Win7 开发级运行窗口先做最短准入验证。审核报告与日志在 `outputs/next-version-r1/p2-review/`。
 
+
+
+### 8.8 P4 驱动与通道收尾（2026-10-30）
+
+负责人要求执行代理接手 P4 收尾。原 DeepSeek 工作树为 `t3-f34d2687`，基线 `bd1b5253…`。
+原任务于 13:15:59 UTC 停止，无活动执行。原修改、diff 和失败日志保留；不把其循环检查计为新增验证。
+主会话在 `main@41aae717…` 接手 16 个文件。任务相关源码只改 `scripts/win7-dev/`；产品与原生字节未变。
+原有三个 release 测试文件及负责人创建的 `workflow.md` 保留，不纳入本次提交。
+
+交付是原 P4 派单的驱动、准备器和通道适配。执行绑定提供类别、source、包身份和 run；目标侧两类别共用布局与校验。
+本地总控继续负责正式回执、pin 和拒绝集，目标驱动不签发授权。包按正式 Profile 校验，不把包可验收标记解释成已完成验收。
+准备器与克隆的 Electron 应用保留完整相对模块层级，并绑定执行闭包哈希。CMD 入口不再插入 run 数据。
+通道 `stop --run <UUID>` 只选择当前 run；`close` 仍为恢复入口，包装器同时响应 run 与全局恢复停止标记。
+工具不调用 close 作为正常套件收尾，不扩大根外终止范围。
+
+| 开发机检查 | 直接结果 | 证据 |
+|---|---|---|
+| 当前七模块依赖编译与静态检查 | PASS | `outputs/next-version-r1/p4-closeout/verify-quick.log` |
+| 六个 Node20 测试入口 | 101/101 PASS，0 skipped | 同目录 `node20-r2.log` |
+| 不同 run 与类别的执行字节一致 | 定向入口 PASS，配置路径不同但 CMD/代码 SHA 相同 | 同目录 `run-invariance-r1.log` |
+| Electron22/Node16 真实部署加载、依赖篡改与绑定反例 | 6 项 PASS | 同目录 `node16-binding-r1/RESULT.json` |
+| 当前 Gateway/Core 的 Electron22/Node16 本机 HTTP | 4 项 PASS | 同目录 `node16-direct-r1.log` |
+| 真实 Office engine 样本读取与生成回读 | PASS | 同目录 `node16-samples-r1.log` |
+| 关键代码独立审核 | P0 零项、P1 两项；主会话修复并定向验证，未重签审核结论 | 同目录 `independent-review-r1.md` |
+| 审核修复后 Node20 六入口 | 103/103 PASS，0 skipped | 同目录 `review-fixes-node20-r1.log` |
+| 审核修复后 Electron22/Node16 部署与入口守卫 | 8 项 PASS，含两类别实际入口依赖篡改拒绝 | 同目录 `node16-binding-r2/RESULT.json` |
+| 错误实现注入 | 省略入口闭包校验、绕过 Git 源绑定两项均使反例失败；源字节已恢复 | 同目录 `mutation-results.json` |
+| PowerShell 2.0 解析、任务注册与停止 | NOT_PERFORMED | 开发机无目标解释器，留首个 Win7 开发窗口 |
+| Win7 全阶段、完整 Office GUI、正式 Gate | NOT_PERFORMED | 本次仅本地收尾 |
+
+原全目录自动发现日志的 4 项失败未改判。三项把 Electron 专用 cjs 夹具误作普通 Node 测试；
+另一项是员工树缺 `state/dist`。正确入口和运行时见 `scripts/win7-dev/README.md`，当前编译后消费者检查直接通过。
+六项轻量工具与 A9-41 的最终证据映射、阶段计划接线、准确新包与全阶段运行仍按 §4 推进，不从上述定向通过签为完成。
+本轮未连接目标机、消耗模型请求预算、推送、发布或删除。旧工作树和临时产物仅盘点保留。
+
+
+P4 审核指出两项 P1：A9-3440 未在真实入口核对依赖闭包；两份 prepare 未把执行文件与声明的 Git source 对齐。
+主会话已修复。A9-3440 的共用入口、两个 controller 和克隆后均校验原字节绑定与准确执行清单。
+两份 prepare 共用 Git blob 比较，同时核对声明源码树与实际运行工具树，复制后再按同一清单核对。
+反例直接经过共用真实入口与两份 public prepare，覆盖依赖改变、绑定身份漂移和跨树执行。
+主会话另注入两种错误实现；反例均转为失败，随后逐字恢复源码。该结果是开发机修复验证，不冒充独立复审。
+
+审核流程偏差：审核员报告曾误触发带委派的技能，违反本单“不再委派”。
+主会话已停止该已完成审核任务的后续及嵌套工作，保留其两项经原代码核对的发现，不增加审核次数。
+本次收尾仅完成原 P4 派单的驱动与通道适配。P5/P6 的阶段计划、版本内容覆盖矩阵和全阶段取证仍未完成。

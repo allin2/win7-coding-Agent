@@ -89,6 +89,16 @@ function Dev-Tasks { return @(Folder-Tasks (Scheduler)) }
 function Dev-Processes {
   return @(Get-WmiObject Win32_Process -ErrorAction Stop | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith(($Root + '\'),[StringComparison]::OrdinalIgnoreCase) })
 }
+function Run-Prefix([string]$name) {
+  if ($name -match '^A9-DEV-([a-f0-9]{8})-') { return $matches[1] }
+  if ($name -match '^([a-f0-9]{8})-') { return $matches[1] }
+  return $null
+}
+function Stop-Marker([string]$name) {
+  $prefix = Run-Prefix $name
+  if ($null -ne $prefix) { return Safe ($Root + '\.channel\stop-' + $prefix) }
+  return Safe ($Root + '\.channel\stop')
+}
 function Console-Session {
   $rows = @(& "$env:SystemRoot\System32\qwinsta.exe" console 2>&1)
   if ($LASTEXITCODE -ne 0) { throw 'CONSOLE_QUERY_FAILED' }

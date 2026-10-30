@@ -1,7 +1,18 @@
 Assert-Writer
-Write-Text (Safe ($Root + '\.channel\stop')) $D['token']
 $folder = Scheduler
-foreach ($task in @(Dev-Tasks)) {
+if ($D['operation'] -eq 'close') {
+  $tasks = @(Dev-Tasks)
+  $stop = Safe ($Root + '\.channel\stop')
+} else {
+  if ($D['run_prefix8'] -notmatch '^[a-f0-9]{8}$') { throw 'RUN_SCOPE_INVALID' }
+  $scope = Safe $D['run_root']
+  if ($scope -ne [IO.Path]::GetFullPath(($Root + '\run\' + $D['run_prefix8']))) { throw 'RUN_SCOPE_INVALID' }
+  if ($D['task_prefix'] -cne ('A9-DEV-' + $D['run_prefix8'] + '-')) { throw 'RUN_SCOPE_INVALID' }
+  $tasks = @(Dev-Tasks | Where-Object { $_.Name.StartsWith($D['task_prefix'],[StringComparison]::OrdinalIgnoreCase) })
+  $stop = Safe ($Root + '\.channel\stop-' + $D['run_prefix8'])
+}
+Write-Text $stop $D['token']
+foreach ($task in $tasks) {
   # Delete registrations only: stopping a task could kill system PowerShell outside Root.
   $parent = [IO.Path]::GetDirectoryName($task.Path)
   $taskFolder = $folder.GetFolder($parent); $taskFolder.DeleteTask($task.Name,0)
@@ -9,7 +20,11 @@ foreach ($task in @(Dev-Tasks)) {
 # Never use taskkill /T: descendants may have images outside the development root.
 # Order the selected images by ancestry, then terminate children before parents.
 for ($round = 0; $round -lt 5; $round++) {
-  $procs = @(Dev-Processes)
+  if ($D['operation'] -eq 'close') { $procs = @(Dev-Processes) } else {
+    $procs = @(Get-WmiObject Win32_Process -ErrorAction Stop | Where-Object {
+      $_.ExecutablePath -and $_.ExecutablePath.StartsWith(($scope + '\'),[StringComparison]::OrdinalIgnoreCase)
+    })
+  }
   if ($procs.Count -eq 0) { break }
   $parents = @{}; foreach ($p in $procs) { $parents[[string]$p.ProcessId] = [string]$p.ParentProcessId }
   $ranked = @()
@@ -21,7 +36,8 @@ for ($round = 0; $round -lt 5; $round++) {
   foreach ($row in @($ranked | Sort-Object Depth -Descending)) {
     # Re-query the image immediately before termination. No unfiltered descendants.
     foreach ($p in @(Get-WmiObject Win32_Process -Filter ('ProcessId=' + $row.Process.ProcessId) -ErrorAction Stop)) {
-      if ($p.ExecutablePath -and $p.ExecutablePath.StartsWith(($Root + '\'),[StringComparison]::OrdinalIgnoreCase)) {
+      $prefix = $(if ($D['operation'] -eq 'close') { $Root + '\' } else { $scope + '\' })
+      if ($p.ExecutablePath -and $p.ExecutablePath.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) {
         $terminated = $p.Terminate()
         if ($terminated.ReturnValue -ne 0) { throw 'PROCESS_TERMINATE_FAILED' }
       }
@@ -29,7 +45,15 @@ for ($round = 0; $round -lt 5; $round++) {
   }
   Start-Sleep -Milliseconds 200
 }
-if (@(Dev-Processes).Count -ne 0 -or @(Dev-Tasks).Count -ne 0) { throw 'DEV_ACTIVITY_REMAINS' }
+if ($D['operation'] -eq 'close') {
+  if (@(Dev-Processes).Count -ne 0 -or @(Dev-Tasks).Count -ne 0) { throw 'DEV_ACTIVITY_REMAINS' }
+} else {
+  $remainingTasks = @(Dev-Tasks | Where-Object { $_.Name.StartsWith($D['task_prefix'],[StringComparison]::OrdinalIgnoreCase) })
+  $remaining = @(Get-WmiObject Win32_Process -ErrorAction Stop | Where-Object {
+    $_.ExecutablePath -and $_.ExecutablePath.StartsWith(($scope + '\'),[StringComparison]::OrdinalIgnoreCase)
+  })
+  if ($remaining.Count -ne 0 -or $remainingTasks.Count -ne 0) { throw 'RUN_ACTIVITY_REMAINS' }
+}
 if ($D['operation'] -eq 'close') {
   # Wrappers are system images and must finish cooperatively before root deletion.
   $end = [DateTime]::UtcNow.AddSeconds(15)

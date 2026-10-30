@@ -1,6 +1,7 @@
 # Stored as an ASCII envelope; common helpers and D are supplied by the controller.
 $run = Safe ($Root + '\runs\' + $D['name'])
 $active = Safe ($run + '\active')
+$stop = Stop-Marker $D['name']
 $stdout = $null; $stderr = $null; $process = $null; $started = $false; $result = 125
 try {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -17,7 +18,7 @@ try {
   $info.UseShellExecute = $false; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true; $info.RedirectStandardInput = $true
   $info.EnvironmentVariables['TEMP'] = $run; $info.EnvironmentVariables['TMP'] = $run
   $process = New-Object Diagnostics.Process; $process.StartInfo = $info
-  if ([IO.File]::Exists(($Root + '\.channel\stop'))) { throw 'STOP_REQUESTED' }
+  if (([IO.File]::Exists($stop) -or [IO.File]::Exists(($Root + '\.channel\stop')))) { throw 'STOP_REQUESTED' }
   if (-not $process.Start()) { throw 'AGENT_START_FAILED' }
   $started = $true
   $process.StandardInput.Close()
@@ -40,7 +41,7 @@ try {
       }
     }
     if ($process.HasExited -and $null -eq $drain) { $drain = [DateTime]::UtcNow.AddSeconds(5) }
-    if ([DateTime]::UtcNow -ge $deadline -or ($null -ne $drain -and [DateTime]::UtcNow -ge $drain) -or [IO.File]::Exists(($Root + '\.channel\stop'))) { throw 'AGENT_WAIT_OR_STOP' }
+    if ([DateTime]::UtcNow -ge $deadline -or ($null -ne $drain -and [DateTime]::UtcNow -ge $drain) -or ([IO.File]::Exists($stop) -or [IO.File]::Exists(($Root + '\.channel\stop')))) { throw 'AGENT_WAIT_OR_STOP' }
     Start-Sleep -Milliseconds 20
   }
   $result = $process.ExitCode

@@ -12,7 +12,7 @@ main 为当前开发工作树；常设授权的工作区差异仍须按 ENGINEER
 
 开发机：Node **20.17.0** 标准库、系统 `/usr/bin/ssh` 与 `/usr/bin/sftp`。无需安装依赖。目标机：DCCS-CHAIZL-PC，Win7 SP1 x64 build 7601，PowerShell 2.0、.NET 3.5、WMI、Task Scheduler 2.0、Shell.Application、icacls、schtasks、qwinsta；复用已有 SSH 服务，不安装组件。身份、SID 或主机键不符即拒绝。固定 SSH 参数包括 `-F /dev/null`、BatchMode、IdentitiesOnly、StrictHostKeyChecking=yes；不读取、复制或打印私钥内容。
 
-当前工具内置写入口期限为 **2026-11-28T00:00:00Z**，与 ENGINEERING_03 §10.2 常设授权 r2 一致（2026-10-27 同步）。ADR-0264 夹具映像根外终止例外不随 r2 延长，仍至 2026-10-28T00:00:00Z。过期后只允许 `status`、`get` 和 `stop`/`close` 收尾。撤销授权后只执行 `close` 收尾。工具不会自行发现负责人的撤销消息，调用方必须停止其他命令。
+当前工具内置写入口期限为 **2026-11-28T00:00:00Z**，与 ENGINEERING_03 §10.2 常设授权 r2 一致（2026-10-27 同步）。ADR-0305 已为 WIN7-56 按原范围续期三个固定夹具映像的例外至同一截止时间。通道 stop 仍不结束根外映像。到期边界含当刻：`2026-11-28T00:00:00Z` 起只允许 `status`、`get` 和当前 run 的 `stop`/`close` 收尾。撤销授权后只执行 `close` 收尾。工具不会自行发现负责人的撤销消息，调用方必须停止其他命令。
 
 这是受信任脚本的管理通道，不提供文件或网络沙箱。`ps` 的脚本和 `agent-run` 的程序/参数必须事先确认符合任务书 §7：不得修改系统设置、服务、HKLM、防火墙、账户，不得安装/卸载软件，不得读取、复制或下载 agent 凭据及模型配置，不得在开发根外写入/删除，不得结束根外映像或改变控制台会话。产品按已保存配置调用模型的例外仅适用于产品；每 UTC 日 **200 次**请求上限由调用方维护实际服务请求计数，工具不能从任意程序的命令行推断请求数。无法确认这些条件、发现根外可疑进程/任务或触发禁止动作时，立即停止并报告。
 
@@ -31,7 +31,7 @@ TOOL=scripts/win7-dev/win7-dev.mjs
 "$NODE" "$TOOL" ps ./diagnostic.ps1
 "$NODE" "$TOOL" agent-run smoke '"C:\A9-DEV\app\electron.exe" --version' --wait 60
 "$NODE" "$TOOL" cand ./candidate.zip
-"$NODE" "$TOOL" stop
+"$NODE" "$TOOL" stop --run <完整-run-UUID>
 "$NODE" "$TOOL" close
 ```
 
@@ -43,8 +43,8 @@ TOOL=scripts/win7-dev/win7-dev.mjs
 | `ps <本地 UTF-8 无 BOM 脚本>` | 取锁，经 ASCII stdin 载体解码 UTF-8 内容，以 dccs-chaizl 执行脚本，工作目录为开发根，进程级 TEMP/TMP 为 `.channel`。未处理的非零原生命令退出码或 `throw` 都视为失败；直接 `exit` 会跳过结果协议，因此视为协议失败。原始输出只写 action 证据。 |
 | `agent-run <名称> <命令行> [--wait 秒]` | 取锁，校验 agent SID/活动 console/explorer 属主；建立 `runs\名称`，生成包装器与 ASCII+LF 无声明 XML，注册/回读/启动 `A9-DEV-名称`，等待，删除任务并下载 stdout、stderr、退出码及身份 JSON。名称不能复用；再次运行应换新名称。 |
 | `cand <ZIP>` | 取锁，本地算 SHA-256，检查 ZIP 路径/头部；在 `cand\SHA前16位` 复算已有包 SHA，相同则跳过上传，不同拒绝。校验远端 ZIP 后使用系统 Shell.Application CopyHere 解包至 `expanded`，轮询文件数与长度并写 ready 标记。 |
-| `stop` | 取锁，写协作停止标记，删除各任务文件夹内全部 `A9-DEV-` 任务，按开发根映像筛选，先子后父结束这些进程；不按 CommandLine 扩大选择，不用 taskkill /T，不结束根外映像。 |
-| `close` | 先做 stop，等待包装器结束，检查 reparse point 后删除整个开发根；生命周期未知或进程/任务残留时拒绝删除。正式门 A 前另以 status 确认零进程、零任务、根不存在。 |
+| `stop --run <UUID>` | 取锁，写协作停止标记，只删除 `A9-DEV-<run_prefix8>-` 任务，并只结束映像位于 `C:\A9-DEV\run\<run_prefix8>\` 的进程；先子后父，不按 CommandLine 扩大选择，不用 taskkill /T，不结束根外或其他 run 映像。 |
+| `close` | 恢复用：先清开发根全部任务/映像，等待包装器结束，检查 reparse point 后删除整个开发根；生命周期未知或进程/任务残留时拒绝删除。ADR-0305 起不再作为 WIN7-56 门 A 前准入条件。 |
 
 `agent-run` 的命令行首项必须是开发根内的绝对 EXE/COM 路径，有空格时双引号包围；其余参数原样作为 Windows 参数串传入，不经 CMD。不能直接运行系统 `cmd.exe /c echo`，回显自检须使用已上传的开发根程序。任务本身沿用系统 PowerShell 包装器；stop 不强杀这个根外映像，包装器通过停止标记协作退出。包装器用 .NET 异步字节流分别记录 stdout/stderr，关闭 stdin，最多输出 64 MiB，到期或停止只终止其直接启动的根内映像；全体根内映像由 stop 收尾，根外子进程不能由本工具终止。
 
@@ -53,6 +53,9 @@ TOOL=scripts/win7-dev/win7-dev.mjs
 ## 锁、空间与不可变证据
 
 所有写命令取 `C:\A9-DEV\LOCK`。锁格式版本 1，四行依次为版本、holder、UTC、当前动作 token。动作成功/失败后释放 token，保留 holder；同 holder 后续可续用，其他 holder 或活动 token 拒绝。同一 holder 的并发动作也拒绝。异常断连或取锁后的 ACL 准备失败可能留下活动 token，只有负责人明确要求后才用 `--steal` 强制接管，工具不会自动偷锁。`close` 后锁随根消失。成功取锁后只对开发根用 icacls 确保 agent SID `(OI)(CI)M` 并 verify，不修改账户或其他根 ACL。
+
+`stop` 必须带完整 run UUID，只清理 `C:\A9-DEV\run\<run_prefix8>\` 实例和 `A9-DEV-<run_prefix8>-` 任务；不得把 `stop` 写成套件清理步骤，也不得以 `close` 删根替代当前 run 收尾。`close` 仅按 ADR-0305 作为恢复命令保留。
+run 作用域的停止标记为 `.channel\stop-<run_prefix8>`；`agent-run` 按 `A9-DEV-<run_prefix8>-...` 名称选择该标记，`stop --run` 只写本 run 标记，其他 run 的协作停止不受影响。
 
 put/cand 在上传前查询空间，C: 剩余低于 **50,000,000,000** 字节、开发根大于 **20,000,000,000** 字节或查询未知即拒绝；也检查上传/解包后的预计余量和总量。使用十进制 GB。空间不是配额沙箱；任意执行的程序仍须由调用方遵守 20 GB 上限。
 
@@ -65,12 +68,20 @@ ZIP 不支持 ZIP64、多卷、加密、符号链接、非 UTF-8 非 ASCII 文�
 ## 环境变量
 
 A9-42完整办公界面旅程的候选外驱动为 `a9-42-office-journey.cjs`，
-本地绑定入口为 `a9-42-office-prepare.cjs <spec.json>`。具体协议与授权见
+本地绑定入口为 `a9-42-office-prepare.cjs <spec.json>`。`spec` 必须提供本地 P1
+`execution_binding_path` 与目标 `target_tools_root`；驱动只从已验证执行绑定读取
+`evidence_class`、source、ZIP/manifest/helper SHA 与 run，并从固定布局展开
+`C:\A9-DEV\run\<run_prefix8>\{t,p,e,w}`。CLI/env 不接受根、类别、source 或预算覆盖。
+驱动配置中的 `execution_binding_path` 必须等于展开的 `t\execution-binding.json`；
+portable 数据根固定为 `p\portable-data`，由产品 `--portable` 实际使用。
+具体协议与授权见
 [A9-42 §6](../../docs/tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md#6-gpt重置模式后续本地迭代approved_for_implementation)。
 prepare只读当前提交和准确ZIP，按产品编译参数在全新候选外目录重编、匹配源码/产物，生成deadline为空的模板，
 不会连接Win7。实际目标窗口必须另行获准；入口要求普通agent、会话身份、准确包/驱动/manifest哈希和剩余窗口。
-任务名沿用 `A9-DEV-<run_id>`，正常产品退出与临时任务清理分别取证；postflight在原任务结束后执行。
+任务名由执行绑定的 `A9-DEV-<run_prefix8>-` 与固定用例名组成，正常产品退出与临时任务清理分别取证；postflight在原任务结束后执行。
 本地检查 `node --test scripts/win7-dev/test/a9-42-office-journey.test.mjs`；开发机检查不代表真实GUI或Win7通过。
+A9-34/A9-40 的 `a9-3440-trial.cjs` 使用同一 P1 执行绑定和布局适配；其 `profile` 只保留
+`portable-smoke` 产品用例语义，不再选择旧 source/ZIP/portable 身份常量。
 
 | 变量 | 默认 |
 | --- | --- |
@@ -92,12 +103,26 @@ prepare只读当前提交和准确ZIP，按产品编译参数在全新候选外�
 | `remote/files.ps1` | 上传准备/校验写入、下载元数据、候选复用与 Shell ZIP 解包。 |
 | `remote/agent-run.ps1` | agent 控制台核验、任务注册/回读、等待与删除。 |
 | `remote/agent-wrapper.ps1` | agent 身份核验、启动根内程序、保存原始双流及退出码；控制器生成 ASCII 载体。 |
-| `remote/stop.ps1` | 按映像筛选停止、移除前缀任务，以及 close 的根删除。 |
+| `remote/stop.ps1` | 当前 run 的映像/任务筛选与停止；close 恢复命令的根删除。 |
 | `remote/agent-task.xml` | InteractiveToken、LeastPrivilege、固定 agent SID、按需启动的 ASCII 任务模板。 |
 
 ```sh
-~/.nvm/versions/node/v20.17.0/bin/node --test scripts/win7-dev/test/
+~/.nvm/versions/node/v20.17.0/bin/node --test scripts/win7-dev/test/*.test.mjs
 npm run docs:check
 ```
 
 测试全程注入假 spawn，不运行 ssh/sftp/ping；覆盖参数、路径、严格 SSH argv、末尾空行、成功/失败原字节与账本、秘密隔离、锁冲突、超时、空间限制、候选复用、agent 输出回收，以及每份 PS1 的 PS2 禁用语法文本扫描。夹具与证据只写 `outputs/win7-dev/unit-*`，不自动删除首失败。文本扫描不能代替 PowerShell 2.0 解析或 Win7 运行证据。本任务不修改候选、正式总控或 docs 状态。
+
+
+### WIN7-56 材料与运行边界
+
+准备器接受 P1 执行绑定。两种证据类别使用相同驱动与布局；正式签发、回执和拒绝集由本地总控入口校验，目标驱动不签发正式授权。包须来自正式 Profile，清单的 `external_acceptance_eligible` 为 true；这不是已完成验收的声明。
+
+准备器输出的整棵目录部署到本 run 的 `t`。保留 `scripts/win7-dev` 与 `scripts/release/validation/win7-alpha3` 的相对层级，不把单个 driver 改名后上传。`execution_files` 绑定完整 JS 闭包，运行时复制保留同一层级。`execution-binding.json`、`source-binding.json` 位于 `t`；补入期限的配置位于 `e/config.json`。`launch-template.cmd` 使用固定相对路径，同一入口在不同 run 和类别下字节相同。解包源放在 `t/package`；产品运行副本放在 `p`，portable 数据放在 `p/portable-data`。
+
+`*.test.mjs` 是 Node20 单元/集成入口。`a9-42-office-ui.cjs` 要用 Electron GUI；`a9-42-direct-runtime.cjs` 与 `a9-42-real-model-runtime.cjs` 要用 Electron22/Node16 并传新 `--output`。不要把整个 test 目录交给 Node 自动发现，它会把这些运行时夹具当作普通测试启动。PowerShell 2.0、任务注册、Win7 产品与进程收尾证据仍须实机直接取得。
+
+
+准备器会把执行闭包同时与 `source_root` 的绑定 Git commit 及 prepare 实际所在源码树逐文件比较。只改驱动依赖、产品 `src` 未变也会拒绝；从其他工作树运行仅在字节均相符时允许。
+A9-3440 配置须带 `source_binding_sha256`，绑定文件包含 `schema_version:1`、`source_commit`、`zip_sha256`、`manifest_sha256`、`driver_sha256`、`execution_binding_sha256` 与 `execution_files`。真实入口先核原字节 SHA 和身份，再核整个执行闭包；复制到克隆应用后复核相同清单。准备材料不能只提供入口脚本哈希。
+本机 Node16 部署/绑定入口为 `ELECTRON_RUN_AS_NODE=1 <Electron22> scripts/win7-dev/test/a9-43-binding-runtime.cjs --output=<绝对新目录>`。

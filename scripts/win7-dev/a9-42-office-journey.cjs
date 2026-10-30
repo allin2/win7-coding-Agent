@@ -1,17 +1,139 @@
 'use strict';
-// Standalone candidate-external DEV_CHANNEL driver. No product implementation is replaced.
+// Candidate-external driver; authorization is checked by the local entry. No product implementation is replaced.
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 const cp = require('child_process');
 const os = require('os');
+const authority = require('../release/validation/win7-alpha3/authority.cjs');
 const ROOT = 'C:\\A9-DEV';
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 const need = (value, code) => { if (!value) throw new Error(code); };
 const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const safeError = error => /^[A-Z][A-Z0-9_]{1,90}$/.test(error && error.message || '') ? error.message : 'DRIVER_OPERATION_FAILED';
+const EXECUTION_LAYOUT = Object.freeze({
+  schema_version: 1,
+  channel_root: 'C:\\A9-DEV',
+  run_root_template: 'C:\\A9-DEV\\run\\{run_prefix8}',
+  run_key: 'lowercase-uuid-v4-prefix8',
+  task_prefix_template: 'A9-DEV-{run_prefix8}-',
+  package_relative_root: 'p',
+  tools_relative_root: 't',
+  evidence_relative_root: 'e',
+  data_relative_root: 'd',
+  workspace_relative_root: 'w',
+});
+const FORBIDDEN_DRIVER_ENV = Object.freeze([
+  'A9_DEV_ROOT', 'A9_DEV_RUN_ROOT', 'A9_DEV_PACKAGE_ROOT', 'A9_DEV_WORKSPACE_ROOT', 'A9_DEV_DATA_ROOT',
+  'A9_DEV_RUN_ID', 'A9_DEV_EXECUTION_BINDING', 'A9_DEV_EXECUTION_BINDING_PATH', 'WIN7AGENT_A9_DATAROOT',
+  'A9_DEV_EVIDENCE_CLASS', 'A9_DEV_SOURCE', 'A9_DEV_SOURCE_COMMIT', 'A9_DEV_PACKAGE_SHA256',
+  'A9_DEV_ZIP', 'A9_DEV_ZIP_SHA256', 'A9_DEV_BUDGET', 'A9_DEV_DEADLINE_UTC',
+]);
+
+function rejectDriverOverrides(args = [], env = process.env) {
+  for (const key of FORBIDDEN_DRIVER_ENV) need(env[key] === undefined, 'CONFIG_ENV_OVERRIDE');
+  for (const arg of args) {
+    need(typeof arg === 'string' && !/^--(?:root|run|run-id|run-root|data-root|package-root|workspace-root|execution-binding|execution-binding-path|evidence-class|source|source-commit|zip|zip-sha256|package-sha256|budget|deadline)(?:=|$)/i.test(arg),
+      'CONFIG_CLI_OVERRIDE');
+  }
+}
+
+function readExecutionBinding(options) {
+  const settings = options || {};
+  if (Buffer.isBuffer(settings.executionBindingBytes)) return settings.executionBindingBytes;
+  need(typeof settings.executionBindingPath === 'string' && settings.executionBindingPath, 'CONFIG_EXECUTION_BINDING');
+  if (process.platform === 'win32') noLinks(ROOT, settings.executionBindingPath);
+  return fs.readFileSync(settings.executionBindingPath);
+}
+
+function executionBindingPathFor(config) {
+  need(config && typeof config.execution_binding_path === 'string' && config.execution_binding_path, 'CONFIG_EXECUTION_BINDING');
+  return config.execution_binding_path;
+}
+
+function expandExecutionLayout(binding) {
+  authority.validateLayout(EXECUTION_LAYOUT);
+  const runId = String(binding.run_id).toLowerCase();
+  const runPrefix8 = runId.slice(0, 8);
+  const runRoot = `C:\\A9-DEV\\run\\${runPrefix8}`;
+  const toolsRoot = runRoot + '\\t';
+  const packageRoot = runRoot + '\\p';
+  return Object.freeze({
+    schema_version: 1,
+    run_id: runId,
+    run_prefix8: runPrefix8,
+    run_root: runRoot,
+    tools_root: toolsRoot,
+    package_root: packageRoot,
+    input_package_root: toolsRoot + '\\package',
+    workspace_root: runRoot + '\\w',
+    data_root: packageRoot + '\\portable-data',
+    evidence_root: runRoot + '\\e',
+    zip_path: toolsRoot + '\\package.zip',
+    cmd_path: toolsRoot + '\\cmd.exe',
+    source_binding_path: toolsRoot + '\\source-binding.json',
+    execution_binding_path: toolsRoot + '\\execution-binding.json',
+    task_prefix: `A9-DEV-${runPrefix8}-`,
+  });
+}
+
+function loadExecutionBinding(options) {
+  const bytes = readExecutionBinding(options);
+  let parsed;
+  try { parsed = JSON.parse(bytes.toString('utf8')); } catch (_) { throw new Error('CONFIG_EXECUTION_BINDING_JSON'); }
+  parsed = authority.validateExecutionBinding(parsed);
+  return Object.freeze({
+    bytes,
+    sha256: authority.sha256(bytes),
+    evidence_class: parsed.evidence_class,
+    run_id: parsed.run_id.toLowerCase(),
+    source_commit: parsed.candidate.source_commit,
+    package_sha256: parsed.candidate.package_sha256,
+    manifest_sha256: parsed.candidate.manifest_sha256,
+    kit_sha256: parsed.candidate.kit_sha256,
+    helper_sha256: parsed.candidate.helper_sha256,
+    target: parsed.target,
+    layout: expandExecutionLayout(parsed),
+    binding: parsed,
+  });
+}
+
+// Preserve repository-relative requires in prepared materials and cloned Electron apps.
+function driverClosure(entry) {
+  need(['a9-3440-trial.cjs', 'a9-42-office-journey.cjs', 'a9-42-real-model-trial.cjs'].includes(entry), 'DRIVER_ENTRY');
+  const names = [entry, 'a9-42-office-journey.cjs'];
+  if (entry === 'a9-42-real-model-trial.cjs') names.push('a9-42-real-model-relay.cjs',
+    'a9-42-real-model-direct.cjs', 'a9-42-real-model-samples.cjs', 'a9-42-resource-sampler.cjs');
+  return [...new Set(names)].map(name => 'scripts/win7-dev/' + name).concat([
+    'scripts/release/validation/win7-alpha3/authority.cjs', 'scripts/release/validation/win7-alpha3/deny-set.cjs']);
+}
+function copyDriverClosure(destination, entry, io = fs) {
+  return driverClosure(entry).map(relative => {
+    const bytes = io.readFileSync(path.resolve(__dirname, '../..', relative));
+    const file = path.join(destination, ...relative.split('/'));
+    io.mkdirSync(path.dirname(file), { recursive: true });
+    io.writeFileSync(file, bytes, { flag: 'wx' });
+    need(hash(io.readFileSync(file)) === hash(bytes), 'DRIVER_CLOSURE_COPY_HASH');
+    return { path: relative, sha256: hash(bytes) };
+  });
+}
+function verifyDriverClosure(entries, entry, io = fs, codeRoot = path.resolve(__dirname, '../..')) {
+  const paths = driverClosure(entry);
+  need(Array.isArray(entries) && entries.length === paths.length, 'DRIVER_CLOSURE');
+  for (const relative of paths) {
+    const matches = entries.filter(item => item.path === relative);
+    need(matches.length === 1 && hash(io.readFileSync(path.join(codeRoot, ...relative.split('/')))) === matches[0].sha256,
+      'DRIVER_CLOSURE_HASH');
+  }
+}
+
+function taskNameFor(execution, profile) {
+  need(typeof profile === 'string' && /^[a-z0-9][a-z0-9-]{0,31}$/.test(profile), 'CONFIG_PROFILE');
+  return execution.layout.task_prefix + profile;
+}
+
 function inside(root, file) {
   const relative = path.win32.relative(root, file);
   return path.win32.isAbsolute(root) && path.win32.isAbsolute(file)
@@ -217,7 +339,10 @@ function currentIdentity(config) {
   const groups = cp.execFileSync(whoami, ['/groups', '/fo', 'csv', '/nh'], { encoding: 'utf8', windowsHide: true, timeout: 10000 });
   need(groups.includes('S-1-16-8192') && !/S-1-16-(12288|16384)/.test(groups), 'RUNTIME_INTEGRITY');
   const row = observedTree(processRows(), process.pid)[0];
-  need(inside(ROOT, row.image) && row.session === config.session_id, 'RUNTIME_IMAGE_OR_SESSION');
+  need(inside(config.run_root, row.image) && row.session === config.session_id, 'RUNTIME_IMAGE_OR_SESSION');
+  const execution = loadExecutionBinding({ executionBindingPath: config.execution_binding_path });
+  need(execution.target.machine_name.toUpperCase() === os.hostname().toUpperCase()
+    && execution.target.account_sid === sid, 'RUNTIME_BINDING_TARGET');
   return { host: os.hostname(), os: os.release(), user: 'agent', sid, integrity: 'Medium', ...row,
     electron: process.versions.electron, node: process.versions.node };
 }
@@ -246,9 +371,9 @@ function prepareDriverRuntime(config, physicalFs = require('original-fs')) {
   physicalFs.mkdirSync(appRoot);
   const driver = physicalFs.readFileSync(__filename);
   need(hash(driver) === config.driver_sha256, 'DRIVER_SOURCE_HASH');
-  physicalFs.writeFileSync(path.join(appRoot, 'main.cjs'), driver, { flag: 'wx' });
+  copyDriverClosure(appRoot, 'a9-42-office-journey.cjs', physicalFs);
   physicalFs.writeFileSync(path.join(appRoot, 'package.json'),
-    JSON.stringify({ name: 'a942-office-dev-trial', version: '1.0.0', private: true, main: 'main.cjs' }) + '\n', { flag: 'wx' });
+    JSON.stringify({ name: 'a942-office-dev-trial', version: '1.0.0', private: true, main: 'scripts/win7-dev/a9-42-office-journey.cjs' }) + '\n', { flag: 'wx' });
   return { executable: path.join(runtimeRoot, 'electron.exe'), app_root: appRoot, files: entries.length };
 }
 
@@ -269,7 +394,7 @@ function copyPortablePackage(config, physicalFs = require('original-fs')) {
     physicalFs.writeFileSync(destination, bytes, { flag: 'wx' });
     need(hash(physicalFs.readFileSync(destination)) === entry.sha256, 'PORTABLE_COPY_DESTINATION_HASH');
   }
-  need(!physicalFs.existsSync(path.join(config.package_root, 'portable-data')), 'PORTABLE_DATA_NOT_FRESH');
+  need(!physicalFs.existsSync(config.data_root), 'PORTABLE_DATA_NOT_FRESH');
   return { copied_files: entries.length, destination: config.package_root, original_preserved: true };
 }
 
@@ -277,35 +402,41 @@ function copyPortablePackage(config, physicalFs = require('original-fs')) {
 const CONFIG_KEYS = ['schema_version','evidence_class','profile','run_id','source_commit','zip_sha256',
   'manifest_sha256','driver_sha256','source_binding_sha256','manifest_file_count','session_id','task_name','deadline_utc',
   'real_model_request_limit','input_package_root','zip_path','run_root','package_root','workspace_root',
-  'data_root','cmd_path','source_binding_path'];
+  'data_root','cmd_path','source_binding_path','execution_binding_path','execution_binding_sha256','helper_sha256'];
 function canonical(file) {
   return typeof file === 'string' && file.length < 200 && (file === ROOT || file.startsWith(ROOT + '\\'))
     && path.win32.normalize(file) === file && !/[\x00-\x1f<>"|?*]/.test(file)
     && file.split('\\').slice(1).every(part => part && !/[. ]$/.test(part) && !part.includes(':')
       && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(part));
 }
-function validateConfig(c, now = Date.now(), allowTemplate = false) {
+function validateConfig(c, now = Date.now(), allowTemplate = false, options = {}) {
   need(c && Object.keys(c).length === CONFIG_KEYS.length && CONFIG_KEYS.every(k => Object.hasOwnProperty.call(c, k)), 'CONFIG_FIELDS');
-  need(c.schema_version === 1 && c.evidence_class === 'DEV_CHANNEL' && c.profile === 'office-journey', 'CONFIG_SCHEMA');
-  need(/^a942o-[a-f0-9]{8}$/.test(c.run_id) && /^[a-f0-9]{40}$/.test(c.source_commit), 'CONFIG_SOURCE');
-  for (const key of ['zip_sha256','manifest_sha256','driver_sha256','source_binding_sha256']) need(/^[a-f0-9]{64}$/.test(c[key]), 'CONFIG_HASH');
+  rejectDriverOverrides(options.argv || [], options.env || process.env);
+  const execution = loadExecutionBinding(options);
+  need(c.schema_version === 1 && c.profile === 'office-journey', 'CONFIG_SCHEMA');
+  need(c.run_id === execution.run_id && c.source_commit === execution.source_commit, 'CONFIG_SOURCE');
+  need(c.evidence_class === execution.evidence_class, 'CONFIG_EVIDENCE_CLASS');
+  for (const key of ['zip_sha256','manifest_sha256','driver_sha256','source_binding_sha256','execution_binding_sha256','helper_sha256']) need(/^[a-f0-9]{64}$/.test(c[key]), 'CONFIG_HASH');
+  need(c.zip_sha256 === execution.package_sha256 && c.manifest_sha256 === execution.manifest_sha256
+    && c.helper_sha256 === execution.helper_sha256 && c.execution_binding_sha256 === execution.sha256, 'CONFIG_PACKAGE_IDENTITY');
   need(Number.isSafeInteger(c.manifest_file_count) && c.manifest_file_count > 100, 'CONFIG_FILE_COUNT');
   need(Number.isSafeInteger(c.session_id) && c.session_id > 0 && c.real_model_request_limit === 0, 'CONFIG_IDENTITY_BUDGET');
-  need(c.task_name === `A9-DEV-${c.run_id}`, 'CONFIG_TASK_NAME');
+  need(c.task_name === taskNameFor(execution, 'office-journey'), 'CONFIG_TASK_NAME');
   const end = Date.parse(c.deadline_utc);
   need((allowTemplate && c.deadline_utc === null) || (typeof c.deadline_utc === 'string'
     && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(c.deadline_utc)
     && end > now && end <= now + 60 * 60 * 1000), 'CONFIG_DEADLINE');
+  const layout = execution.layout;
   for (const key of ['input_package_root','zip_path','run_root','package_root','workspace_root','data_root','cmd_path','source_binding_path']) need(canonical(c[key]), 'CONFIG_PATH');
-  const trial = `${ROOT}\\work\\${c.run_id}`;
-  for (const [key, suffix] of [['run_root','run'],['package_root','pkg'],['workspace_root','中文 workspace']]) {
-    need(c[key] === `${trial}\\${suffix}`, 'CONFIG_LAYOUT');
-  }
-  need(c.data_root === `${c.package_root}\\portable-data` && c.cmd_path === `${c.run_root}\\cmd.exe`
-    && c.source_binding_path === `${c.run_root}\\source-binding.json`, 'CONFIG_LAYOUT');
-  need(!inside(trial, c.input_package_root) && c.input_package_root !== trial
-    && !inside(c.input_package_root, trial) && !inside(c.input_package_root, c.zip_path)
-    && !inside(trial, c.zip_path), 'CONFIG_INPUT_OVERLAP');
+  need(typeof c.execution_binding_path === 'string' && c.execution_binding_path, 'CONFIG_EXECUTION_BINDING_PATH');
+  for (const [key, expected] of [
+    ['run_root', layout.run_root], ['package_root', layout.package_root], ['workspace_root', layout.workspace_root],
+    ['data_root', layout.data_root], ['input_package_root', layout.input_package_root], ['zip_path', layout.zip_path],
+    ['cmd_path', layout.cmd_path], ['source_binding_path', layout.source_binding_path],
+    ['execution_binding_path', layout.execution_binding_path],
+  ]) need(c[key] === expected, 'CONFIG_LAYOUT');
+  need(inside(layout.run_root, c.input_package_root) && inside(layout.run_root, c.zip_path)
+    && !inside(c.input_package_root, layout.run_root), 'CONFIG_INPUT_OVERLAP');
   return c;
 }
 function noLinks(root, file, io = fs) {
@@ -318,11 +449,12 @@ function noLinks(root, file, io = fs) {
 }
 function verifyPackage(c, root = c.package_root, io = require('original-fs')) {
   noLinks(ROOT, root, io);
+  const skipDataRoot = root.toLowerCase() === c.package_root.toLowerCase() && c.data_root.toLowerCase().startsWith(c.package_root.toLowerCase() + '\\');
   const bytes = io.readFileSync(path.join(root, 'release-manifest.json'));
   need(hash(bytes) === c.manifest_sha256, 'PACKAGE_MANIFEST_HASH');
   const m = JSON.parse(bytes.toString('utf8'));
   need(m.source_commit === c.source_commit && m.source_dirty === false
-    && m.external_acceptance_eligible === false && Array.isArray(m.files)
+    && m.external_acceptance_eligible === true && Array.isArray(m.files)
     && m.files.length === c.manifest_file_count, 'PACKAGE_SOURCE');
   const seen = new Set();
   for (const e of m.files) {
@@ -340,7 +472,7 @@ function verifyPackage(c, root = c.package_root, io = require('original-fs')) {
     for (const e of io.readdirSync(dir, { withFileTypes: true })) {
       const rel = relative + e.name;
       need(!e.isSymbolicLink(), 'PACKAGE_EXTRA_LINK');
-      if (dir === root && e.name === 'portable-data' && root === c.package_root) continue;
+      if (skipDataRoot && dir === root && e.name.toLowerCase() === path.basename(c.data_root).toLowerCase()) continue;
       if (e.isDirectory()) walk(path.join(dir, e.name), rel + '/');
       else need(seen.has(rel.toLowerCase()) || rel === 'release-manifest.json', 'PACKAGE_EXTRA_FILE');
     }
@@ -355,8 +487,10 @@ function verifyBinding(c) {
   const b = JSON.parse(bytes.toString('utf8'));
   need(b.schema_version === 1 && b.source_commit === c.source_commit && b.zip_sha256 === c.zip_sha256
     && b.manifest_sha256 === c.manifest_sha256 && b.driver_sha256 === c.driver_sha256
+    && b.execution_binding_sha256 === c.execution_binding_sha256
     && b.source_tree && /^[a-f0-9]{40}$/.test(b.source_tree)
     && b.product_files.length > 10, 'SOURCE_BINDING_IDENTITY');
+  verifyDriverClosure(b.execution_files, c.profile === 'office-real-model' ? 'a9-42-real-model-trial.cjs' : 'a9-42-office-journey.cjs');
   for (const e of b.product_files) {
     need(/^resources\/app\/product\//.test(e.path), 'SOURCE_BINDING_PATH');
     const target = path.join(c.input_package_root, ...e.path.split('/'));
@@ -510,7 +644,7 @@ function taskNamesFromObservation(task, config) {
 async function postflight(config) {
   currentIdentity(config);
   const file = path.join(config.run_root, 'POSTFLIGHT.json'); need(!fs.existsSync(file), 'POSTFLIGHT_REUSE');
-  const r = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'HALTED', source_commit: config.source_commit,
+  const r = { schema_version: 1, evidence_class: config.evidence_class, status: 'HALTED', source_commit: config.source_commit,
     zip_sha256: config.zip_sha256, driver_sha256: config.driver_sha256 };
   try {
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'POSTFLIGHT_DRIVER_HASH');
@@ -538,7 +672,7 @@ async function controller(config) {
   for (const target of [config.package_root, config.workspace_root, path.join(config.run_root, 'RESULT.json')]) need(!fs.existsSync(target), 'OUTPUT_REUSE');
   const report = path.join(config.run_root, 'RESULT.json');
   fs.writeFileSync(report, '{}\n', { flag: 'wx' });
-  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'IN_PROGRESS',
+  const result = { schema_version: 1, evidence_class: config.evidence_class, status: 'IN_PROGRESS',
     source_commit: config.source_commit, zip_sha256: config.zip_sha256, manifest_sha256: config.manifest_sha256,
     driver_sha256: config.driver_sha256, source_binding_sha256: config.source_binding_sha256,
     real_model_requests: 0, started_at: new Date().toISOString(), task_cleanup: 'NOT_PERFORMED_EXTERNAL_POSTFLIGHT_REQUIRED' };
@@ -638,7 +772,7 @@ async function controller(config) {
 async function ui(config) {
   const { app, BrowserWindow, dialog, ipcMain } = require('electron');
   const report = path.join(config.run_root, 'ui-result.json');
-  const result = { schema_version: 1, evidence_class: 'DEV_CHANNEL', status: 'IN_PROGRESS', normal_quit: false,
+  const result = { schema_version: 1, evidence_class: config.evidence_class, status: 'IN_PROGRESS', normal_quit: false,
     checks: [], ipc: [], fixture: [], source_commit: config.source_commit, zip_sha256: config.zip_sha256 };
   const persist = () => save(report, result);
   const check = (name, ok) => { result.checks.push({ name, ok: Boolean(ok) }); persist(); need(ok, name); };
@@ -798,13 +932,17 @@ async function ui(config) {
     if (win) win.close(); else app.quit();
   }
 }
-module.exports = { validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
+module.exports = { driverClosure, copyDriverClosure, verifyDriverClosure, validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
   makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi, inside, processRows, observedTree, extendObservedTree, cleanEnvironment,
-  currentIdentity, currentTasks, copyPortablePackage, waitFor };
+  currentIdentity, currentTasks, copyPortablePackage, waitFor, EXECUTION_LAYOUT, loadExecutionBinding, expandExecutionLayout,
+  taskNameFor, rejectDriverOverrides, executionBindingPathFor };
 if (require.main === module) {
   try {
-    const args = process.argv.slice(2); const configFile = args[args.indexOf('--config') + 1];
-    const config = validateConfig(JSON.parse(fs.readFileSync(configFile, 'utf8')));
+    const args = process.argv.slice(2); const at = args.indexOf('--config'); need(at >= 0, 'CONFIG_ARGUMENT');
+    const configFile = path.resolve(args[at + 1]);
+    rejectDriverOverrides(args);
+    const raw = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    const config = validateConfig(raw, Date.now(), false, { executionBindingPath: raw.execution_binding_path });
     need(inside(config.run_root, path.resolve(configFile)), 'CONFIG_LOCATION');
     noLinks(config.run_root, path.resolve(configFile));
     Promise.resolve(args.includes('--ui') ? ui(config) : args.includes('--postflight') ? postflight(config) : controller(config)).catch(error => {

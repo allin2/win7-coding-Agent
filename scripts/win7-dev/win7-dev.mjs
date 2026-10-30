@@ -62,24 +62,36 @@ export function remotePath(input, { internal = false } = {}) {
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
   need(COMMANDS.includes(command), 'USAGE');
-  let steal = false; let wait = 600; let seenWait = false; const args = [];
+  let steal = false; let wait = 600; let seenWait = false; let runId = null; const args = [];
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === '--steal') { need(!steal && !READ_ONLY.has(command), 'OPTION_INVALID'); steal = true; }
     else if (arg === '--wait') {
       need(command === 'agent-run' && !seenWait && /^[1-9][0-9]*$/.test(rest[i + 1] ?? ''), 'WAIT_INVALID');
       seenWait = true; wait = Number(rest[++i]); need(wait <= 86400, 'WAIT_INVALID');
+    } else if (arg === '--run') {
+      need(command === 'stop' && runId === null, 'OPTION_INVALID');
+      need(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rest[i + 1] ?? ''), 'RUN_ID_INVALID');
+      runId = rest[++i].toLowerCase();
     } else { need(!arg.startsWith('--'), 'OPTION_INVALID'); args.push(arg); }
   }
   const counts = { status: 0, put: 2, get: 2, ps: 1, 'agent-run': 2, cand: 1, stop: 0, close: 0 };
   need(args.length === counts[command], 'USAGE');
+  if (command === 'stop') need(runId, 'RUN_SCOPE_REQUIRED');
+  if (command !== 'stop') need(runId === null, 'OPTION_INVALID');
   if (command === 'put') remotePath(args[1]);
   if (command === 'get') { remotePath(args[0]); localRelative(args[1]); }
   if (command === 'agent-run') {
     need(/^[a-z0-9][a-z0-9_-]{0,47}$/i.test(args[0]), 'RUN_NAME_INVALID');
     splitCommand(args[1]);
   }
-  return { command, args, steal, wait };
+  return { command, args, steal, wait, runId };
+}
+
+export function runScope(runId) {
+  need(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(runId || ''), 'RUN_ID_INVALID');
+  const id = runId.toLowerCase(); const prefix8 = id.slice(0, 8);
+  return { run_id: id, run_prefix8: prefix8, run_root: `C:\\A9-DEV\\run\\${prefix8}`, task_prefix: `A9-DEV-${prefix8}-` };
 }
 
 function localRelative(input) {
@@ -305,7 +317,7 @@ export class DevChannel {
   async ps(step, file, values = {}, options = {}) {
     const data = { holder: this.config.holder, token: this.token, command: this.command, operation: step, ...values };
     const parameters = {};
-    for (const key of ['path', 'stage', 'sha256', 'bytes', 'incoming', 'name', 'wait', 'executable', 'steal']) if (data[key] !== undefined) parameters[key] = data[key];
+    for (const key of ['path', 'stage', 'sha256', 'bytes', 'incoming', 'name', 'wait', 'executable', 'steal', 'run_id', 'run_prefix8', 'run_root', 'task_prefix']) if (data[key] !== undefined) parameters[key] = data[key];
     if (options.custom) parameters.script_sha256 = createHash('sha256').update(options.custom, 'utf8').digest('hex');
     const result = await this.action(step, 'ssh', powershellInput(file, data, options.custom), { ...options, parameters });
     return wireResult(result);
@@ -343,7 +355,7 @@ export class DevChannel {
   }
   async execute(argv) {
     const parsed = parseArgs(argv); this.command = parsed.command;
-    const { command, args, steal, wait } = parsed;
+    const { command, args, steal, wait, runId } = parsed;
     // Finish all local validation before the first possible connection.
     let input; let manifest; let script;
     if (['put', 'ps', 'cand'].includes(command)) { input = localFile(args[0]); rejectIdentityInput(input, this.config.identity); }
@@ -384,7 +396,8 @@ export class DevChannel {
         need(result.completed && Number.isInteger(result.exit_code), 'RUN_TIMEOUT');
         if (result.exit_code !== 0) throw new ChannelError('AGENT_EXIT_NONZERO', { exit_code: result.exit_code });
       } else {
-        result = await this.ps(command, 'stop.ps1');
+        const values = command === 'stop' ? runScope(runId) : {};
+        result = await this.ps(command, 'stop.ps1', values);
         if (command === 'close') this.lease = false;
       }
     } catch (e) { failure = e; }

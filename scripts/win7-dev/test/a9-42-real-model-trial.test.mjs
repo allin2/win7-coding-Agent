@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url);
 const d = require('../a9-42-real-model-trial.cjs');
 const b = require('../a9-42-office-journey.cjs');
 const prep = require('../a9-42-real-model-prepare.cjs');
+const fixture = require('./execution-binding-fixture.cjs');
 // Fail before transport for every non-loopback request, including accidental real probes.
 const httpRequest = http.request;
 http.request = function(options, ...rest) {
@@ -19,12 +20,17 @@ http.request = function(options, ...rest) {
 https.request = () => { throw new Error('EXTERNAL_NETWORK_FORBIDDEN'); };
 const now = Date.parse('2026-10-29T17:00:00.000Z');
 function config() {
-  const r = 'C:\\A9-DEV\\work\\a942r-1234abcd';
-  return { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'office-real-model', run_id: 'a942r-1234abcd',
-    source_commit: '1'.repeat(40), zip_sha256: '2'.repeat(64), manifest_sha256: '3'.repeat(64), driver_sha256: '4'.repeat(64), source_binding_sha256: '5'.repeat(64),
-    manifest_file_count: 1000, session_id: 2, task_name: 'A9-DEV-a942r-1234abcd', deadline_utc: '2026-10-29T17:50:00.000Z', real_model_request_limit: 20,
-    input_package_root: 'C:\\A9-DEV\\input\\newpkg', zip_path: 'C:\\A9-DEV\\input.zip', run_root: r + '\\run', package_root: r + '\\pkg',
-    workspace_root: r + '\\中文 workspace', data_root: r + '\\pkg\\portable-data', cmd_path: r + '\\run\\cmd.exe', source_binding_path: r + '\\run\\source-binding.json',
+  const layout = b.expandExecutionLayout({ run_id: fixture.RUN_ID });
+  return { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'office-real-model', run_id: fixture.RUN_ID,
+    source_commit: fixture.source_commit, zip_sha256: fixture.package_sha256, manifest_sha256: fixture.manifest_sha256,
+    driver_sha256: '4'.repeat(64), source_binding_sha256: '5'.repeat(64),
+    manifest_file_count: 1000, session_id: 2, task_name: 'A9-DEV-3f1c2a52-office-real-model',
+    deadline_utc: '2026-10-29T17:50:00.000Z', real_model_request_limit: 20,
+    input_package_root: layout.input_package_root, zip_path: layout.zip_path, run_root: layout.run_root,
+    package_root: layout.package_root, workspace_root: layout.workspace_root, data_root: layout.data_root,
+    cmd_path: layout.cmd_path, source_binding_path: layout.source_binding_path,
+    execution_binding_path: layout.execution_binding_path, execution_binding_sha256: fixture.sha(fixture.bytes()),
+    helper_sha256: fixture.helper_sha256,
     upstream: d.UPSTREAM, model: 'deepseek-v4-flash', idle_seconds: 60, transport: 'direct', credential_source: 'current-user-default-dpapi' };
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -47,16 +53,19 @@ async function withRelay(handler, fn, options = {}) {
   try { await fn(relay, await relay.listen()); } finally { await relay.close(); await upstream.close(); }
 }
 test('strict config: fixed upstream, limit, secret/layout, profile/run, unknown fields and deadline', () => {
-  assert.equal(d.validateConfig(config(), now).idle_seconds, 60);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942r-binding-'));
+  const bindingFile = path.join(root, 'execution-binding.json'); fs.writeFileSync(bindingFile, fixture.bytes());
+  const c = config();
+  assert.equal(d.validateConfig(c, now, false, { executionBindingPath: bindingFile }).idle_seconds, 60);
   for (const change of [{ upstream: 'http://127.0.0.1:1234' },{ upstream: d.UPSTREAM + '/' },{ upstream: 'https://api.deepseek.com.evil' },
     { real_model_request_limit: 0 },{ real_model_request_limit: 41 },{ real_model_request_limit: 1.1 },{ real_model_request_limit: '3' },
     { api_key_file: config().run_root + '\\secret\\key.txt' },{ transport: 'relay' },{ credential_source: 'file' },
     { run_id: 'a942o-1234abcd' },{ profile: 'office-journey' },{ surprise: 1 },{ deadline_utc: null },{ deadline_utc: '2026-10-29T18:00:00.001Z' },
     { deadline_utc: '2026-10-29T16:59:59.000Z' },{ idle_seconds: 29 },{ idle_seconds: 121 },{ model: 'evil/path' },{ run_root: 'C:\\elsewhere' }]) {
-    assert.throws(() => d.validateConfig({ ...config(), ...change }, now), JSON.stringify(change));
+    assert.throws(() => d.validateConfig({ ...c, ...change }, now, false, { executionBindingPath: bindingFile }), JSON.stringify(change));
   }
-  assert.equal(d.validateConfig({ ...config(), real_model_request_limit: 40, idle_seconds: 120 }, now).real_model_request_limit, 40);
-  assert.equal(d.validateConfig({ ...config(), deadline_utc: null }, now, true).deadline_utc, null);
+  assert.equal(d.validateConfig({ ...c, real_model_request_limit: 40, idle_seconds: 120 }, now, false, { executionBindingPath: bindingFile }).real_model_request_limit, 40);
+  assert.equal(d.validateConfig({ ...c, deadline_utc: null }, now, true, { executionBindingPath: bindingFile }).deadline_utc, null);
   assert.throws(() => d.startRelay({ limit: 1, deadline: Date.now() + 1000 }, 'https://evil.invalid'), /TEST_UPSTREAM/);
 });
 test('hard cap includes probe; refuses every later request without forwarding even concurrently', async () => {
@@ -193,23 +202,65 @@ test('deterministic bound fixtures are real PK Office XML; workspace tracks writ
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 test('prepare emits non-executable template, exact support and sample hashes without altering old prepare', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942r-prepare-'));
+  const source = fixture.committedSource('a9-42-real-model-trial.cjs'); const root = source.root;
   try {
     const zipPath = path.join(root, 'input.zip'); fs.writeFileSync(zipPath, 'unit fixture zip');
     const output = path.join(root, 'prepared');
-    const spec = { source_commit: config().source_commit, zip_path: zipPath, run_id: config().run_id, session_id: 2, output_root: output,
-      real_model_request_limit: 20, model: config().model, idle_seconds: 60, target_input_package_root: config().input_package_root, target_zip_path: config().zip_path };
+    const bindingFile = path.join(root, 'execution-binding.json'); fs.writeFileSync(bindingFile, source.bytes());
+    const layout = b.expandExecutionLayout({ run_id: fixture.RUN_ID });
+    const spec = { source_root: root, source_commit: source.commit, zip_path: zipPath, run_id: config().run_id, session_id: 2, output_root: output,
+      real_model_request_limit: 20, model: config().model, idle_seconds: 60, execution_binding_path: bindingFile,
+      target_tools_root: layout.tools_root };
     prep.emitMaterials(spec, { manifestBytes: Buffer.from('{}'), m: { files: Array(101).fill({}) }, products: [], compiled: [], sourceIdentity: {}, compilers: [] });
-    const c = JSON.parse(fs.readFileSync(path.join(output, 'config-template.json'))); assert.throws(() => d.validateConfig(c), /CONFIG_DEADLINE/);
+    const c = JSON.parse(fs.readFileSync(path.join(output, 'config-template.json')));
+    assert.throws(() => d.validateConfig(c, Date.now(), false, { executionBindingBytes: source.bytes() }), /CONFIG_DEADLINE/);
     assert.equal(c.transport, 'direct'); assert.equal(c.credential_source, 'current-user-default-dpapi');
     assert.equal(Object.hasOwn(c, 'api_key_file'), false);
-    assert.equal(d.validateConfig(c, Date.now(), true).deadline_utc, null);
+    assert.equal(d.validateConfig(c, Date.now(), true, { executionBindingBytes: source.bytes() }).deadline_utc, null);
     const bindBytes = fs.readFileSync(path.join(output, 'source-binding.json')), binding = JSON.parse(bindBytes);
-    assert.equal(b.hash(bindBytes), c.source_binding_sha256); assert.equal(b.hash(fs.readFileSync(path.join(output, 'driver.cjs'))), c.driver_sha256);
+    assert.equal(b.hash(bindBytes), c.source_binding_sha256); assert.equal(b.hash(fs.readFileSync(path.join(output, 'scripts/win7-dev/a9-42-real-model-trial.cjs'))), c.driver_sha256);
     assert.deepEqual(binding.support_files.map(e => e.path), d.SUPPORT);
-    for (const e of [...binding.support_files, ...binding.samples]) assert.equal(b.hash(fs.readFileSync(path.join(output, e.path))), e.sha256);
+    for (const e of [...binding.support_files, ...binding.samples]) assert.equal(b.hash(fs.readFileSync(path.join(output, 'scripts/win7-dev', e.path))), e.sha256);
     const launch = fs.readFileSync(path.join(output, 'launch-template.cmd'), 'utf8'); assert.match(launch, /\r\n/); assert.ok(!launch.includes('api.deepseek'));
     assert.throws(() => prep.emitMaterials(spec, { manifestBytes: Buffer.from('{}'), m: { files: Array(101) }, products: [], compiled: [], sourceIdentity: {}, compilers: [] }));
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+test('prepare emits formal materials and rejects an old work-root target layout', () => {
+  const source = fixture.committedSource('a9-42-real-model-trial.cjs'); const root = source.root;
+  try {
+    const zipPath = path.join(root, 'input.zip'); fs.writeFileSync(zipPath, 'unit fixture zip');
+    const devFile = path.join(root, 'dev.json'); fs.writeFileSync(devFile, source.bytes());
+    const formalFile = path.join(root, 'formal.json'); fs.writeFileSync(formalFile, source.bytes('FORMAL_GATE_A_EXECUTION'));
+    const base = { source_root: root, source_commit: source.commit, zip_path: zipPath, run_id: config().run_id, session_id: 2,
+      real_model_request_limit: 20, model: config().model, idle_seconds: 60 };
+    const materials = { manifestBytes: Buffer.from('{}'), m: { files: Array(101).fill({}) }, products: [], compiled: [], sourceIdentity: {}, compilers: [] };
+    const output = path.join(root, 'formal-out');
+    prep.emitMaterials({ ...base, output_root: output, execution_binding_path: formalFile,
+      target_tools_root: b.expandExecutionLayout({ run_id: fixture.RUN_ID }).tools_root }, materials);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output, 'config-template.json'))).evidence_class, 'FORMAL_GATE_A_EXECUTION');
+    const devOut = path.join(root, 'dev-out');
+    prep.emitMaterials({ ...base, output_root: devOut, execution_binding_path: devFile,
+      target_tools_root: b.expandExecutionLayout({ run_id: fixture.RUN_ID }).tools_root }, materials);
+    const formalCode = JSON.parse(fs.readFileSync(path.join(output, 'source-binding.json'))).execution_files;
+    const devCode = JSON.parse(fs.readFileSync(path.join(devOut, 'source-binding.json'))).execution_files;
+    assert.deepEqual(formalCode, devCode);
+    assert.deepEqual(fs.readFileSync(path.join(output, 'launch-template.cmd')),
+      fs.readFileSync(path.join(devOut, 'launch-template.cmd')));
+    for (const item of formalCode) assert.equal(b.hash(fs.readFileSync(path.join(output, item.path))), item.sha256);
+    const next = JSON.parse(source.bytes()); next.run_id = 'fedcba98-1234-4abc-8def-123456789abc';
+    const nextFile = path.join(root, 'next-binding.json'); fs.writeFileSync(nextFile, JSON.stringify(next));
+    const nextOut = path.join(root, 'next-out');
+    prep.emitMaterials({ ...base, run_id: next.run_id, output_root: nextOut, execution_binding_path: nextFile,
+      target_tools_root: b.expandExecutionLayout(next).tools_root }, materials);
+    assert.notEqual(JSON.parse(fs.readFileSync(path.join(nextOut, 'config-template.json'))).run_root,
+      JSON.parse(fs.readFileSync(path.join(output, 'config-template.json'))).run_root);
+    assert.deepEqual(fs.readFileSync(path.join(output, 'launch-template.cmd')),
+      fs.readFileSync(path.join(nextOut, 'launch-template.cmd')));
+    assert.deepEqual(formalCode, JSON.parse(fs.readFileSync(path.join(nextOut, 'source-binding.json'))).execution_files);
+
+
+    assert.throws(() => prep.emitMaterials({ ...base, output_root: path.join(root, 'old-out'),
+      execution_binding_path: devFile, target_tools_root: 'C:\\A9-DEV\\work\\a942r-1234abcd\\t' }, materials), /PREPARE_TARGET_LAYOUT/);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 test('support/sample binding rejects omitted reuse, drift, duplicate names and tampered samples', () => {
@@ -298,8 +349,10 @@ test('key-less network preflight: GET /models without Authorization, 401 only, b
 });
 test('direct profile cannot accept the old relay/key-file execution inputs', () => {
   assert.equal(d.requirePreflight, undefined); assert.equal(d.readKeyPipe, undefined);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942r-direct-negative-'));
+  const bindingFile = path.join(root, 'execution-binding.json'); fs.writeFileSync(bindingFile, fixture.bytes());
   for (const values of [{ ...config(), transport: 'relay' }, { ...config(), api_key_file: 'C:\\key.txt' }])
-    assert.throws(() => d.validateConfig(values, now));
+    assert.throws(() => d.validateConfig(values, now, false, { executionBindingPath: bindingFile }));
 });
 test('process observation preserves missing identity and the first cause without relaxing the tree guard', () => {
   const known = { pid: 10, parent: 1, created: '20261030115321.750000+480', image: 'C:\\A9-DEV\\work\\p\\electron.exe', name: 'electron.exe', session: 2 };

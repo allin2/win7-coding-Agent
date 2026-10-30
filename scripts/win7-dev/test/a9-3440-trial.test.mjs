@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const trial = require('../a9-3440-trial.cjs');
+const fixture = require('./execution-binding-fixture.cjs');
 const stamp = '20261028010000.000000-420';
 const root = { pid: 10, parent: 1, created: stamp, image: 'C:\\A9-DEV\\electron.exe', session: 1, name: 'electron.exe' };
 const child = { ...root, pid: 11, parent: 10, created: '20261028010001.000000-420', image: 'C:\\A9-DEV\\cmd.exe', name: 'cmd.exe' };
@@ -124,19 +125,28 @@ test('trial paths cannot overlap protected roots or use Windows path aliases', (
 });
 
 test('trial admission binds the exact development package and refuses broader execution budgets', () => {
-  const config = { schema_version: 1, evidence_class: 'DEV_CHANNEL',
-    source_commit: 'f68b6c8eb748f548b2306f5263bc02cf180f1ef7',
-    zip_sha256: 'efccd14a97fd146aa22e37c23e028d1aa04a7a7590df80c9dbbd7a2182469bcc',
-    helper_sha256: '2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7',
-    manifest_sha256: 'a'.repeat(64), driver_sha256: 'b'.repeat(64), run_root: 'C:\\A9-DEV\\trials\\one',
-    package_root: 'C:\\A9-DEV\\cand\\one', cmd_path: 'C:\\A9-DEV\\trials\\one\\cmd.exe',
-    real_model_request_limit: 0, deadline_utc: '2026-10-28T08:00:00Z' };
-  assert.equal(trial.validateConfig(config), config);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a93440-binding-'));
+  const bindingFile = path.join(root, 'execution-binding.json'); fs.writeFileSync(bindingFile, fixture.bytes());
+  const execution = require('../a9-42-office-journey.cjs').loadExecutionBinding({ executionBindingPath: bindingFile });
+  const config = { schema_version: 1, evidence_class: 'DEV_CHANNEL', run_id: fixture.RUN_ID,
+    source_commit: fixture.source_commit, zip_sha256: fixture.package_sha256,
+    helper_sha256: fixture.helper_sha256, manifest_sha256: fixture.manifest_sha256,
+    execution_binding_sha256: execution.sha256, driver_sha256: 'b'.repeat(64), source_binding_sha256: 'c'.repeat(64),
+    run_root: execution.layout.run_root, package_root: execution.layout.package_root,
+    input_package_root: execution.layout.input_package_root, workspace_root: execution.layout.workspace_root,
+    data_root: execution.layout.data_root, zip_path: execution.layout.zip_path,
+    cmd_path: execution.layout.cmd_path, source_binding_path: execution.layout.source_binding_path,
+    execution_binding_path: execution.layout.execution_binding_path,
+    task_name: execution.layout.task_prefix + 'a93440',
+    real_model_request_limit: 0, deadline_utc: '2026-10-29T18:00:00.000Z' };
+  assert.equal(trial.validateConfig(config, { executionBindingPath: bindingFile }), config);
   for (const change of [{ source_commit: '0'.repeat(40) }, { zip_sha256: '0'.repeat(64) },
     { real_model_request_limit: 1 }, { deadline_utc: null }, { cmd_path: 'C:\\Windows\\System32\\cmd.exe' },
-    { package_root: config.run_root + '\\package' }, { run_root: 'C:\\outside' }]) {
-    assert.throws(() => trial.validateConfig({ ...config, ...change }));
+    { package_root: config.run_root + '\\package' }, { run_root: 'C:\\outside' },
+    { run_root: 'C:\\A9-DEV\\work\\a942o-1234abcd' }, { evidence_class: 'FORMAL_GATE_A_EXECUTION' }]) {
+    assert.throws(() => trial.validateConfig({ ...config, ...change }, { executionBindingPath: bindingFile }));
   }
+  assert.throws(() => trial.validateConfig(config, { executionBindingPath: bindingFile, argv: ['--run-root=C:\\outside'] }), /CONFIG_CLI_OVERRIDE/);
 });
 
 test('fixture dispatch is limited to the selected prompt and exactly one background start', () => {
@@ -152,27 +162,32 @@ test('fixture dispatch is limited to the selected prompt and exactly one backgro
 });
 
 test('portable admission separates the original-input package from recovery runs and preserves input roots', () => {
-  const config = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'portable-smoke',
-    source_commit: '158a737fc56247deea5351a94380533bcbf507ca',
-    zip_sha256: '1e8fb7724a378c4a0a2e803aeb1c0f11c61a1626ce4ee46a5832b7fb048f9429',
-    helper_sha256: '2036bf697f16db523c297d150661b43be76458eb718ca24781ebed98ab51e4b7',
-    manifest_sha256: '04f2b608ef41951773522f10792bb9fcccaff561e57d9cfddb3998632cc641ef',
-    driver_sha256: 'b'.repeat(64), run_root: 'C:\\A9-DEV\\trials\\portable',
-    package_root: 'C:\\A9-DEV\\portable\\one\\app', input_package_root: 'C:\\A9-DEV\\cand\\original\\app',
-    cmd_path: 'C:\\A9-DEV\\trials\\portable\\cmd.exe', real_model_request_limit: 0,
-    deadline_utc: '2026-10-28T18:00:00Z' };
-  assert.equal(trial.validateConfig(config), config);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a93440-portable-binding-'));
+  const bindingFile = path.join(root, 'execution-binding.json'); fs.writeFileSync(bindingFile, fixture.bytes());
+  const execution = require('../a9-42-office-journey.cjs').loadExecutionBinding({ executionBindingPath: bindingFile });
+  const config = { schema_version: 1, evidence_class: 'DEV_CHANNEL', profile: 'portable-smoke', run_id: fixture.RUN_ID,
+    source_commit: fixture.source_commit, zip_sha256: fixture.package_sha256,
+    helper_sha256: fixture.helper_sha256, manifest_sha256: fixture.manifest_sha256,
+    execution_binding_sha256: execution.sha256, driver_sha256: 'b'.repeat(64), source_binding_sha256: 'c'.repeat(64),
+    run_root: execution.layout.run_root, package_root: execution.layout.package_root,
+    input_package_root: execution.layout.input_package_root, workspace_root: execution.layout.workspace_root,
+    data_root: execution.layout.data_root, zip_path: execution.layout.zip_path,
+    cmd_path: execution.layout.cmd_path, source_binding_path: execution.layout.source_binding_path,
+    execution_binding_path: execution.layout.execution_binding_path,
+    task_name: execution.layout.task_prefix + 'a93440',
+    real_model_request_limit: 0, deadline_utc: '2026-10-29T18:00:00.000Z' };
+  assert.equal(trial.validateConfig(config, { executionBindingPath: bindingFile }), config);
   for (const change of [
-    { profile: undefined }, { profile: 'unknown' },
-    { source_commit: 'f68b6c8eb748f548b2306f5263bc02cf180f1ef7' },
-    { zip_sha256: 'efccd14a97fd146aa22e37c23e028d1aa04a7a7590df80c9dbbd7a2182469bcc' },
+    { profile: 'unknown' },
+    { source_commit: '0'.repeat(40) },
+    { zip_sha256: '0'.repeat(64) },
     { manifest_sha256: 'a'.repeat(64) }, { real_model_request_limit: 1 },
     { input_package_root: 'C:\\outside\\app' },
     { input_package_root: config.package_root.toUpperCase() },
     { input_package_root: config.run_root },
     { input_package_root: config.package_root + '\\source' },
     { package_root: config.input_package_root + '\\copy' },
-  ]) assert.throws(() => trial.validateConfig({ ...config, ...change }));
+  ]) assert.throws(() => trial.validateConfig({ ...config, ...change }, { executionBindingPath: bindingFile }));
 });
 
 test('actual loopback fixture returns SSE and rejects all restart requests', async () => {
@@ -216,11 +231,51 @@ test('external driver runtime preserves physical bytes without the packaged app 
   fs.writeFileSync(path.join(packageRoot, 'release-manifest.json'), JSON.stringify({ files }));
   const config = { package_root: packageRoot, run_root: runRoot,
     driver_sha256: digest(fs.readFileSync(new URL('../a9-3440-trial.cjs', import.meta.url))) };
+  const base = require('../a9-42-office-journey.cjs');
+  config.source_binding_path = path.join(root, 'source-binding.json');
+  const binding = { schema_version: 1, driver_sha256: config.driver_sha256, execution_files: base.driverClosure('a9-3440-trial.cjs').map(relative => ({
+    path: relative, sha256: digest(fs.readFileSync(path.resolve('scripts/win7-dev/../..', relative))) })) };
+  const bytes = Buffer.from(JSON.stringify(binding));
+  config.source_binding_sha256 = digest(bytes); fs.writeFileSync(config.source_binding_path, bytes);
   const runtime = trial.prepareDriverRuntime(config, fs);
   assert.equal(fs.readFileSync(path.join(path.dirname(runtime.executable), 'resources/default_app.asar'), 'utf8'), 'physical-asar');
   assert.equal(fs.existsSync(path.join(path.dirname(runtime.executable), 'resources/app')), false);
-  assert.equal(digest(fs.readFileSync(path.join(runtime.app_root, 'main.cjs'))), config.driver_sha256);
+  assert.equal(digest(fs.readFileSync(path.join(runtime.app_root, 'scripts/win7-dev/a9-3440-trial.cjs'))), config.driver_sha256);
   assert.throws(() => trial.prepareDriverRuntime(config, fs), /DRIVER_RUNTIME_EXISTS/);
   fs.writeFileSync(path.join(packageRoot, 'electron.exe'), 'changed');
   assert.throws(() => trial.prepareDriverRuntime({ ...config, run_root: path.join(root, 'bad') }, fs), /DRIVER_RUNTIME_SOURCE_HASH/);
+});
+
+test('the shared real-entry guard rejects bound dependency drift before product operations', () => {
+  const base = require('../a9-42-office-journey.cjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a93440-entry-guard-'));
+  const records = base.copyDriverClosure(root, 'a9-3440-trial.cjs');
+  const execution = base.loadExecutionBinding({ executionBindingBytes: fixture.bytes() }); const l = execution.layout;
+  const config = { schema_version: 1, evidence_class: execution.evidence_class, run_id: execution.run_id,
+    source_commit: execution.source_commit, zip_sha256: execution.package_sha256,
+    manifest_sha256: execution.manifest_sha256, helper_sha256: execution.helper_sha256,
+    execution_binding_sha256: execution.sha256,
+    driver_sha256: records.find(e => e.path.endsWith('/a9-3440-trial.cjs')).sha256,
+    task_name: l.task_prefix + 'a93440', real_model_request_limit: 0, deadline_utc: '2026-10-30T18:00:00.000Z',
+    ...Object.fromEntries(['run_root','package_root','input_package_root','workspace_root','data_root','zip_path',
+      'cmd_path','source_binding_path','execution_binding_path'].map(key => [key, l[key]])) };
+  const binding = { schema_version: 1, execution_files: records,
+    ...Object.fromEntries(['source_commit','zip_sha256','manifest_sha256','driver_sha256','execution_binding_sha256']
+      .map(key => [key, config[key]])) };
+  let bytes = Buffer.from(JSON.stringify(binding)); config.source_binding_sha256 = base.hash(bytes);
+  const io = { ...fs, readFileSync: file => file === config.source_binding_path ? bytes : fs.readFileSync(file) };
+  const options = { executionBindingBytes: fixture.bytes(), codeRoot: root, io };
+  assert.strictEqual(trial.admitConfig(config, options), config);
+  for (const relative of ['scripts/win7-dev/a9-42-office-journey.cjs',
+    'scripts/release/validation/win7-alpha3/authority.cjs', 'scripts/release/validation/win7-alpha3/deny-set.cjs']) {
+    const file = path.join(root, relative); const original = fs.readFileSync(file);
+    fs.appendFileSync(file, '\n// changed after approval\n');
+    assert.throws(() => trial.admitConfig(config, options), /DRIVER_CLOSURE_HASH/);
+    fs.writeFileSync(file, original);
+  }
+  const original = bytes; bytes = Buffer.from(JSON.stringify({ ...binding, source_commit: '0'.repeat(40) }));
+  assert.throws(() => trial.admitConfig(config, options), /SOURCE_BINDING_HASH/);
+  config.source_binding_sha256 = base.hash(bytes);
+  assert.throws(() => trial.admitConfig(config, options), /SOURCE_BINDING_IDENTITY/);
+  bytes = original;
 });
