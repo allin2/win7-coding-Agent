@@ -927,8 +927,8 @@ docs:check首轮发现索引已更新但任务书头部仍为NOT_PERFORMED的元
 ## 8. 真实模型小规模试用与轻量资源测量（PROPOSED，未授权）
 
 2026-10-29 负责人要求“使用gpt重置模式推进”，并以“开始吧”确认员工配置。
-本节登记已获准的开发机准备。负责人后续选择中继，准确记录见§8.3。
-Win7窗口、真实DeepSeek请求和密钥交付仍待负责人单独批准。
+本节登记已获准的开发机准备。中继历史记录见§8.3；负责人后继要求“走直连”，当前范围见§8.4。
+新Win7窗口、真实DeepSeek请求和费用预算仍待负责人单独批准；直连先复用已保存密钥，不要求重新交付。
 
 ### 8.1 本地交付（开发机）
 
@@ -1017,3 +1017,64 @@ source-binding SHA-256为 `f1ebba1b7b0061672ec8ac1e2620057950ee2ecf3ed13976ef9eb
 
 请求数上限不等于金额硬上限。流式usage缺失时，token数及费用保持UNKNOWN。
 网络检查不证明密钥有效、模型工具能力或产品直连公网能力。Win7实机、外部无密钥检查和真实模型均NOT_PERFORMED。
+
+### 8.4 产品直连与已保存密钥恢复（开发机，目标试用仍PROPOSED）
+
+负责人明确“走直连”，取代§8.2～§8.3的中继线路与其专用前置步骤。
+本轮起点为main `a484c1a…`、工作区干净。仅修改候选外试用工具、定向验证与文档；
+产品src、99项办公依赖、原生工件和r4 ZIP均不变，不重建产品包。
+主对话由环境切换为Codex Sol/max/default，保留该配置；已确认GPT重置员工配置不变，本轮未新增派单。
+
+| 变化 | 精确行为 |
+|---|---|
+| 直连路径 | 产品Gateway仍调用原Node HTTPS，目的地固定 `https://api.deepseek.com`；无本机监听端口、无代理或请求改写 |
+| 发送前限额 | 候选外驱动在加载产品前包装http/https.request，仅放行当前Provider的POST chat/completions；含probe与重试，最多30次，超额在原方法调用前拒绝 |
+| TLS | 保留产品rejectUnauthorized=true及默认主机名/信任校验；拒绝自定义CA、代理连接入口、替代目的地与关闭TLS验证；目标握手尚未执行 |
+| 凭据来源 | 同普通agent账户的 `%LOCALAPPDATA%\\Win7CodingAgent`；只读配置、API Key密文、Local State；只向新portable目录写非秘密配置、原密文和os_crypt.encrypted_key，不复制会话、数据库、Cookies或其他Local State字段 |
+| 恢复入口 | 产品真实main/Runtime/safeStorage负责解密；驱动不自行调用解密、不输入或传递明文密钥、不改原地址。恢复失败即HALTED，不自动索取新密钥或切换线路 |
+| 原数据保护 | 源文件有界读取、文件身份/变化/链接拒绝；写入前、产品退出后及postflight核对三份原文件hash；目标DPAPI恢复与原件保护仍需直接证明 |
+| 取证 | 产品请求原样流式传输；仅保留计数、耗时、字节、usage与TLS元数据。请求内存中观察到的密钥只用于UI/SQL/截图文字的精确泄漏检查，不写出 |
+| 进程日志 | 控制器不接收明文密钥，stdout/stderr仅保存原始字节数与SHA-256；正文不落盘，原生错误诊断深度因此受限 |
+| 取消与退出 | 复用五场景、同批不执行、SQLite事实、原件hash、迟到回复拒绝与独立postflight；S5取消后连被拒绝的请求尝试也不得增加 |
+
+Electron22上游源码确认safeStorage通过OSCrypt加/解密，Windows初始化读取Local State；
+本轮只投影os_crypt.encrypted_key，实际能否恢复原Win7密钥仍UNKNOWN。
+依据为[Electron22 safeStorage源码](https://github.com/electron/electron/blob/v22.3.27/shell/browser/api/electron_api_safe_storage.cc)、
+[Local State读取](https://github.com/electron/electron/blob/v22.3.27/shell/browser/browser_process_impl.cc#L88-L109)与
+[Windows OSCrypt初始化](https://github.com/electron/electron/blob/v22.3.27/shell/browser/electron_browser_main_parts.cc#L601-L613)。
+本地加密材料只是合成夹具；Runtime恢复测试使用fake safeStorage，不将其写成Windows DPAPI通过。
+
+开发机七模块编译/静态门PASS；直连7项、既有驱动20项、资源采样5项合计32项PASS。
+直接覆盖真实Gateway流式请求、取消断开、重试不突破上限、并发拒绝、TLS参数拒绝、精确密钥扫描、
+加密材料白名单、源变化/链接/损坏拒绝，以及真实Runtime+SQLite恢复成功/解密失败。
+实际Electron22.3.27/Node16.17.1运行当前Gateway到本机HTTP夹具的3项检查PASS。
+日志见 `outputs/a9-42-tools/real-model-trial/direct-*.log` 和 `node16-direct-r3/RESULT.json`。
+首轮29PASS/3FAIL来自Mac临时目录祖先链接，修正夹具使用真实目录后6PASS/1FAIL来自快照方法名；
+改用真实getSnapshot入口后通过。原日志保留，不放宽产品链接或恢复判据。
+
+工具本地保存为 `f90d6a2…`，无推送。准确材料为 `outputs/a9-42-tools/real-model-trial/prepared-r3-direct/`，
+run `a942r-8226e8de`；12份材料逐hash匹配，重新编译后39份产品/117份编译文件正向匹配原r4包。
+driver SHA-256 `4bb0a7fa74d403faaa4686068c87cebb9830dc78d8849a07317aa992f957480b`，
+source-binding SHA-256 `b97369a6f4ce4574ebe7c14e08c481df6f12f315faf72a732326b91ba126181d`；
+完整清单 `materials-manifest-r3-direct.json` SHA-256
+`b1ba27280893b6354bebb4be85611e59c47ef0faa5dea826b145a85ca0b00d47`。
+模板deadline=null已直接取得CONFIG_DEADLINE拒绝；原r1/r2与全部失败保留。
+
+| 待批准参数 | 直连具体提案 |
+|---|---|
+| 目标窗口 | 新60分钟DEV_CHANNEL，最后10分钟不开新场景；1个场景run，失败场景不重试 |
+| 模型/请求 | deepseek-v4-flash直连api.deepseek.com；含probe和重试最多30次，超额发送前拒绝 |
+| 金额 | 投资人给出可接受金额；现有工具仅硬限制请求数，无供应商侧结算/余额接口证据，不能保证金额封顶 |
+| 加密数据访问 | 同普通agent默认userData三份文件只读，必要加密投影写新portable；原件不写、hash复核，恢复失败停止 |
+| 目标准入 | 复核原主机键、Win7 SP1 x64、普通agent的活动会话/Medium、自己的inactive锁与无未知生命周期；会话2仅准备值 |
+| 收尾 | 正常产品退出、独立postflight、原文件hash、根内零任务/进程及锁inactive；不执行close删根、不改系统或安装 |
+
+具体顺序见材料内EXECUTION_ORDER.md。目标执行前模板deadline必须非空，不得借用§7已关闭的窗口。
+Win7实机、真DPAPI恢复、公网TLS、真实模型与费用均NOT_PERFORMED或UNKNOWN。
+请求次数上限不是金额硬上限；usage缺失时不推算结算值。
+资源采样含驱动观察开销，空闲60秒和单次启动只构成开发基线，不签PERFORMANCE_BUDGET #1/#2/#3/#10达标。
+
+本轮docs:check为394文件/64任务PASS，verify:tools与git diff --check通过。
+只读收尾清单为 `outputs/a9-42-tools/real-model-trial/closeout-inventory-r3-direct.json`：
+本轮材料、编译输出、合成夹具与两份原员工工作树均KEEP，无删除；工作树仍有未提交交付文件，进程占用UNKNOWN。
+没有连接Win7、读取真实密钥、执行外部预检、发真实模型请求、安装依赖、修改系统、推送或发布。

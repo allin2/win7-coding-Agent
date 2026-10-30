@@ -21,9 +21,10 @@
   原包/运行副本完整性已直接核对，组件字节不变；历史失败和中断全部保留。两场景不改写为一次完整Office GUI旅程PASS。
   取证驱动抽屉顺序修复已本地保存为 `9b2e963…`，13项驱动与Electron22/Node16原生交互4项PASS；该修正后单次完整Win7旅程仍NOT_PERFORMED。
   真实模型、正式Gate A/B、长期资源预算、负责人实际使用验收、推送发布仍NOT_PERFORMED。完整release组11项历史FAIL与5项未执行不改判；前序包与全部验证见任务书§4～§7。
-  负责人已选择中继。执行代理补充无密钥前置检查并本地提交 `5579a4e7…`；开发机驱动21项、采样5项及Electron22/Node16本机检查PASS。
-  同r4包的r2材料已备、deadline=null；控制器要求先取得本轮网络检查PASS，才读取密钥，见任务书§8.3。
-  Win7窗口、DeepSeek请求上限、费用上限与密钥交付待负责人批准；本轮Win7实机、外部无密钥检查与真实模型均NOT_PERFORMED。
+  负责人后继选择产品直连，取代中继线路，见任务书§8.4；原中继提交和r1/r2材料保留。
+  直连驱动保留原HTTPS/TLS路径、发送前请求硬上限，并由产品恢复同普通账户的已存DPAPI密钥；只复制必要密文到独立portable目录。
+  开发机定向32项、七模块编译/静态门及Electron22/Node16本机Gateway传输3项PASS；不证明Win7真DPAPI或公网TLS。
+  新Win7窗口、DeepSeek请求与费用预算仍待批准；本轮Win7实机及真实模型均NOT_PERFORMED。原密钥能否恢复及是否有效为UNKNOWN。
 - [A9-41](tasks/A9_41_WORKBENCH_UI_POLISH.md)：负责人批准本地工作台 UI 优化并开启 GPT 重置模式 fast。
   长标题开关、窄窗焦点、导航及状态可读性优化已随批准清单保存为产品提交 `100f8db4…`，进入上述A9-42开发包。
   开发机定向测试 73 PASS、Renderer 桩交互 14 PASS保持原证据；已随A9-42补Win7普通agent真实启动/关闭与同包6视口焦点检查，只作DEV_CHANNEL，见任务书§4.6。
