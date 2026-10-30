@@ -799,7 +799,8 @@ async function ui(config) {
   }
 }
 module.exports = { validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
-  makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi };
+  makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi, inside, processRows, observedTree, extendObservedTree, cleanEnvironment,
+  currentIdentity, currentTasks, copyPortablePackage, waitFor };
 if (require.main === module) {
   try {
     const args = process.argv.slice(2); const configFile = args[args.indexOf('--config') + 1];
