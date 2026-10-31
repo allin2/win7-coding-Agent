@@ -734,3 +734,13 @@ Assembly System4.0.0.0/token b77a5c561934e089，3541424字节/SHA af125777…，
 原始当前报告1970字节/SHA 0349587a…；所有批准链保留，不重新分发或更换系统组件。
 元数据路径仅在获取阶段识别Windows命名空间等价；后续处置必须精确匹配当前规范字符串、版本、字节与签名。
 这是Win10工具当前元数据直接证据；旧目标未访问、未终止，产品/UIA/Win7 NOT_PERFORMED。
+
+### A9-43 候选外缺失映像身份查询（ADR-0309）
+
+Runtime Profile `WIN7_A943_EXTERNAL_IDENTITY_QUERY`，仅开发通道候选外观察器；不进入产品、SBOM 或目标安装前置。
+来源为本机 Win7 SP1 x64 既有 kernel32.dll、Windows PowerShell/CLR；无下载、无新系统配置。源码在 `scripts/win7-dev/a9-42-office-journey.cjs` 随提交和闭包 SHA 锁定。
+只有完整 DMTF 创建时间及当前会话已知、WMI 映像为空的相关实例才触发，单次 10 秒、最多 64 条，临时编译文件只在当前 run 的 environment/temp。
+使用 OpenProcess（QUERY_LIMITED_INFORMATION|SYNCHRONIZE，非继承）、GetProcessTimes、QueryFullProcessImageNameW、ProcessIdToSessionId、WaitForSingleObject(0)、CloseHandle。
+不调用终止、写内存、debug、suspend、Job 或提权 API。创建时间按 WMI 微秒精度匹配，PID 复用/访问拒绝/等待未知/会话冲突/映像缺失继续 fail-closed。
+OpenProcess 的 ERROR_INVALID_PARAMETER=87 仅在正整数 PID 上作为该 PID 当前不存在的直接原生证据；其他错误均不等同不存在。
+同实例句柄 signaled 表示已退出，运行实例须取得直接映像和会话。原 WMI 行与原生结果同时保留，不覆写未知历史。API 缺失即结构化停止，无命令行或非系统组件回退。

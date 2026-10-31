@@ -179,6 +179,60 @@ function processRows() {
   return parseProcesses(result.stdout);
 }
 
+function probeProcessInstance(row, config) {
+  need(Number.isSafeInteger(row.pid) && row.pid > 0 && /^\d{14}\.\d{6}[+-]\d{3}$/.test(row.created), 'PROCESS_NATIVE_INPUT');
+  const code = `using System;using System.Text;using System.Runtime.InteropServices;
+public static class A9IdentityQuery {
+ [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,uint pid);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool GetProcessTimes(IntPtr handle,out long creation,out long exit,out long kernel,out long user);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool QueryFullProcessImageNameW(IntPtr handle,uint flags,[Out] StringBuilder name,ref uint size);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool ProcessIdToSessionId(uint pid,out uint session);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern uint WaitForSingleObject(IntPtr handle,uint milliseconds);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool CloseHandle(IntPtr handle);
+ public static string Probe(uint pid,long expected) {
+  IntPtr h=OpenProcess(0x00101000,false,pid);
+  if(h==IntPtr.Zero){if(Marshal.GetLastWin32Error()==87)return "absent|87";throw new Exception("PROCESS_NATIVE_OPEN");}
+  try {
+   long creation,exit,kernel,user;if(!GetProcessTimes(h,out creation,out exit,out kernel,out user))throw new Exception("PROCESS_NATIVE_TIME");
+   if(creation/10!=expected/10)throw new Exception("PROCESS_NATIVE_REUSED");
+   uint wait=WaitForSingleObject(h,0);if(wait==0)return "exited|"+creation;
+   if(wait!=258)throw new Exception("PROCESS_NATIVE_WAIT");
+   StringBuilder image=new StringBuilder(32768);uint size=32768,session;
+   if(!QueryFullProcessImageNameW(h,0,image,ref size)||!ProcessIdToSessionId(pid,out session))throw new Exception("PROCESS_NATIVE_QUERY");
+   return "present|"+creation+"|"+session+"|"+Convert.ToBase64String(Encoding.UTF8.GetBytes(image.ToString()));
+  }finally{if(!CloseHandle(h))throw new Exception("PROCESS_NATIVE_CLOSE");}
+ }
+}`;
+  const ps = `$ErrorActionPreference='Stop';try{Add-Type -TypeDefinition ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(code).toString('base64')}')));$expected=[Management.ManagementDateTimeConverter]::ToDateTime('${row.created}').ToUniversalTime().ToFileTimeUtc();[Console]::Out.WriteLine([A9IdentityQuery]::Probe(${row.pid},$expected))}catch{[Console]::Out.WriteLine('PROCESS_NATIVE_UNKNOWN');exit 1}`;
+  const executable = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
+  const result = cp.spawnSync(executable, ['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(ps,'utf16le').toString('base64')],
+    { encoding:'utf8',windowsHide:true,timeout:10000,maxBuffer:65536,
+      env:{...process.env,TEMP:path.join(config.run_root,'environment/temp'),TMP:path.join(config.run_root,'environment/temp')} });
+  need(!result.error && result.status === 0, 'PROCESS_NATIVE_UNKNOWN');
+  const fields = result.stdout.trim().split('|');
+  if (fields[0] === 'absent') { need(fields.length === 2 && fields[1] === '87', 'PROCESS_NATIVE_RESULT'); return {state:'absent',win32_error:87}; }
+  need(/^\d+$/.test(fields[1] || ''), 'PROCESS_NATIVE_RESULT');
+  if (fields[0] === 'exited') { need(fields.length === 2, 'PROCESS_NATIVE_RESULT'); return {state:'exited',creation_filetime:fields[1]}; }
+  need(fields[0] === 'present' && fields.length === 4 && /^\d+$/.test(fields[2]), 'PROCESS_NATIVE_RESULT');
+  return {state:'present',creation_filetime:fields[1],session:Number(fields[2]),image:Buffer.from(fields[3],'base64').toString('utf8')};
+}
+
+function resolveObservedRows(rows, observed, rootPid, session, probe, evidence) {
+  const selected = new Set([rootPid, ...observed.map(row=>row.pid)]);
+  for (let pass=0;pass<rows.length;pass++) { let added=false;for(const row of rows)if(selected.has(row.parent)&&!selected.has(row.pid)){selected.add(row.pid);added=true;}if(!added)break; }
+  return rows.flatMap(row => {
+    if (!selected.has(row.pid) || row.image || row.name.toLowerCase()==='wmic.exe') return [row];
+    need(/^\d{14}\.\d{6}[+-]\d{3}$/.test(row.created) && row.session===session, 'PROCESS_CHILD_IDENTITY_UNKNOWN');
+    need(evidence.length<64, 'PROCESS_NATIVE_EVIDENCE_LIMIT');
+    const fact=probe(row);evidence.push({at:new Date().toISOString(),wmi_instance:row,native:fact});
+    if(fact.state==='absent'){need(fact.win32_error===87,'PROCESS_NATIVE_RESULT');return [];}
+    if(fact.state==='exited'){need(/^\d+$/.test(fact.creation_filetime),'PROCESS_NATIVE_RESULT');return [];}
+    need(fact.state==='present'&&fact.session===session&&typeof fact.image==='string'
+      &&path.win32.isAbsolute(fact.image)&&path.win32.basename(fact.image).toLowerCase()===row.name.toLowerCase(),'PROCESS_NATIVE_RESULT');
+    return [{...row,image:fact.image,imageSource:'native_query'}];
+  });
+}
+
 function observationFailure(error, rootPid, observed, current) {
   const ids = new Set([rootPid, ...observed.map(row => row.pid)]);
   const related = Array.isArray(current) ? current.filter(row => ids.has(row.pid) || ids.has(row.parent)) : null;
@@ -730,6 +784,8 @@ async function controller(config) {
           let rows;
           try {
             rows = processRows();
+            if (!result.native_process_observations) result.native_process_observations = [];
+            rows = resolveObservedRows(rows, observed, child.pid, config.session_id, row => probeProcessInstance(row, config), result.native_process_observations);
             observed = observed.length ? extendObservedTree(observed, rows, config.session_id) : observedTree(rows, child.pid);
             result.observed_process_tree = observed; save(report, result);
           } catch (error) {
@@ -755,7 +811,7 @@ async function controller(config) {
     need(result.ui.identity.sid === result.identity.sid && result.ui.identity.session === result.identity.session, 'UI_IDENTITY_DRIFT');
     for (const row of result.ui.process_tree) if (!observed.some(r => r.pid === row.pid && r.created === row.created)) observed.push(row);
     await waitFor(() => {
-      const rows = processRows(); observed = extendObservedTree(observed, rows, config.session_id);
+      const rows = resolveObservedRows(processRows(), observed, result.exit.pid, config.session_id, row => probeProcessInstance(row, config), result.native_process_observations || (result.native_process_observations=[])); observed = extendObservedTree(observed, rows, config.session_id);
       result.observed_process_tree = observed;
       result.last_process_observation = { at: new Date().toISOString(), ...processObservation(observed, rows, config.session_id), unexpected_root_instances: unexpected(rows) };
       save(report, result);
@@ -977,7 +1033,7 @@ async function ui(config) {
     if (win) win.close(); else app.quit();
   }
 }
-module.exports = { observationFailure, driverClosure, copyDriverClosure, verifyDriverClosure, validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
+module.exports = { probeProcessInstance, resolveObservedRows, observationFailure, driverClosure, copyDriverClosure, verifyDriverClosure, validateConfig, canonical, noLinks, verifyPackage, verifyBinding, hash, safeError,
   makeFixtureState, fixtureStep, startFixture, DOC, COPY, BOOK, FILES, processObservation, parseTaskNames, launcherInstances, taskNamesFromObservation, clickUi, inside, processRows, observedTree, extendObservedTree, cleanEnvironment,
   currentIdentity, currentTasks, copyPortablePackage, waitFor, EXECUTION_LAYOUT, loadExecutionBinding, expandExecutionLayout,
   taskNameFor, rejectDriverOverrides, executionBindingPathFor };

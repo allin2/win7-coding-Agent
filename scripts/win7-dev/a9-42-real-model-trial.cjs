@@ -11,7 +11,7 @@ const office = require('./a9-42-real-model-samples.cjs');
 const resources = require('./a9-42-resource-sampler.cjs');
 const os = require('os');
 const { hash, safeError, inside, noLinks, currentIdentity, currentTasks, processRows, observedTree,
-  launcherInstances, extendObservedTree, processObservation, cleanEnvironment, waitFor, clickUi, verifyPackage, copyPortablePackage } = base;
+  launcherInstances, extendObservedTree, resolveObservedRows, probeProcessInstance, processObservation, cleanEnvironment, waitFor, clickUi, verifyPackage, copyPortablePackage } = base;
 const ROOT = 'C:\\A9-DEV';
 const need = (v, code) => { if (!v) throw new Error(code); };
 const save = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null, 2) + '\n', 'utf8');
@@ -229,6 +229,8 @@ async function controller(config, injectedQuery, { startupDiagnostic = false } =
           let rows;
           try {
             rows = query();
+            if (!result.native_process_observations) result.native_process_observations=[];
+            rows = resolveObservedRows(rows, observed, child.pid, config.session_id, row => probeProcessInstance(row, config), result.native_process_observations);
             observed = observed.length ? extendObservedTree(observed, rows, config.session_id) : observedTree(rows, child.pid);
             sample(); result.observed_process_tree = observed; save(report, result);
           } catch (error) {
@@ -258,7 +260,7 @@ async function controller(config, injectedQuery, { startupDiagnostic = false } =
     need(result.ui.identity.sid === result.identity.sid && result.ui.identity.session === result.identity.session, 'UI_IDENTITY_DRIFT');
     for (const row of result.ui.process_tree) if (!observed.some(r => r.pid === row.pid && r.created === row.created)) observed.push(row);
     await waitFor(() => {
-      const rows = query(); observed = extendObservedTree(observed, rows, config.session_id); sample();
+      const rows = resolveObservedRows(query(), observed, result.exit.pid, config.session_id, row => probeProcessInstance(row, config), result.native_process_observations || (result.native_process_observations=[])); observed = extendObservedTree(observed, rows, config.session_id); sample();
       result.observed_process_tree = observed;
       result.last_process_observation = { at: new Date().toISOString(), ...processObservation(observed, rows, config.session_id), unexpected_root_instances: unexpected(rows) };
       save(report, result);

@@ -92,10 +92,18 @@ async function workbench({ win, evaluate, click, wait, snapshot }) {
         nav:rect('open-navigation').width,sendBottom:rect('run-task').bottom,
         title:Array.from(document.querySelectorAll('#conversation-list button')).some(b=>b.title.includes(${JSON.stringify(TITLE)}))};})()`);
     need(facts.scroll <= facts.width && facts.nav === 44 && facts.sendBottom <= facts.height && facts.title, 'WORKBENCH_GEOMETRY');
-    if (width < 800) await click('#open-navigation');
+    if (width < 800) {
+      const open = await evaluate('document.getElementById("navigation-rail").classList.contains("open")');
+      if (!open) await click('#open-navigation');
+      await wait(() => evaluate('(() => {const b=document.getElementById("open-settings"),r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.width>0&&r.left>=0&&(hit===b||b.contains(hit));})()'), 5000, 'NAVIGATION_OPEN');
+    }
     await click('#open-settings');
     win.webContents.sendInputEvent({ type:'keyDown',keyCode:'Escape' }); win.webContents.sendInputEvent({ type:'keyUp',keyCode:'Escape' });
     await wait(() => evaluate(`document.activeElement.id===${JSON.stringify(width<800?'open-navigation':'open-settings')}`), 5000, 'SETTINGS_FOCUS');
+    if (width < 800 && await evaluate('document.getElementById("navigation-rail").classList.contains("open")')) {
+      await click('#close-navigation');
+      await wait(() => evaluate('!document.getElementById("navigation-rail").classList.contains("open")'), 5000, 'NAVIGATION_CLOSED');
+    }
     rows.push(facts);
   }
   win.setContentSize(1366,768); return rows;

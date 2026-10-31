@@ -312,3 +312,4 @@
 | ADR-0306 | A9-43 当前开发窗口的 24 GB 容量例外 | Accepted |
 | ADR-0307 | A9-43 第三窗口延长 45 分钟 | Accepted |
 | ADR-0308 | A9-43 第四窗口与 30 GB 开发根 | Accepted |
+| ADR-0309 | A9-43 缺失 WMI 映像的直接查询与导航夹具顺序 | Accepted |

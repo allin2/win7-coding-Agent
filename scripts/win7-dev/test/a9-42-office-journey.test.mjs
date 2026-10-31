@@ -294,3 +294,20 @@ test('observation failure records the failing related identities and excludes co
   assert.equal(d.observationFailure(Error('sensitive text'),10,[root],undefined).code,'PROCESS_OBSERVATION_FAILED');
   assert.equal(d.observationFailure(Error('PROCESS_QUERY_FAILED'),10,[root],undefined).current_instances,null);
 });
+
+
+test('missing WMI image requires positive native identity or exit evidence', () => {
+ const stamp='20261031080305.003000+480',root={pid:10,parent:1,created:stamp,image:'C:\\A9-DEV\\root.exe',name:'electron.exe',session:2};
+ const child={pid:11,parent:10,created:stamp,image:'',imageSource:null,name:'cmd.exe',session:2};
+ const row={...child,image:'C:\\Windows\\System32\\cmd.exe',imageSource:'native_query'};
+ let evidence=[];
+ assert.deepEqual(d.resolveObservedRows([root,child],[root],10,2,()=>({state:'present',session:2,image:row.image,creation_filetime:'123'}),evidence),[root,row]);
+ assert.equal(evidence[0].wmi_instance.image,'');assert.equal(evidence[0].native.state,'present');
+ evidence=[];assert.deepEqual(d.resolveObservedRows([root,child],[root],10,2,()=>({state:'absent',win32_error:87}),evidence),[root]);
+ assert.equal(evidence[0].native.win32_error,87);
+ assert.throws(()=>d.resolveObservedRows([root,child],[root],10,2,()=>({state:'absent',win32_error:5}),[]),/PROCESS_NATIVE_RESULT/);
+ assert.throws(()=>d.resolveObservedRows([root,child],[root],10,2,()=>({state:'present',session:1,image:row.image}),[]),/PROCESS_NATIVE_RESULT/);
+ assert.throws(()=>d.resolveObservedRows([root,child],[root],10,2,()=>({state:'present',session:2,image:'C:\\other.exe'}),[]),/PROCESS_NATIVE_RESULT/);
+ assert.throws(()=>d.resolveObservedRows([root,{...child,created:''}],[root],10,2,()=>{throw Error('MUST_NOT_QUERY');},[]),/PROCESS_CHILD_IDENTITY_UNKNOWN/);
+ assert.throws(()=>d.resolveObservedRows([root,child],[root],10,2,()=>{throw Error('PROCESS_NATIVE_UNKNOWN');},[]),/PROCESS_NATIVE_UNKNOWN/);
+});
