@@ -5,10 +5,11 @@ Status: APPROVED_FOR_IMPLEMENTATION
 Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: main
 Source Baseline: 63e173fc90f81c9c5ddcafe3dabf18f03cdbdad2
-Phase-Gate: A9_43_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: DEV_CHANNEL_COMPLETE
+Phase-Gate: A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS
+Win7-Validation: A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS
 Evidence-Class: DEV_CHANNEL
-Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307, ADR-0308, ADR-0310
+Acceptance-Basis: OWNER_ACCEPTED_EXISTING_DEV_CHANNEL_EVIDENCE_UNDER_ADR_0311
+Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307, ADR-0308, ADR-0310, ADR-0311
 ```
 
 本任务把 WIN7-55（上一个已签发候选）之后完成的四项工作合成一个版本，走完一次正式流程到发布。
@@ -75,6 +76,8 @@ ENGINEERING_04 其余验收削减建议：E4-2、E4-4、E4-5 延到 RC；E4-6 �
 冻结候选的代码与驱动必须与全阶段开发级运行相同（ADR-0289 决定 4）。
 
 ## 5. 冻结后流程
+
+以下为标准流程。仅本任务准确候选 WIN7-56、源码 `251dbdf4…`、ZIP `11f85358…`，已按负责人准确确认的 ADR-0311，以一次合并独立审核及负责人一次性验收决定替代第 1～6 步；结论见 §8.35。原实机报告保留 DEV_CHANNEL，不回填旧门 A/B。第 7 步的标签与发布仍另行批准，其他候选继续以下标准流程。
 
 1. 执行代理准备门 A 材料。
 2. 独立审核核对门 A 材料一次。
@@ -717,3 +720,14 @@ FROZEN_CANDIDATE.json SHA-256 为 `79e79f230e7358410ec50b7fb5964943751cbc3e1c526
 准确提案 `SIGNOFF_PROPOSAL.json` 的 SHA-256 为 `c3e06785a935d68ec12af2b4885efd0e7873ea94451575f1ccbb3169cd5236d1`。拟由本次审核合并核对既有证据/结果和签发材料，以负责人一次准确验收决定替代本候选标准门 A→新正式运行→第二次审核→门 B 顺序；只适用于准确源码、包和所列五个 run。
 拟结论为 A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS。该结论尚待负责人准确确认；原 DEV_CHANNEL 证据、旧门 A/B 未执行事实、旧失败与冻结输入不改写。推送、标签、发布及新目标操作均不在本提案授权内。
 面向负责人的材料为 `outputs/next-version-r1/signoff-r1/待签发说明.md`，完整说明接受范围、审核角色、流程替代和保留限制。没有生成 OWNER_CONFIRMED_FINAL_SHA 回执，没有追溯签发旧门 A。
+
+### 8.35 负责人准确确认与 WIN7-56 验收签发（2026-10-31 UTC）
+
+负责人对 §8.34 的准确材料回复“批准，按该材料签发”。对应提案 SHA-256 `c3e06785a935d68ec12af2b4885efd0e7873ea94451575f1ccbb3169cd5236d1` 复核未变，独立报告、五阶段结果与 15 项冻结输入哈希一致，冻结只读权限保持。
+执行代理记录负责人确认，ADR-0311 转为 Accepted，仅对源码 `251dbdf4059bfd484d7bfaf1af4945bf45b4995e`、ZIP SHA-256 `11f85358a0aeacc93c1e763b11461fe1f464886e985b9a8e97852c07ef6e9a72` 及提案所列五个 run 生效。
+负责人签发结论为 A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS。接受范围是五阶段 Win7 SP1 x64 直接证据、负责人试用、同字节双干净构建与只读冻结。独立审核产品 P0/P1 零项；唯一签发控制 P1 由本次准确确认闭合。
+确认记录 `outputs/next-version-r1/signoff-r1/OWNER_CONFIRMATION.json`；签发记录 `SIGNOFF_RESULT.json`，SHA-256 `00b59230b474c8d7d2044d059d312c8146a96932dfe560815ebc5b33665ac274`；面向负责人的结论为同目录 `签发结论.md`。
+
+本次独立审核作为合并材料/结果的唯一审核，负责人一次性验收决定替代本候选标准门 A→新正式运行→第二次审核→门 B 顺序。原 DEV_CHANNEL 报告、历史门 A/B 未执行事实、旧 FAIL/HALTED/UNKNOWN 及冻结字节均不改写。未来候选按原规则。
+已知限制随签发保留：M1～M6 留待 RC；Win10 同候选完整验证待 RC 前补；完整 Review fail-closed；Office Lite 不承诺版式保真、宏和公式重算；正式性能预算未签。试用逐项明细未提供；同机双构建不证明跨机可重复性。
+本轮没有新增目标连接、代理模型请求、删除、推送、标签或发布；后继标签和发布须负责人另行批准。主树原有三份测试修改及并发归档修改保持原样。
