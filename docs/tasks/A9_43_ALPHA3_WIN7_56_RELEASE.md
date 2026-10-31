@@ -574,3 +574,10 @@ CLR 编译临时文件限定在 `C:\A9-DEV\.channel`，不创建 run 根或修�
 Win7 Electron22/Node16 的独立查询测试直接确认当前实例映像/会话、错创建时间拒绝和同实例句柄已退出事实；报告 `outputs/win7-dev/alpha3-r11b/native-query-admission-r2/RESULT.json`。
 首个查询测试发现 Unicode 封送声明遗漏并拒绝，原日志保留；修正后 3 项直接通过。开发机 Office/真实模型/版本定向检查 43/43 PASS。
 源码仍需新包、新 run 复验完整 Office；全部真实模型请求至此为 0。第四窗口截止不改变。
+
+### 8.22 导航动画最小复现完成（2026-10-31 UTC）
+
+完整 Office run `da0aee95…` 再次在导航切换 UI_ACTION_OCCLUDED 停止；控制器改为 UI_INCOMPLETE，本轮没有进程观测失败，原结果保持 HALTED。
+失败截图显示抽屉在关闭动画中覆盖了导航开关；仅检查 open 类不足以证明开关可点击。修正为按原 5 秒上限等待实际 elementFromPoint 命中，再通过真实鼠标入口点击，不绕过遮挡判据。
+暂停完整旅程，使用相同产品入口做六视口和导航/设置/焦点的最小诊断。前两次诊断分别缺少窗口可见等待、权限对话框等待，原失败保留；补齐正式入口的对应等待后，`navigation-probe-r3` 六视口全部直接完成，正常退出，0 真实模型请求。
+原始报告 `outputs/win7-dev/alpha3-r12/navigation-probe-r3/RESULT.json`，本地 Office/版本定向 21/21 PASS；该结果不替代完整 Office。

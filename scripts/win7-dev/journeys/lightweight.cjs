@@ -94,7 +94,10 @@ async function workbench({ win, evaluate, click, wait, snapshot }) {
     need(facts.scroll <= facts.width && facts.nav === 44 && facts.sendBottom <= facts.height && facts.title, 'WORKBENCH_GEOMETRY');
     if (width < 800) {
       const open = await evaluate('document.getElementById("navigation-rail").classList.contains("open")');
-      if (!open) await click('#open-navigation');
+      if (!open) {
+        await wait(() => evaluate('(() => {const b=document.getElementById("open-navigation"),r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.width>0&&(hit===b||b.contains(hit));})()'), 5000, 'NAVIGATION_TOGGLE_READY');
+        await click('#open-navigation');
+      }
       await wait(() => evaluate('(() => {const b=document.getElementById("open-settings"),r=b.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.width>0&&r.left>=0&&(hit===b||b.contains(hit));})()'), 5000, 'NAVIGATION_OPEN');
     }
     await click('#open-settings');
