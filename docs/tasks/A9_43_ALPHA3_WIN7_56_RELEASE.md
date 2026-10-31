@@ -6,7 +6,8 @@ Task Type: RELEASE_REISSUE_AND_WIN7_ACCEPTANCE
 Target Branch: main
 Source Baseline: 63e173fc90f81c9c5ddcafe3dabf18f03cdbdad2
 Phase-Gate: A9_43_IMPLEMENTATION_AUTHORIZED
-Win7-Validation: NOT_PERFORMED
+Win7-Validation: DEV_CHANNEL_COMPLETE
+Evidence-Class: DEV_CHANNEL
 Decision: ADR-0289, ADR-0290, ADR-0304, ADR-0305, ADR-0306, ADR-0307, ADR-0308, ADR-0310
 ```
 
@@ -643,3 +644,40 @@ Win7 Electron22.3.27 / Node16.17.1 在 r15 真实 Core dispatchTool、Workspace 
 负责人明确批准 §8.27 的具体提案；范围、容量和截止见 ADR-0310。main 基线 5c96364，三个原有用户测试修改继续保留。
 第五窗口从 UTC 01:16:21 起至 02:46:21，累计上限 24300 秒/5 窗口、60 次真实模型请求，已用 18265.453 秒/16 次。先新包模型五场景诊断，成功后最终同源同包五阶段。
 本次只改候选外预算守卫及上轮读取观察器，不改产品、原生输入或依赖；精确新包校验自身源码/闭包和目标身份，原证据不提升为新包整体通过。普通本地提交、构建及开发级运行按原范围执行；其他红线与失败停止条件不变。
+
+### 8.29 最终包与模型诊断完成（2026-10-31 UTC）
+
+最终执行源码 `251dbdf4059bfd484d7bfaf1af4945bf45b4995e`，来自独立干净克隆 clean-build-source-r16；依赖符号链接仅用于本地构建，未作为源码隐藏。原有三个用户测试修改哈希未变，没有纳入构建或提交。
+r16 正式 Profile 开发包 SHA-256 `11f85358a0aeacc93c1e763b11461fe1f464886e985b9a8e97852c07ef6e9a72`，111185868 字节；开发机实际包内校验 3274 个清单文件、3275 个 ZIP 成员无不一致。未重建或更换 Electron、Runner、SQLite 原生输入。
+版本计划 SHA-256 `da949208606d0985018cafc37123859adf663d4e11cc3e5b298fe588fe014748`，五阶段输入绑定同一源码/包。目录 `outputs/next-version-r1/p5-integration/prepared-version-r16/`。
+
+第五窗口守卫定向 94/94 PASS、0 skipped；Win7 PS2/CLR2 与 PS5.1/CLR4 各 9 项容量/窗口/holder 边界直接通过，日志 fifth-window-r1.log 与 capacity-admission-r5.log。上轮读取观察器 31 项本地检查为同字节 INHERITED_EVIDENCE；本轮新包的完整模型链为直接证据。
+首诊断 run `49a4a3ac…` 发出 1 次 HTTP200/TLS1.3 请求，界面在原 65 秒等待内未显示 tool_calling，保持 HALTED/TIMEOUT_PROBE。只读 SQL 直接确认产品分类 chat_only，五场景均 NOT_PERFORMED，原配置三文件哈希未变。失败后零任务/进程、锁 idle。
+独立 postflight 按原合同拒绝 HALTED，保留 POSTFLIGHT_PRIOR_RESULT；后补只读分类/原配置哈希不改判该结果。首失败、截图和请求指标均保留，没有下载模型正文或凭据。
+
+在同一源码/包、进程结束后，用新 run `42057c62-92f7-49c6-b644-0f5e72ec81cd` 做一次有界复验，最多 19 请求；首轮和复验合计仍受 20 次诊断上限约束，不改探测分类和等待条件。
+该 run S1～S5 全部 PASS，实际 16 次 HTTP200/TLS1.3，包含 S2 的真实读取返回与审计 turn/call 绑定；原件与默认 Provider 三文件哈希不变，独立 postflight 和零残留状态通过。两次诊断合计 17 次，原失败保留。
+诊断报告 `p5-integration/real-diagnostic-r16b/execution/diagnostic-report.json`，目标证据 `outputs/win7-dev/alpha3-r16/real-diagnostic-r2/`；该诊断没有混入版本五阶段数组。
+
+### 8.30 同源五阶段直接完成与窗口关闭（2026-10-31 UTC）
+
+本节全部绑定 §8.29 的源码、ZIP 与计划。结果为 DEV_CHANNEL_COMPLETE，不是正式门 A/B。
+
+| 阶段 | run UUID | Win7 实机 DEV_CHANNEL 结果 |
+|---|---|---|
+| batch2 | `2bedc0ce-23a2-41e7-b7dc-789442572cf1` | PASS；10/10 阶段、37/37 用例、67/67 断言、GPU；0 失败尝试；R7 核验 1582 文件、233 项按合同排除；R8 零任务/进程、锁 idle |
+| 后台恢复 | `4d422f0b-14ac-4a5a-bbd9-1f0f5d0200aa` | PASS；progress/interrupt/recover/reopen 四模式及收尾通过 |
+| 便携 | `c353781b-fce1-49ca-a88b-0b69b58755ec` | PASS；独立数据目录、Read Only、持久化、正常退出及收尾通过，目标截图已核对 |
+| Office/轻量工具/UI | `5598e43a-18e4-48fd-ad99-0693dac1e0ea` | PASS；六视口、16 检查、8 工具事实、完整副本/撤销/问询取消；独立 postflight 通过，三张目标截图已逐张核对 |
+| 真实模型 | `80e665a5-7b51-47b8-a9ab-507f130048e5` | PASS；S1～S5、16 请求、全部 HTTP200/TLS1.3；DPAPI/原配置与原件保护、取消后零再请求及独立 postflight 通过 |
+
+各阶段严格验证前阶段结果、run/source/package/execution binding 与收尾，再派发下一阶段。后继从通过 batch2 的目标包逐文件复制核对，没有改名替包或复用失败 run。
+batch2 原始证据位于 `outputs/next-version-r1/controller/2bedc0ce/`；其余位于 `outputs/win7-dev/alpha3-r16/<stage>/`。本地报告复核为 LOCAL_REPORT_VERIFICATION.json；版本汇总 `outputs/next-version-r1/p5-integration/VERSION_R16_RESULT.json`，视图核对记录 visual-qa-r16.json。
+P5 版本编排及本次完整开发级取证缺口已解除；不由此签发后继正式执行或改写旧 FAIL/HALTED/UNKNOWN。资源采样只作开发基线，正式性能预算保持 NOT_PERFORMED。
+
+最后全通道状态回收于 UTC `02:26:32.731` 结束：零任务/进程、锁 idle、无解包未知；开发根 33070009414 字节，C: 剩余 856121749504 字节。
+第五窗口保守计入 4211.731 秒；五窗口累计 22477.184/24300 秒。累计真实模型 49/60 次：前四窗口 16、首探测失败 1、独立诊断 16、版本最后阶段 16。没有重置额度，窗口已关闭，不自动开放第六窗口或继续使用剩余时间。
+准确收尾 `execution-window-r6-closeout.json`。本次新增删除 NOT_PERFORMED；所有历史包、失败证据和克隆保留，现有只读盘点见 retained-artifacts-r16.json、retained-artifacts-r16-inventory.json、worktrees-retained-r16.txt。
+
+负责人试用入口为 `outputs/next-version-r1/owner-trial/r16/试用说明.md`，精确包身份及五阶段结果随附，不复制或覆盖旧包。负责人实际试用、双干净构建、冻结、正式门 A/B、推送和发布本轮均 NOT_PERFORMED。
+下步按 §4 收集本包试用反馈并处理真实问题，再准备双构建与冻结；正式门 A/B、标签与发布仍由负责人另行签发。

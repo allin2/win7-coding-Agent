@@ -4,7 +4,8 @@
 
 ## 产品与可试用结果
 
-- 最新可试用版：`v0.3.0-alpha.2-win7-55`，内部预览版；[下载与说明](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.2-win7-55)。
+- 最新已发布试用版：`v0.3.0-alpha.2-win7-55`，内部预览版；[下载与说明](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.2-win7-55)。
+- 当前冻结前开发包：`v0.3.0-alpha.3`，源 `251dbdf4…`，r16 ZIP `11f85358…`。同源五阶段 Win7 DEV_CHANNEL 全部完成；准确包及负责人试用入口为 `outputs/next-version-r1/owner-trial/r16/试用说明.md`，正式门与发布未执行。
 - Win7 实机已签限定范围结论：`A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`（ADR-0286）。source `b4ce2be42cc9448142b831612dc7d5bc3a4df3cd`；ZIP SHA-256 `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`。
 - 总控 FORMAL `f9ae2982`；补充组 DEV `cdb82d32`；证据等级与签发范围详见 [ADR-0286/0287](DECISIONS.md#adr-0286-win7-55-门-b限定已直接证明范围签发)。本页不将补充组改成 FORMAL。
 - Full Access / Read Only 为当前产品能力；Review 保持 fail-closed。完整 Alpha 2 / RC 未签发；已知限制沿用 [A9-39](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md) 与 ADR-0286，不把版本名等同完整验收。
@@ -12,13 +13,13 @@
 
 ## 进行中的工作与授权
 
-- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：目标 `v0.3.0-alpha.3` / 暂定 WIN7-56，当前阶段结果见 §8.25–§8.27。
-  Win7 DEV_CHANNEL r15 源 `706a9408…`、ZIP `ce858556…` 的完整 Office 定向 run `6d0ec023…` 已直接 PASS：六视口、16 项检查、8 项轻量工具事实及独立收尾通过，三张截图已核对。
-  同包真实模型 run `65cef595…` 完成五场景和独立收尾：S1/S3/S4/S5 PASS，S2 保持 FAIL。已定位为判定器误解析 1000 字符审计预览；实际报告存在，内容标记与 17/23/40 齐全。
-  外部观察器修正已完成，开发机定向 31/31 PASS；Win7 真实 Core/Workspace/Office Worker 最短准入 PASS，保留真实返回和哈希/调用身份，不保存正文。修正后完整模型旅程仍 NOT_PERFORMED，原 FAIL 不改判。
-  旧源 `35ad3001…` 的 batch2（10 阶段/37 用例/67 断言/GPU）、后台恢复与便携 PASS 仍分别保留；不能与 r15 定向诊断合并为版本五阶段 PASS。
-  第四窗口已于 UTC `2026-10-31T01:09:30.984Z` 收尾：零任务/进程、锁 idle；累计 18265.453/18900 秒，16/60 真实模型请求。开发根 26.93 GB，本窗口新增删除 NOT_PERFORMED。
-  第 5 个新窗口 90 分钟、35 GB、累计 24300 秒/5 窗口的具体提案待负责人决定；模型累计仍最多 60 次。修正后模型复验及最终同源五阶段待执行。正式门 A/B、冻结、双干净构建、负责人试用与发布均 NOT_PERFORMED。
+- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：目标 `v0.3.0-alpha.3` / 暂定 WIN7-56，当前结果见 §8.29–§8.30。
+  同源 `251dbdf4059bfd484d7bfaf1af4945bf45b4995e`、r16 ZIP `11f85358…` 五阶段全部直接完成，结果 DEV_CHANNEL_COMPLETE：batch2、后台恢复、便携、完整 Office/轻量工具/UI、真实模型。
+  batch2 `2bedc0ce…` 为 10/10 阶段、37/37 用例、67/67 断言及 GPU PASS，0 失败尝试；1582 文件回收校验、R8 收尾通过。其他阶段逐一核对绑定与收尾，便携及 Office 四张截图已检查。
+  最后模型 `80e665a5…` 五场景 PASS，16 次 HTTP200/TLS1.3；原件及默认 Provider 三文件哈希未变。外部读取观察器已在实际完整链证明，不改判 r15 的 S2 FAIL。
+  本窗口首探测 `49a4a3ac…` 分类 chat_only/HALTED，原失败保留；有界新 run `42057c62…` 五场景 PASS，独立诊断没有并入版本阶段数组。
+  第五窗口已于 UTC `2026-10-31T02:26:32.731Z` 收尾：零任务/进程、锁 idle、无解包未知；累计 22477.184/24300 秒、49/60 模型请求，开发根 33.07/35 GB。本窗口新增删除 NOT_PERFORMED，历史证据全部保留。
+  汇总 `outputs/next-version-r1/p5-integration/VERSION_R16_RESULT.json`；负责人试用入口 `outputs/next-version-r1/owner-trial/r16/试用说明.md`。下一步收集试用反馈，再准备双构建/冻结。负责人实际试用、双干净构建、冻结、正式门 A/B 与发布均 NOT_PERFORMED。
   main 推送记录仍到 `63e173fc…`；本轮后继修改仅本地保存。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
