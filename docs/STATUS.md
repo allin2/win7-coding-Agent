@@ -4,16 +4,16 @@
 
 ## 产品与可试用结果
 
-- 最新已发布试用版：`v0.3.0-alpha.2-win7-55`，内部预览版；[下载与说明](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.2-win7-55)。
-- 当前已签发候选：`v0.3.0-alpha.3` / WIN7-56，源 `251dbdf4…`，ZIP `11f85358…`，结论 `A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS`（ADR-0311）。负责人准确确认接受已有实机证据，保留原 DEV_CHANNEL 标签；冻结候选只读，发布未执行。
-- Win7 实机已签限定范围结论：`A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`（ADR-0286）。source `b4ce2be42cc9448142b831612dc7d5bc3a4df3cd`；ZIP SHA-256 `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`。
+- 最新已发布试用版：`v0.3.0-alpha.3-win7-56`，内部预览版；[下载与说明](https://github.com/allin2/win7-coding-Agent/releases/tag/v0.3.0-alpha.3-win7-56)。UTC `2026-10-31T03:20:23Z` 公开，4 个附件回下载校验通过。
+- 当前已签发并发布候选：`v0.3.0-alpha.3` / WIN7-56，源 `251dbdf4…`，ZIP `11f85358…`，结论 `A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS`（ADR-0311）。负责人准确确认接受已有实机证据，保留原 DEV_CHANNEL 标签；冻结候选只读，发布同一字节 ZIP。
+- 上一 Win7 实机已签限定范围结论：`A9_39_WIN7_55_BATCH2_PASS_WITH_KNOWN_LIMITS`（ADR-0286）。source `b4ce2be42cc9448142b831612dc7d5bc3a4df3cd`；ZIP SHA-256 `7de63dd8db0fde0f7c76aafa48f44ce6c9841c651c03b93215e175ad3792824a`。
 - 总控 FORMAL `f9ae2982`；补充组 DEV `cdb82d32`；证据等级与签发范围详见 [ADR-0286/0287](DECISIONS.md#adr-0286-win7-55-门-b限定已直接证明范围签发)。本页不将补充组改成 FORMAL。
-- Full Access / Read Only 为当前产品能力；Review 保持 fail-closed。完整 Alpha 2 / RC 未签发；已知限制沿用 [A9-39](tasks/A9_39_ALPHA2_FINAL_CANDIDATE.md) 与 ADR-0286，不把版本名等同完整验收。
+- Full Access / Read Only 为当前产品能力；Review 保持 fail-closed。完整 Alpha / RC 未签发；当前已知限制见 [A9-43 §8.35](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md#835-负责人准确确认与-win7-56-验收签发)。历史限制见 A9-39 与 ADR-0286，不把版本名等同完整验收。
 - 当前有效需求：[A9 PRD](prds/WIN7_TRUSTED_CODING_AGENT_REQUIREMENTS_V1.md)；后继决定以 [ADR 索引](DECISIONS_INDEX.md) 定位。源码、历史需求和运行结论冲突时按后继决策核实，不以源码替代需求。
 
-## 进行中的工作与授权
+## 当前交付、进行中的工作与授权
 
-- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：`v0.3.0-alpha.3` / WIN7-56 已签发带已知限制的通过结论，当前结果见 §8.29–§8.35。
+- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：`v0.3.0-alpha.3` / WIN7-56 已签发并发布，任务 COMPLETE；当前结果见 §8.29–§8.36。
   同源 `251dbdf4059bfd484d7bfaf1af4945bf45b4995e`、r16 ZIP `11f85358…` 五阶段全部直接完成，结果 DEV_CHANNEL_COMPLETE：batch2、后台恢复、便携、完整 Office/轻量工具/UI、真实模型。
   batch2 `2bedc0ce…` 为 10/10 阶段、37/37 用例、67/67 断言及 GPU PASS，0 失败尝试；1582 文件回收校验、R8 收尾通过。其他阶段逐一核对绑定与收尾，便携及 Office 四张截图已检查。
   最后模型 `80e665a5…` 五场景 PASS，16 次 HTTP200/TLS1.3；原件及默认 Provider 三文件哈希未变。外部读取观察器已在实际完整链证明，不改判 r15 的 S2 FAIL。
@@ -23,8 +23,10 @@
   WIN7-56 于 UTC `02:36:55.289` 本地只读冻结，15 文件哈希与权限复核通过；原冻结回执与五阶段汇总保留原状态，不回写。后继接受结论以 `outputs/next-version-r1/signoff-r1/SIGNOFF_RESULT.json` 为准。
   负责人要求审核和签发后，独立证据审核已完成：产品 P0/P1 零项，支持精确候选已证明范围的接受建议；签发控制 P1 一项、非阻断 P2 三项，见 §8.34。
   负责人回复“批准，按该材料签发”，准确确认提案 SHA `c3e06785…`；ADR-0311 已 Accepted。一次合并独立审核和一次负责人验收决定替代本候选标准门 A/B 执行顺序，签发 `A9_43_WIN7_56_PASS_WITH_KNOWN_LIMITS`；原 DEV 标签和旧门 A/B 未执行事实保持。
-  签发结论与确认在 `outputs/next-version-r1/signoff-r1/`。M1～M6、Win10 验证、完整 Review、Office 保真和正式性能预算限制随结论保留。下一步可准备标签与发布交付，实际执行仍须另获批准；本轮未新增目标连接、模型请求、推送、标签或发布，旧 35 GB 开发例外不自动沿用。
-  main 推送记录仍到 `63e173fc…`；本轮后继修改仅本地保存。
+  签发结论与确认在 `outputs/next-version-r1/signoff-r1/`。M1～M6、Win10 验证、完整 Review、Office 保真和正式性能预算限制随发布保留。
+  负责人选择推送、发布和证据整理三项后，main 的 36 个提交已推送至 `d7a57062…`。标签准确绑定产品源码 `251dbdf4…`，预发布附件与冻结字节一致。发布事实在 `outputs/next-version-r1/publication-r1/PUBLICATION_RESULT.json`；本节后继文档提交随 main 交付，最终远端身份见同目录 `FINAL_CLOSEOUT.json`。
+  开发机完整发布组重跑为 410 项、394 PASS、0 FAIL、16 NOT_PERFORMED。首次缺少编译输出的 7 项失败保留；补齐七模块编译后，12 项消费者及完整组通过，无产品源码或发布包变化。
+  本地证据归档约 300 MB，2607 个原文件已实际恢复并逐项核对 SHA，恢复源码通过 Git 完整性检查。全部原件与 26 个注册工作树保留；新增产物沿用 `publication-r1/retained-artifacts.json` 台账。本轮无新目标运行、模型请求或删除，旧 35 GB 例外不自动沿用。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。
   当前开发包源 `5143b9cf50f6ef598eda0d0b4e2fae17347f08d9`，r4 ZIP SHA-256 `84585361…1dc063`，external_acceptance_eligible=false。
@@ -72,7 +74,7 @@ npm run docs:check                 # 文档与规则修改
 
 ## 待负责人决定与阻断
 
-- A9-34/A9-40 本轮获准的开发试用已完成，原目标窗口已关闭。最后开发根零进程、零任务、锁 inactive；准确 SGTool 环境实例按 ADR-0297 保留，不声称其同步退出。本轮真实模型请求 0 次。已发布版本仍为 WIN7-55，见 [A9-40 §5.13](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#513-视觉补证与本轮收尾)。
+- A9-34/A9-40 该轮获准的开发试用已完成，原目标窗口已关闭。最后开发根零进程、零任务、锁 inactive；准确 SGTool 环境实例按 ADR-0297 保留，不声称其同步退出。该轮真实模型请求 0 次，证据见 [A9-40 §5.13](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#513-视觉补证与本轮收尾)；当前发布入口见页首。
   原始 Runner BuildA/BuildB ZIP 已从原 Win10 `192.168.1.13` 取回到 `.acceptance/deps/a9-v26-managed-r3-original/`，输入缺失阻断已解除。正常输入路径开发打包及新包 portable 最短链路已完成，未重编原生或改锁。新增窗口于 UTC `15:45:08` 收尾，零根内进程/任务、锁 inactive；准确 SGTool 环境实例仍按 ADR-0297 保留。负责人使用验收为 NOT_PERFORMED，正式构建与门 A/B 未开放，见 [§5.16～§5.19](tasks/A9_40_BACKGROUND_PROGRESS_VISIBILITY.md#516-原始-runner-双返回恢复完成)。
 - 第一批 20 文件已按批准清单删除；物理净释放未证实（APFS 克隆使重复 ZIP 删除几乎不释放）。
 - 第二轮删除清单 SHA `9c78aac6…9368` 已执行，0 失败；原件实际物理释放约 6.9 GB，低于已分配 16.52 GB，原因 UNKNOWN，见 ENGINEERING_05。
