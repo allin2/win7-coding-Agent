@@ -1,0 +1,20 @@
+name: InstaBox Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: instabox-medium
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check environment
+        run: |
+          uname -a
+          nproc
+          free -h
+          df -h
+          python --version
+          node --version
