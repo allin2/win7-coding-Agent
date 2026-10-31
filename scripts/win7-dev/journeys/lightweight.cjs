@@ -23,7 +23,8 @@ function seed(root, nativeImage) {
   write(PNG, image.toPNG()); write(JPEG, image.toJPEG(80));
 }
 function step(state, parsed) {
-  const users = parsed.messages.filter(m => m.role === 'user'); const prompt = users.length ? users[users.length - 1].content : '';
+  // read_image appends a synthetic user message with image parts. It is not a new control prompt.
+  const users = parsed.messages.filter(m => m.role === 'user' && typeof m.content === 'string'); const prompt = users.length ? users[users.length - 1].content : '';
   if (typeof prompt !== 'string' || !prompt.startsWith('a943:tools:')) return null;
   const names = parsed.tools.map(t => t.function && t.function.name);
   const extension = state.lightweight || (state.lightweight = { index: 0, next: 0, pending: null, results: [] });

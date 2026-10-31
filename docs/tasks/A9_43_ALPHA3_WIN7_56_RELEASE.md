@@ -588,3 +588,10 @@ run `68936734…` 已直接完成六视口、导航/焦点检查与轻量工具�
 本轮原生查询直接保存 whoami.exe 与 electron.exe 两个空映像 WMI 行的 ERROR_INVALID_PARAMETER=87 不存在证据；没有身份观测失败。历史失败保持原判。
 局部修复将图片开关设置改走始终可见的 `open-settings`；不修改产品行为、Provider 状态或工具判据。首错误、截图及原生证据在 `outputs/win7-dev/alpha3-r13/office-diagnostic/`。
 本次定向部署按旧/新 ZIP 的成员记录复用完全相同字节，只传输 685256 个变化字节；本地逐字节重建一致，目标组装后整包 SHA 与新包一致，旧 ZIP 未改动。计划和脚本 SHA 见 `office-zip-copy-r13/zip-copy-plan.json`。
+
+### 8.24 图片后续请求的夹具路由修正（2026-10-31 UTC）
+
+run `8e1fa969…` 已通过初始轻量工具编辑、正常设置入口和图片开关应用；首次 read_image 后，产品追加 user/image_url 消息，夹具错误地把最后一条图片消息当控制指令，落入 Office 路由并返回 FIXTURE_PROMPT。原 UI 结果保持 TIMEOUT_VERSION_TOOLS_COMPLETED/HALTED，未误报模型或产品通过。
+修正只取最近的文本 user 控制消息；后来的真实 Office 文本指令仍优先，不能反向匹配旧工具指令。图片原生宽度、Provider 图片 part、请求内图片上限和后续释放断言不变。
+开发机定向检查 22/22 PASS，覆盖图片消息续接、后继 Office 文本及错 tool_call_id 拒绝；日志 `local-logs/image-prompt-routing-r1.log`。
+失败后直接状态零任务/进程、锁 idle、无解包未知；开发根 25130086777 字节。全部真实模型请求仍为 0，第四窗口不重置。

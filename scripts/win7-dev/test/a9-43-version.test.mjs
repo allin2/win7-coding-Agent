@@ -58,3 +58,18 @@ test('the new text journey crosses actual Runtime, Gateway, Workspace and SQLite
     }finally{db.close();}
   }finally{await runtime.shutdown();await server.close();}
 });
+
+
+test('image continuation keeps the latest textual control prompt and does not route a later Office prompt backwards', () => {
+ const journey=require('../journeys/lightweight.cjs');
+ const state={lightweight:{kind:'on',next:1,index:1,pending:{id:'image-1'},results:[],done:false}};
+ const parsed={tools:[{function:{name:'read_image'}}],messages:[{role:'user',content:'a943:tools:off'},
+  {role:'user',content:'a943:tools:on'},{role:'tool',tool_call_id:'image-1',content:JSON.stringify({outputWidth:1280})},
+  {role:'user',content:[{type:'image_url',image_url:{url:'data:image/png;base64,AA=='}}]}]};
+ const response=journey.step(state,parsed);assert.equal(response.tool_calls[0].function.name,'read_image');
+ assert.equal(JSON.parse(response.tool_calls[0].function.arguments).path,journey.JPEG);
+ assert.equal(state.lightweight.results.length,1);
+ assert.equal(journey.step(state,{...parsed,messages:[...parsed.messages,{role:'user',content:'a942:office:new'}]}),null);
+ const bad={lightweight:{kind:'on',next:1,index:1,pending:{id:'different'},results:[],done:false}};
+ assert.throws(()=>journey.step(bad,parsed),/TOOLS_RESULT_BINDING/);
+});
