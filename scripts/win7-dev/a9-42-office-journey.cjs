@@ -946,7 +946,8 @@ async function ui(config) {
         && fixture.state.lightweight.kind === kind && ['completed','completed_with_warnings'].includes(s.agentStatus); }, 45000, 'VERSION_TOOLS_COMPLETED');
     };
     const images = async enabled => {
-      await click('#a9-provider-open');
+      // The healthy Provider chip is intentionally hidden; settings remains visible.
+      await click('#open-settings');
       await evaluate(`document.getElementById('a9-provider-images').checked=${enabled}`);
       await click('#a9-provider-apply');
       await wait(() => evaluate('!document.getElementById("a9-provider-apply").disabled'), 20000, 'PROVIDER_UPDATED');

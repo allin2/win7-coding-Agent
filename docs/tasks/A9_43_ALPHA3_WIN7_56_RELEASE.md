@@ -581,3 +581,10 @@ Win7 Electron22/Node16 的独立查询测试直接确认当前实例映像/会�
 失败截图显示抽屉在关闭动画中覆盖了导航开关；仅检查 open 类不足以证明开关可点击。修正为按原 5 秒上限等待实际 elementFromPoint 命中，再通过真实鼠标入口点击，不绕过遮挡判据。
 暂停完整旅程，使用相同产品入口做六视口和导航/设置/焦点的最小诊断。前两次诊断分别缺少窗口可见等待、权限对话框等待，原失败保留；补齐正式入口的对应等待后，`navigation-probe-r3` 六视口全部直接完成，正常退出，0 真实模型请求。
 原始报告 `outputs/win7-dev/alpha3-r12/navigation-probe-r3/RESULT.json`，本地 Office/版本定向 21/21 PASS；该结果不替代完整 Office。
+
+### 8.23 完整旅程通过六视口后暴露设置入口假设（2026-10-31 UTC）
+
+run `68936734…` 已直接完成六视口、导航/焦点检查与轻量工具关闭图片场景（含真实文件编辑），随后 UI_ACTION_UNAVAILABLE：Provider 健康时产品隐藏 `a9-provider-open`，夹具仍点击此入口。控制器正确保持 UI_INCOMPLETE，未推进后继。
+本轮原生查询直接保存 whoami.exe 与 electron.exe 两个空映像 WMI 行的 ERROR_INVALID_PARAMETER=87 不存在证据；没有身份观测失败。历史失败保持原判。
+局部修复将图片开关设置改走始终可见的 `open-settings`；不修改产品行为、Provider 状态或工具判据。首错误、截图及原生证据在 `outputs/win7-dev/alpha3-r13/office-diagnostic/`。
+本次定向部署按旧/新 ZIP 的成员记录复用完全相同字节，只传输 685256 个变化字节；本地逐字节重建一致，目标组装后整包 SHA 与新包一致，旧 ZIP 未改动。计划和脚本 SHA 见 `office-zip-copy-r13/zip-copy-plan.json`。
