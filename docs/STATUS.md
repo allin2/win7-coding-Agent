@@ -13,7 +13,7 @@
 
 ## 进行中的工作与授权
 
-- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：目标 `v0.3.0-alpha.3` / 本地冻结 WIN7-56，当前结果见 §8.29–§8.33。
+- [A9-43](tasks/A9_43_ALPHA3_WIN7_56_RELEASE.md)：目标 `v0.3.0-alpha.3` / 本地冻结 WIN7-56，当前结果见 §8.29–§8.34。
   同源 `251dbdf4059bfd484d7bfaf1af4945bf45b4995e`、r16 ZIP `11f85358…` 五阶段全部直接完成，结果 DEV_CHANNEL_COMPLETE：batch2、后台恢复、便携、完整 Office/轻量工具/UI、真实模型。
   batch2 `2bedc0ce…` 为 10/10 阶段、37/37 用例、67/67 断言及 GPU PASS，0 失败尝试；1582 文件回收校验、R8 收尾通过。其他阶段逐一核对绑定与收尾，便携及 Office 四张截图已检查。
   最后模型 `80e665a5…` 五场景 PASS，16 次 HTTP200/TLS1.3；原件及默认 Provider 三文件哈希未变。外部读取观察器已在实际完整链证明，不改判 r15 的 S2 FAIL。
@@ -21,7 +21,9 @@
   第五窗口已于 UTC `2026-10-31T02:26:32.731Z` 收尾：零任务/进程、锁 idle、无解包未知；累计 22477.184/24300 秒、49/60 模型请求，开发根 33.07/35 GB。本窗口新增删除 NOT_PERFORMED，历史证据全部保留。
   负责人明确报告 r16“试用通过”（OWNER_REPORTED），见 §8.31。两份新干净构建与实机/试用包逐字节相同，3275 成员内容一致，缺失/额外/变化为 0；原生输入未变。
   WIN7-56 于 UTC `02:36:55.289` 本地只读冻结，15 文件哈希与权限复核通过，结果 FROZEN_NOT_FORMALLY_ACCEPTED。回执 `outputs/next-version-r1/freeze-r1/FREEZE_RESULT.json`；原五阶段汇总保留为 `p5-integration/VERSION_R16_RESULT.json`，不回写旧结果。
-  下步是门 A 材料、可信拒绝集种子/准确预算与独立审核。旧 35 GB 开发例外不带入正式执行，需先解决有效容量与根占用。门 A/B、正式 Win7 验收、发布和本轮推送均 NOT_PERFORMED；本轮无新增目标机连接或模型请求。
+  负责人要求审核和签发后，独立证据审核已完成：产品 P0/P1 零项，支持精确候选已证明范围的接受建议；签发控制 P1 一项、非阻断 P2 三项，见 §8.34。
+  当前待准确确认的材料为 `outputs/next-version-r1/signoff-r1/待签发说明.md`。ADR-0311 仍为 Proposed：拟复用同字节实机证据，本次一次合并审核、一次负责人准确决定替代本候选标准门 A/B 执行顺序。例外确认前不签正式结论，原 DEV 标签和旧门 A/B 未执行事实保持。
+  未新增目标机连接、模型请求、推送或发布。如选择按原正式执行路线继续，仍须有效预算、容量、可信拒绝集种子和准确门 A 材料；旧 35 GB 开发例外不自动沿用。
   main 推送记录仍到 `63e173fc…`；本轮后继修改仅本地保存。
 - [A9-42](tasks/A9_42_LIGHTWEIGHT_AGENT_TOOLS.md)：六项轻量能力已完成本地开发交付，包括编辑反馈、环境信息、Skills、ask_user、图片和Office Lite。
   [Office Lite](plans/A9_42_OFFICE_LITE_SCOPE.md) 支持DOCX/XLSX有界读取、新稿和内容级修改副本；详细格式/保真边界及开发验证见任务书§4。

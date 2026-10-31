@@ -314,3 +314,4 @@
 | ADR-0308 | A9-43 第四窗口与 30 GB 开发根 | Accepted |
 | ADR-0309 | A9-43 缺失 WMI 映像的直接查询与导航夹具顺序 | Accepted |
 | ADR-0310 | A9-43 第五窗口与 35 GB 开发根 | Accepted |
+| ADR-0311 | WIN7-56 同字节实机证据的一次性审核与验收决定 | Proposed |
