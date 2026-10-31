@@ -357,3 +357,12 @@ test('fourth A9-43 window grants only the approved 30 GB scope', () => {
  assert.throws(()=>checkCapacity(100e9,30e9,1,{holder,now:start}),/DISK_LIMIT/);
  assert.throws(()=>checkCapacity(50e9,0,1,{holder,now:start}),/DISK_LIMIT/);
 });
+
+test('fifth A9-43 window grants only the approved 35 GB scope', () => {
+ const holder='a942-751c-7f41ca1c',start=Date.parse('2026-10-31T01:16:21.000Z'),end=Date.parse('2026-10-31T02:46:21.000Z');
+ assert.equal(developmentRootLimit(holder,start),35e9);assert.equal(developmentRootLimit(holder,end-1),35e9);
+ for(const [h,t] of [['other',start],[holder.toUpperCase(),start],[holder,start-1],[holder,end]])assert.equal(developmentRootLimit(h,t),20e9);
+ checkCapacity(100e9,34e9,1e9,{holder,now:start});
+ assert.throws(()=>checkCapacity(100e9,35e9,1,{holder,now:start}),/DISK_LIMIT/);
+ assert.throws(()=>checkCapacity(50e9,0,1,{holder,now:start}),/DISK_LIMIT/);
+});

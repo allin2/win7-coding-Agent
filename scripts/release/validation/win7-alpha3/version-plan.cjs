@@ -42,7 +42,7 @@ function create({ binding, targetSession, runs, files }) {
   return {schema_version:1,kind:'A9_43_VERSION_EXECUTION_PLAN',evidence_class:binding.evidence_class,
     formal_input_lock_sha256:binding.formal_input_lock_sha256,approval_registry:binding.approval_registry,
     candidate:binding.candidate,target:{...binding.target,session_id:targetSession},
-    limits:{max_wall_seconds:18900,max_windows:4,max_real_model_requests:60},
+    limits:{max_wall_seconds:24300,max_windows:5,max_real_model_requests:60},
     measured_duration_seconds:'UNKNOWN', stages,
     legacy_cases:batch2.CASES.map(c=>({case_id:c.case_id,assertions:c.assertions.map(a=>a.assertion_id)})),
     excluded_supplement:['M1','M2','M3','M4','M5','M6'],authority:'NOT_PROVIDED',target_preflight:'NOT_PERFORMED'};
@@ -50,7 +50,7 @@ function create({ binding, targetSession, runs, files }) {
 function verify(plan) {
   need(plan&&plan.schema_version===1&&plan.kind==='A9_43_VERSION_EXECUTION_PLAN','SCHEMA');
   need(['DEV_CHANNEL','FORMAL_GATE_A_EXECUTION'].includes(plan.evidence_class),'CLASS');
-  need(plan.limits.max_wall_seconds===18900&&plan.limits.max_windows===4&&plan.limits.max_real_model_requests===60,'LIMITS');
+  need(plan.limits.max_wall_seconds===24300&&plan.limits.max_windows===5&&plan.limits.max_real_model_requests===60,'LIMITS');
   need(plan.stages.length===STAGES.length,'STAGE_COUNT');
   const execution={schema_version:1,kind:'WIN7_56_EXECUTION_BINDING',evidence_class:plan.evidence_class,
     run_id:plan.stages[0].run_id,formal_input_lock_sha256:plan.formal_input_lock_sha256,approval_registry:plan.approval_registry,

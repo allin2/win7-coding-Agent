@@ -69,6 +69,10 @@ function Assert-Writer {
   if ($rows.Count -ne 4 -or $rows[1] -cne $D['holder'] -or $rows[3] -cne $D['token']) { throw 'LOCK_NOT_OWNED' }
 }
 function Development-Root-Limit([string]$holder, [DateTime]$at) {
+  # ADR-0310: separately approved fifth window.
+  $fifthStart = [DateTime]::Parse('2026-10-31T01:16:21.000Z').ToUniversalTime()
+  $fifthEnd = [DateTime]::Parse('2026-10-31T02:46:21.000Z').ToUniversalTime()
+  if ($holder -ceq 'a942-751c-7f41ca1c' -and $at -ge $fifthStart -and $at -lt $fifthEnd) { return [long]35000000000 }
   # ADR-0308: separately approved fourth window.
   $fourthStart = [DateTime]::Parse('2026-10-30T23:45:35.980Z').ToUniversalTime()
   $fourthEnd = [DateTime]::Parse('2026-10-31T01:15:35.980Z').ToUniversalTime()

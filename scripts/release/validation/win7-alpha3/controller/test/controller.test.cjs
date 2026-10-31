@@ -728,3 +728,13 @@ test('fourth-window projected capacity remains holder and deadline bound', () =>
  assert.equal(run.channelCapacityLimit({...ctx,lockHolder:'other'},start),20000000000);
  assert.equal(run.channelCapacityLimit({...ctx,window:{expires_at_utc:new Date(end+1).toISOString()}},start),20000000000);
 });
+
+test('fifth-window projected capacity remains holder and deadline bound', () => {
+ const run=require('../run-rehearsal.cjs'),start=Date.parse('2026-10-31T01:16:21.000Z'),end=Date.parse('2026-10-31T02:46:21.000Z');
+ const ctx={lockHolder:'a942-751c-7f41ca1c',window:{expires_at_utc:'2026-10-31T02:46:21.000Z'}};
+ assert.equal(run.channelCapacityLimit(ctx,start),35000000000);
+ assert.equal(run.channelCapacityLimit(ctx,end-1),35000000000);
+ assert.equal(run.channelCapacityLimit(ctx,end),20000000000);
+ assert.equal(run.channelCapacityLimit({...ctx,lockHolder:'other'},start),20000000000);
+ assert.equal(run.channelCapacityLimit({...ctx,window:{expires_at_utc:new Date(end+1).toISOString()}},start),20000000000);
+});

@@ -41,7 +41,7 @@
       "ctrl_source_sha256": "655ce14b29f922199286febbece52687e8fcad9c2bce391ec22ae4e276148f4e",
       "ctrl_run_differs": false,
       "current_sha256": "2af7bd5d58d1b603d06bf617584307bbcbd4f134ed47801071560cb5fd90a72d",
-      "current_bytes": 10389,
+      "current_bytes": 10432,
       "inventory_disposition_ids": {
         "BINDING_OR_LABEL": [
           "binding:.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/admin-materials.ps1:18"
@@ -88,7 +88,7 @@
       "ctrl_source_sha256": "8c189db950e5aef62a9bc1518b9034ac8d65609edfddca5676ef28eaa59fb0af",
       "ctrl_run_differs": false,
       "current_sha256": "a3b96e41033eb60653d82b6c02e55218b61e1f141f540a272f6fe2a34c97a49a",
-      "current_bytes": 4755,
+      "current_bytes": 4752,
       "inventory_disposition_ids": {},
       "inventory_point_completion": "REVIEWED_DEVELOPER_STATIC_IN_INVENTORY_REVIEW",
       "runtime_evidence": "NOT_PERFORMED"
@@ -275,7 +275,7 @@
       "ctrl_source_sha256": "247649484849617e133433d4e3f302c8d057eb64cc9fad6016d5c71910da52fb",
       "ctrl_run_differs": false,
       "current_sha256": "139e5ddc686d0c273b68c0fc97bdabc79a47fc221e71673467373f348d7d8d98",
-      "current_bytes": 11911,
+      "current_bytes": 11966,
       "inventory_disposition_ids": {
         "仅本地授权": [
           "D-0263",
@@ -498,7 +498,7 @@
       "ctrl_source_sha256": "7320b2500e96183570be24e799b71245fdff57a22c5fe00dda3d5493b1bc3ddd",
       "ctrl_run_differs": false,
       "current_sha256": "291692821651e1867cc4f78c51917ea713ca1bd28fc7191a262eba7a330a00c2",
-      "current_bytes": 25733,
+      "current_bytes": 25896,
       "inventory_disposition_ids": {
         "仅证据标签": [
           "D-0370",
@@ -735,8 +735,8 @@
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-admin.ps1",
       "ctrl_source_sha256": "659ee436dc367aec4c2c9a94ea6bb6274e441ed497afe1d02fb107c0067a9d46",
       "ctrl_run_differs": false,
-      "current_sha256": "61c33c69ee3ca71e0359108c82cb06d4d295c4e4573e7fd9f36cbe76357fb624",
-      "current_bytes": 46437,
+      "current_sha256": "54c4aa1de95aa34f9149e333bab2bd1e4a7224e9695fec3a3e5ede5ca6585f6e",
+      "current_bytes": 46806,
       "inventory_disposition_ids": {
         "路径安全": [
           "D-0389",
@@ -823,8 +823,8 @@
       "ctrl_source_path": "/Users/qlyf/Developer/win7-coding-Agent/.acceptance/evidence/a9-alpha2-integration-r2-e596c58-20261026/.acceptance/a9-39/w54-gate-a-package/tools/run-rehearsal.cjs",
       "ctrl_source_sha256": "beb20e18488c076f9fba10471531efc7ebaf03364e9c2fe6c2cc7b5b21ccaccd",
       "ctrl_run_differs": false,
-      "current_sha256": "8c30637b1218820fcef12b1468d75998369b1be83c48c63062dea310c4358768",
-      "current_bytes": 38861,
+      "current_sha256": "02a441bd84f6f0982cefdac84c76c771c50dc47c458b2cc6d33e0c522bebfdc0",
+      "current_bytes": 39131,
       "inventory_disposition_ids": {
         "统一": [
           "D-0404",

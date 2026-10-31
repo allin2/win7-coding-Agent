@@ -313,3 +313,4 @@
 | ADR-0307 | A9-43 第三窗口延长 45 分钟 | Accepted |
 | ADR-0308 | A9-43 第四窗口与 30 GB 开发根 | Accepted |
 | ADR-0309 | A9-43 缺失 WMI 映像的直接查询与导航夹具顺序 | Accepted |
+| ADR-0310 | A9-43 第五窗口与 35 GB 开发根 | Accepted |

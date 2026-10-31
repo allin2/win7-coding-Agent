@@ -419,6 +419,9 @@ function Trace([string]$event,[string]$data) {
       $fourthStart = [DateTime]::Parse('2026-10-30T23:45:35.980Z').ToUniversalTime()
       $fourthEnd = [DateTime]::Parse('2026-10-31T01:15:35.980Z').ToUniversalTime()
       if ($script:BoundHolder -ceq 'a942-751c-7f41ca1c' -and [DateTime]::UtcNow -ge $fourthStart -and [DateTime]::UtcNow -lt $fourthEnd -and $script:BoundExpires -le $fourthEnd) { $devLimit = 30000000000 }
+      $fifthStart = [DateTime]::Parse('2026-10-31T01:16:21.000Z').ToUniversalTime()
+      $fifthEnd = [DateTime]::Parse('2026-10-31T02:46:21.000Z').ToUniversalTime()
+      if ($script:BoundHolder -ceq 'a942-751c-7f41ca1c' -and [DateTime]::UtcNow -ge $fifthStart -and [DateTime]::UtcNow -lt $fifthEnd -and $script:BoundExpires -le $fifthEnd) { $devLimit = 35000000000 }
       [long]$devUsed = Measure-DevelopmentRoot 'C:\A9-DEV' $devLimit
       $channelExists = [bool](Test-Path -LiteralPath 'C:\A9-DEV' -ErrorAction Stop)
       $runExists = [bool](Test-Path -LiteralPath 'C:\A9-DEV\run' -ErrorAction Stop)
