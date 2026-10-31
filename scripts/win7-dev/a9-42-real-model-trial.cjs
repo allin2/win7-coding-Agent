@@ -308,7 +308,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
   const report = path.join(config.run_root, 'ui-result.json');
   const result = { schema_version: 1, evidence_class: config.evidence_class, profile: config.profile, run_id: config.run_id,
     status: 'IN_PROGRESS', normal_quit: false, timeline: [], scenarios: [], source_commit: config.source_commit, zip_sha256: config.zip_sha256 };
-  let win, guard, timer, cancelGuard, cancelWatcher;
+  let win, guard, timer, cancelGuard, cancelWatcher, readObserver;
   const scan = value => guard ? guard.scanSecrets(value) : relayTools.scanSecrets(value);
   const persist = () => { need(scan(result), 'SECRET_IN_UI_RESULT'); save(report, result); };
   const mark = (name, at = Date.now()) => { result.timeline.push({ name, at }); persist(); };
@@ -335,7 +335,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
   };
   dialog.showOpenDialog = async (_owner, options) => { need(options && options.properties.includes('openDirectory'), 'UNEXPECTED_FILE_PICKER'); return { canceled: false, filePaths: [config.workspace_root] }; };
   app.on('will-quit', () => { clearTimeout(timer); if (cancelGuard) cancelGuard(); if (cancelWatcher) cancelWatcher.close();
-    result.normal_quit = true; mark('will_quit'); if (guard) guard.restore(); });
+    result.normal_quit = true; mark('will_quit'); if (readObserver) readObserver.restore(); if (guard) guard.restore(); });
   try {
     result.identity = currentIdentity(config);
     need(hash(fs.readFileSync(__filename)) === config.driver_sha256, 'UI_DRIVER_HASH'); verifyBinding(config);
@@ -357,6 +357,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
     save(path.join(config.run_root, 'direct-requests.json'), guard.state);
     const spawnedAt = JSON.parse(fs.readFileSync(path.join(config.run_root, 'RESULT.json'), 'utf8')).product_spawned_at;
     need(Number.isSafeInteger(spawnedAt), 'PRODUCT_SPAWN_TIME'); mark('product_spawned', spawnedAt);
+    readObserver = office.observeDocumentReads(require(path.join(config.package_root, 'resources/app/core/dist/index.js')).A9AgentLoop);
     require(path.join(config.package_root, 'resources/app/product/main.js'));
     need(app.getPath('userData') === config.data_root, 'PRODUCT_DATA_ROOT');
     await app.whenReady();
@@ -431,6 +432,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
         const sql = readSql(turns.map(t => t.turn_id));
         const answer = sql.events.filter(e => e.event_type === 'turn_completed').map(e => e.data.finalMessage || '').join('\n');
         facts = { before, after: office.workspaceFacts(config.workspace_root), originals, sql, answer, asked,
+          read_observations: readObserver.factsFor(turns.map(t => t.turn_id)),
           cancel_write_events: cancelWriteEvents, late_rejected: lateRejected, before_cancel: beforeCancel, requests_before_cancel: requestBefore, requests_after_cancel: requestAfter };
         const v = office.verdict(id, facts);
         // Persist facts as digests/projections; never model text, tool args or response content.
@@ -438,6 +440,7 @@ async function ui(config, { startupDiagnostic = false } = {}) {
           turn_ids: turns.map(t => t.turn_id), answer_sha256: hash(answer),
           files: Object.fromEntries(Object.entries(facts.after).map(([n, f]) => [n, { sha256: f.sha256, size: f.size, pk: f.pk }])),
           sqlite: sql.events.map(e => ({ id: e.id, type: e.event_type, tool: e.data.toolName, payload_sha256: hash(JSON.stringify(e.data)) })),
+          document_reads: facts.read_observations.map(f => ({ turn_id: f.turnId, call_id: f.callId, path_sha256: hash(f.path), source_sha256: f.sha256 })),
           asked, late_rejected: lateRejected, requests_before_cancel: requestBefore, requests_after_cancel: requestAfter });
       } catch (error) {
         // A nonterminal or unknown lifecycle cannot be used as the next scenario's baseline.

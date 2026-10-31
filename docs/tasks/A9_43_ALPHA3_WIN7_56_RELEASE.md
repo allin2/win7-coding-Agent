@@ -595,3 +595,45 @@ run `8e1fa969…` 已通过初始轻量工具编辑、正常设置入口和图�
 修正只取最近的文本 user 控制消息；后来的真实 Office 文本指令仍优先，不能反向匹配旧工具指令。图片原生宽度、Provider 图片 part、请求内图片上限和后续释放断言不变。
 开发机定向检查 22/22 PASS，覆盖图片消息续接、后继 Office 文本及错 tool_call_id 拒绝；日志 `local-logs/image-prompt-routing-r1.log`。
 失败后直接状态零任务/进程、锁 idle、无解包未知；开发根 25130086777 字节。全部真实模型请求仍为 0，第四窗口不重置。
+
+### 8.25 完整 Office 定向旅程直接通过（2026-10-31 UTC）
+
+源码 `706a94081572741f220bee739d69679c9573e42d`，r15 ZIP SHA-256
+`ce858556b31dee04f6cd9209d4b6991cdeb7126dddfb362fbb28aa252ac6dbae`。
+Win7 普通 agent run `6d0ec023-3d7e-4ac2-a2b8-254c3535161d` 的完整 Office 旅程直接 PASS，独立 postflight 为 DEV_CHANNEL_COMPLETE。
+六种窗口尺寸均精确达到目标；16 项检查及 8 项轻量工具事实全部通过，包含真实文本编辑、错误锚点/路径与截断边界、PNG/JPEG 传输及释放、问询未回答时暂停、DOCX/XLSX 新稿、修改副本、撤销和取消迟到回复拒绝。
+三张目标截图 question、office-copy、undo-and-cancel 已逐张核对；UI 正常退出，产品原件和撤销保护断言保持。
+证据为 `outputs/win7-dev/alpha3-r15/office-diagnostic/`；汇总为 `p5-integration/office-diagnostic-r15/execution/diagnostic-report.json`。
+
+独立收尾状态 UTC `00:43:54.152`：零任务/进程、锁 idle、无解包未知；开发根 26030393932 字节，C: 剩余 865931796480 字节。此 run 真实模型请求 0。
+r15 真实包内完整性入口在开发机通过：3274 个清单文件和 3275 个 ZIP 成员无不一致，日志 `local-logs/full-package-r15.log`。
+本次目的为 OFFICE_DIAGNOSTIC_ONLY；不追加到版本五阶段数组，也不与旧源前三阶段合并为版本通过。r15 同源五阶段仍 NOT_PERFORMED。
+第四窗口余量少于已直接测得的完整 batch2 时长；先在原窗口与请求上限内验证独立真实模型完整旅程，单独记录诊断，不跳过版本阶段顺序。
+
+### 8.26 真实模型诊断与审计预览取证缺口（2026-10-31 UTC）
+
+同一 r15 源码/ZIP，Win7 run `65cef595-32fd-4867-9d22-37ad722dbc8e` 完成五场景与独立 postflight。S1、S3、S4、S5 PASS；S2 保持 FAIL/MODEL_DID_NOT_CREATE_COPY，诊断汇总保持失败，不计入版本五阶段。
+本轮实际 16 次请求；A9-43 累计 16/60，剩余 44。产品正常退出，默认 Provider 原配置三文件哈希未变；独立收尾为 TRIAL_DEV_CHANNEL_POSTFLIGHT_COMPLETE，后置零任务/进程、锁 idle、无解包未知，开发根 26931067910 字节。
+原始 RESULT、POSTFLIGHT、ui-result、direct-requests 和 FIRST_FAILURE 均保留在 `alpha3-r15/real-diagnostic/` 与 `p5-integration/real-diagnostic-r15/execution/`。
+
+只读目标投影直接确认：S2 两条 document_read 审计结果各长 1000 字符，均不能解析为完整 JSON；document_write_copy 无错误，目标 DOCX 存在且包含核对标记与 17、23、40。
+产品 `tool_end` 明确仅保存前 1000 字符；原判定器误将该预览视作完整读取结果。此取证缺口已定位，原 FAIL 不回写为 PASS。证据 ORACLE_PROJECTION_R2.json，只保存布尔值和长度，没有回收模型正文、工具参数或凭据。
+
+局部修正只在外部驱动观察真实 Core dispatchTool 的成功返回，保留原 receiver、参数、返回对象及异常；仅保留路径、SHA 与 turn/call 身份，不保存文档单元和正文。
+截断预览必须另有唯一成功读取事实，并与同轮同调用、顺序正确的审计开始/结束关联；缺失、重复、错调用/轮次/哈希、短损坏结果及错误结果仍拒绝。原件哈希、目标内容、取消及全部其他判据不变。
+开发机真实模型驱动/直连定向 31/31 PASS，日志 `local-logs/read-observer-r1.log`。修正后完整模型旅程为 NOT_PERFORMED，不能用旧 run 的后补读取补签。
+
+### 8.27 Win7 取证准入与第四窗口收尾（2026-10-31 UTC）
+
+Win7 Electron22.3.27 / Node16.17.1 在 r15 真实 Core dispatchTool、Workspace 读取和 Office Worker 上完成最短准入：真实 XLSX 读取结果 1160 字符，原审计预览 1000 字符且 JSON 不完整。
+观察器返回摘要与原函数一致，取得正确文件哈希和 turn/call 身份，只保存元数据；原件未变，Worker 已退出，原函数已恢复。报告 `outputs/win7-dev/alpha3-r15/real-diagnostic/READ_OBSERVER_ADMISSION.json`。
+该项为 TOOL_ADMISSION_ONLY，0 模型请求；没有通过旧运行或手工后补事实重判原 S2。
+
+最后只读状态于 UTC `01:09:30.984` 结束：零任务/进程、锁 idle、无解包未知；开发根 26931119034 字节，C: 剩余 865003409408 字节。
+第四窗口计入 5035.004 秒，四窗口累计 18265.453/18900 秒；本轮及 A9-43 真实模型共 16/60 次。窗口已关闭，不自动重用剩余时间或新开窗口。
+准确预算与收尾见 `p5-integration/execution-window-r5-closeout.json`。原候选、失败、克隆、包和证据全部保留；本次新增删除 NOT_PERFORMED，盘点 `retained-artifacts-r15.json` 及对应 metadata inventory。
+
+下一步具体提案为 `next-window-proposal-r16-final.json`，状态 PREPARED_NOT_AUTHORIZED：第 5 个新窗口 90 分钟、累计上限 24300 秒/5 窗口、开发根 35 GB，50 GB 最低剩余和 60 次累计真实模型请求不变。
+先以修正观察器做一次最多 20 请求的五场景诊断，再以最终同一源码/包按顺序执行五阶段，模型阶段只使用剩余额度；保留全部断言，不盲目重跑整批。
+空间依据为当前 26.93 GB，加诊断和五阶段静态 5.34 GB，再加 2 GiB 预留，共 34.42 GB；前次 30 GB 无法容纳这一路径。窗口从批准后的首次准备起保守计时，未批准前不生成可执行期限或目标授权。
+修正后完整真实模型、新源码同源五阶段、冻结、双干净构建、正式门 A/B 和发布均 NOT_PERFORMED。下一目标窗口和容量变化需负责人按 §6 决定。

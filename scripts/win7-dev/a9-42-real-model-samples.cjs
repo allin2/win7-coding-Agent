@@ -79,6 +79,28 @@ const PROMPTS = {
   S4: `本任务请首先调用 ask_user 向我提一个有选项的问题，让我选择简报风格；必须等待回答，之后只回复“${MARKERS.answer}”和我的选择。不写文件。`,
   S5: '请首先调用 ask_user，提供两个选项询问是否生成新的文档，等待我回答后才能行动。在收到回答前禁止写文件。'
 };
+// Observe the real dispatcher return before tool_end's 1000-character UI preview.
+// Do not retain document units, alter arguments/results, or convert a failure to success.
+function observeDocumentReads(Loop) {
+  const proto = Loop && Loop.prototype, original = proto && proto.dispatchTool;
+  need(typeof original === 'function', 'READ_OBSERVER_DISPATCH');
+  const facts = []; let failure;
+  async function observed(...args) {
+    const outcome = await Reflect.apply(original, this, args);
+    if (args[0] === 'document_read') {
+      const p = outcome && outcome.payload;
+      if (facts.length >= 128 || typeof args[2] !== 'string' || !args[2] || typeof args[4] !== 'string' || !args[4]
+        || !p || p.error || typeof p.path !== 'string' || p.path.length > 4096 || !/^[a-f0-9]{64}$/.test(p.sha256 || '')) failure = 'READ_OBSERVER_FACT';
+      else facts.push({ turnId: args[2], callId: args[4], path: p.path, sha256: p.sha256 });
+    }
+    return outcome;
+  }
+  proto.dispatchTool = observed;
+  const assertInstalled = () => need(proto.dispatchTool === observed && !failure, failure || 'READ_OBSERVER_REPLACED');
+  return { assertInstalled,
+    factsFor: turnIds => { assertInstalled(); return facts.filter(f => turnIds.includes(f.turnId)).map(f => ({ ...f })); },
+    restore: () => { need(proto.dispatchTool === observed, 'READ_OBSERVER_REPLACED'); proto.dispatchTool = original; } };
+}
 function verdict(id, f) {
   const fail = code => ({ status: 'FAIL', reason: code });
   if (!f.before || !f.after || !f.sql || f.sql.turns.length !== 1) return fail('SQLITE_TURN_FACTS');
@@ -93,7 +115,19 @@ function verdict(id, f) {
     && typeof e.data.result === 'string' && !/"error"\s*:/.test(e.data.result));
   const read = name => f.sql.events.some(e => {
     if (e.event_type !== 'tool_end' || e.data.toolName !== 'document_read' || typeof e.data.result !== 'string') return false;
-    try { const r = JSON.parse(e.data.result); return !r.error && r.sha256 === f.originals[name] && typeof r.path === 'string' && r.path.replace(/\\/g, '/').split('/').pop() === name; } catch (_) { return false; }
+    const matches = r => !r.error && r.sha256 === f.originals[name] && typeof r.path === 'string' && r.path.replace(/\\/g, '/').split('/').pop() === name;
+    try { return matches(JSON.parse(e.data.result)); } catch (_) {
+      // A clipped preview alone is never proof. Require one real successful return
+      // bound to the same turn/call and both durable audit endpoints.
+      if (e.data.error || e.data.result.length !== 1000 || typeof e.data.callId !== 'string' || !e.data.callId) return false;
+      const turnId = f.sql.turns[0].turn_id;
+      if (typeof turnId !== 'string' || e.turn_id !== turnId) return false;
+      const starts = f.sql.events.filter(s => s.event_type === 'tool_start' && s.turn_id === turnId && s.data.toolName === 'document_read' && s.data.callId === e.data.callId);
+      const ends = f.sql.events.filter(s => s.event_type === 'tool_end' && s.turn_id === turnId && s.data.callId === e.data.callId);
+      const observed = (f.read_observations || []).filter(r => r.turnId === turnId && r.callId === e.data.callId);
+      return starts.length === 1 && ends.length === 1 && Number.isSafeInteger(starts[0].id) && Number.isSafeInteger(e.id)
+        && starts[0].id < e.id && observed.length === 1 && matches(observed[0]);
+    }
   });
   const asked = f.sql.events.filter(e => e.event_type === 'question_pending');
   const resolved = f.sql.events.filter(e => e.event_type === 'question_resolved');
@@ -116,4 +150,4 @@ function verdict(id, f) {
   if (['S1','S4'].includes(id) && JSON.stringify(f.before) !== JSON.stringify(f.after)) return fail('UNEXPECTED_FILE_WRITE');
   return { status: 'PASS' };
 }
-module.exports = { FILES, MARKERS, PROMPTS, samples, xmlText, workspaceFacts, verdict, zip };
+module.exports = { FILES, MARKERS, PROMPTS, samples, xmlText, workspaceFacts, verdict, zip, observeDocumentReads };

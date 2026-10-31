@@ -191,6 +191,48 @@ test('all five scenario verdicts bind files and SQL; wrong models/overwrite/hash
   const bad = scenario('S2'); bad.after[d.FILES.report].text = 'made up'; assert.equal(d.verdict('S2', bad).status, 'FAIL');
   const answer = scenario('S1'); answer.answer = 'did not read'; assert.equal(d.verdict('S1', answer).status, 'FAIL');
 });
+test('clipped read previews need a successful return and unique ordered turn/call audit binding', () => {
+  const good = scenario('S2'); good.sql.turns[0].turn_id = 'turn-s2';
+  good.sql.events[0] = { id: 2, turn_id: 'turn-s2', event_type: 'tool_end', data: {
+    toolName: 'document_read', callId: 'read-1', result: '{"units":[' + 'x'.repeat(990) } };
+  assert.equal(good.sql.events[0].data.result.length, 1000);
+  good.sql.events.unshift({ id: 1, turn_id: 'turn-s2', event_type: 'tool_start', data: { toolName: 'document_read', callId: 'read-1' } });
+  good.read_observations = [{ turnId: 'turn-s2', callId: 'read-1', path: d.FILES.book, sha256: good.originals[d.FILES.book] }];
+  assert.equal(d.verdict('S2', good).status, 'PASS');
+  for (const change of [
+    f => { f.read_observations = []; },
+    f => { f.read_observations[0].turnId = 'other'; },
+    f => { f.read_observations[0].callId = 'other'; },
+    f => { f.read_observations[0].sha256 = '0'.repeat(64); },
+    f => { f.read_observations[0].path = d.FILES.doc; },
+    f => { f.read_observations.push({ ...f.read_observations[0] }); },
+    f => { f.sql.events[0].id = 3; },
+    f => { f.sql.events[0].data.callId = 'other'; },
+    f => { f.sql.events[1].turn_id = 'other'; },
+    f => { f.sql.events[1].data.error = true; },
+    f => { f.sql.events[1].data.result = f.sql.events[1].data.result.slice(0, 999); },
+    f => { f.sql.events[1].data.result = '{"error":{"code":"DENIED"}}'; },
+  ]) { const f = structuredClone(good); change(f); assert.equal(d.verdict('S2', f).status, 'FAIL'); }
+});
+test('read observer preserves dispatcher receiver, arguments, outcome and original rejection without retaining units', async () => {
+  const outcome = { payload: { path: d.FILES.book, sha256: 'a'.repeat(64), units: [{ text: 'DOCUMENT_BODY_MUST_NOT_BE_RETAINED' }] } };
+  const receiver = {}, args = ['document_read', { path: d.FILES.book }, 'turn-s2', undefined, 'read-1'];
+  const failure = new Error('original'); let reject = false;
+  class Loop { async dispatchTool(...actual) { assert.equal(this, receiver); assert.deepEqual(actual, args); if (reject) throw failure; return outcome; } }
+  const original = Loop.prototype.dispatchTool, observer = d.observeDocumentReads(Loop);
+  try {
+    assert.equal(await Loop.prototype.dispatchTool.apply(receiver, args), outcome);
+    assert.deepEqual(observer.factsFor(['turn-s2']), [{ turnId: 'turn-s2', callId: 'read-1', path: d.FILES.book, sha256: 'a'.repeat(64) }]);
+    assert.equal(JSON.stringify(observer.factsFor(['turn-s2'])).includes('DOCUMENT_BODY'), false);
+    reject = true; await assert.rejects(Loop.prototype.dispatchTool.apply(receiver, args), e => e === failure);
+    assert.equal(observer.factsFor(['turn-s2']).length, 1);
+  } finally { observer.restore(); }
+  assert.equal(Loop.prototype.dispatchTool, original);
+  class Invalid { async dispatchTool() { return { payload: { path: d.FILES.book } }; } }
+  const invalid = d.observeDocumentReads(Invalid), returned = await new Invalid().dispatchTool(...args);
+  assert.deepEqual(returned, { payload: { path: d.FILES.book } });
+  assert.throws(() => invalid.factsFor(['turn-s2']), /READ_OBSERVER_FACT/); invalid.restore();
+});
 test('deterministic bound fixtures are real PK Office XML; workspace tracks writes independently', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a942r-samples-'));
   try {
